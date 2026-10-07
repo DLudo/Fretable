@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useMemo } from 'react'
 import { motion, useReducedMotion, type Easing, type Transition } from 'motion/react'
 
 import { cn } from '@/lib/utils'
 import { ease } from '@/theme/motion'
+import { REVEAL_CENTERED, REVEAL_PILL, labelFontSize, useCompleteAfter } from '../kit'
 import { range, seededRandom } from '../random'
 import type { RevealEffect, RevealEffectProps } from '../types'
 
@@ -43,10 +44,7 @@ const hold = (t: number) => (t < 1 ? 0 : 1)
  */
 const holdEach = (keyframes: number): Easing[] => Array.from({ length: keyframes - 1 }, () => hold)
 
-const CENTERED = 'absolute top-0 left-0 -translate-1/2'
-const PILL =
-  'block rounded-full px-[0.7em] py-[0.38em] leading-none font-semibold whitespace-nowrap'
-const COPY = cn(PILL, 'absolute inset-0')
+const COPY = cn(REVEAL_PILL, 'absolute inset-0')
 
 interface Slice {
   clipPath: string
@@ -83,7 +81,7 @@ interface Glitch {
 
 function buildGlitch(seed: number, markerSize: number): Glitch {
   const random = seededRandom(seed)
-  const fontSize = Math.min(22, Math.max(12, markerSize * 0.62))
+  const fontSize = labelFontSize(markerSize)
   const sign = () => (random() < 0.5 ? -1 : 1)
 
   // Sauts du parasitage principal : 6 à 8 « images » de durées inégales.
@@ -155,17 +153,20 @@ function buildGlitch(seed: number, markerSize: number): Glitch {
 
   // 2 ou 3 lignes de bruit qui clignotent pendant le parasitage.
   const barCount = 2 + Math.floor(random() * 2)
-  const bars = Array.from({ length: barCount }, (): NoiseBar => ({
-    // Au-dessus ou au-dessous de l'étiquette, jamais en travers du texte.
-    top: random() < 0.5 ? range(random, -45, -14) : range(random, 114, 145),
-    left: range(random, -35, 35),
-    width: range(random, 45, 110),
-    x: Array.from({ length: frames }, () => markerSize * range(random, -0.5, 0.5)),
-    opacity: Array.from({ length: frames }, (_, j) =>
-      isGlitch(j) && random() < 0.45 ? range(random, 0.5, 0.9) : 0,
-    ),
-    hot: random() < 0.5,
-  }))
+  const bars = Array.from(
+    { length: barCount },
+    (): NoiseBar => ({
+      // Au-dessus ou au-dessous de l'étiquette, jamais en travers du texte.
+      top: random() < 0.5 ? range(random, -45, -14) : range(random, 114, 145),
+      left: range(random, -35, 35),
+      width: range(random, 45, 110),
+      x: Array.from({ length: frames }, () => markerSize * range(random, -0.5, 0.5)),
+      opacity: Array.from({ length: frames }, (_, j) =>
+        isGlitch(j) && random() < 0.45 ? range(random, 0.5, 0.9) : 0,
+      ),
+      hot: random() < 0.5,
+    }),
+  )
 
   return {
     fontSize,
@@ -176,23 +177,6 @@ function buildGlitch(seed: number, markerSize: number): Glitch {
     bars,
     settled: Array.from({ length: frames }, (_, j) => (isGlitch(j) ? 0 : 1)),
   }
-}
-
-/** Appelle `onComplete` une seule fois après `ms`, robuste au double montage de StrictMode. */
-function useCompleteAfter(ms: number, onComplete: () => void) {
-  const callback = useRef(onComplete)
-  const done = useRef(false)
-  useEffect(() => {
-    callback.current = onComplete
-  })
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (done.current) return
-      done.current = true
-      callback.current()
-    }, ms)
-    return () => window.clearTimeout(timer)
-  }, [ms])
 }
 
 // oxlint-disable-next-line react/only-export-components -- exporté via son descripteur d'effet
@@ -228,8 +212,8 @@ function GlitchSlice({
         animate={{ opacity: [0, 1, 1, 0], scale: [0.9, 1, 1, 1] }}
         transition={{ duration: EXIT_TOTAL, times: REDUCED_TIMES, ease: REDUCED_EASE }}
       >
-        <div data-slot="reveal-label" className={cn(CENTERED, 'w-max')} style={{ fontSize }}>
-          <span data-slot="reveal-label-pill" className={PILL} style={settledStyle}>
+        <div data-slot="reveal-label" className={cn(REVEAL_CENTERED, 'w-max')} style={{ fontSize }}>
+          <span data-slot="reveal-label-pill" className={REVEAL_PILL} style={settledStyle}>
             {label}
           </span>
         </div>
@@ -270,7 +254,7 @@ function GlitchSlice({
       {/* Le point d'origine s'écrase en trait horizontal, puis s'éteint. */}
       <motion.div
         data-slot="reveal-origin"
-        className={cn(CENTERED, 'rounded-full bg-marker')}
+        className={cn(REVEAL_CENTERED, 'rounded-full bg-marker')}
         style={{ width: markerSize, height: markerSize }}
         initial={{ scaleX: 1, scaleY: 1, opacity: 1 }}
         animate={{ scaleX: [1, 2.2, 2.2], scaleY: [1, 0.16, 0.16], opacity: [1, 1, 0] }}
@@ -280,7 +264,7 @@ function GlitchSlice({
       {/* L'étiquette s'allume : trait → étirement → repos, en sauts secs. */}
       <motion.div
         data-slot="reveal-label"
-        className={cn(CENTERED, 'w-max')}
+        className={cn(REVEAL_CENTERED, 'w-max')}
         style={{ fontSize }}
         initial={{ opacity: 0, scaleX: 1.3, scaleY: 0.12 }}
         animate={{ opacity: 1, scaleX: [1.3, 0.94, 1.03, 1], scaleY: [0.12, 1.18, 0.97, 1] }}
@@ -308,7 +292,7 @@ function GlitchSlice({
             qu'une fois le signal recalé. */}
         <motion.span
           data-slot="reveal-label-pill"
-          className={cn(PILL, 'relative')}
+          className={cn(REVEAL_PILL, 'relative')}
           style={settledStyle}
           initial={{ opacity: 0 }}
           animate={{ opacity: glitch.settled }}

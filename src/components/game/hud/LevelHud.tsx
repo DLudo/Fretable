@@ -31,7 +31,11 @@ export function LevelHud({ state, className }: LevelHudProps): ReactNode {
   const reduceMotion = useReducedMotion()
 
   return (
-    <div data-slot="level-hud" data-phase={phase} className={cn('relative w-full select-none', className)}>
+    <div
+      data-slot="level-hud"
+      data-phase={phase}
+      className={cn('relative w-full select-none', className)}
+    >
       <div data-slot="level-hud-content" className="flex flex-col gap-2 px-4 py-2.5 sm:px-6">
         <div className="flex items-center gap-3 text-sm leading-none">
           <span data-slot="level-title" className="truncate font-medium">

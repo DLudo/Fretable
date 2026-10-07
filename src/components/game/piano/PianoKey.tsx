@@ -137,7 +137,9 @@ export function PianoKey({
   const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
     const { pointerType } = event.nativeEvent as globalThis.MouseEvent & { pointerType?: string }
     const fromPointer =
-      event.detail !== 0 || !!pointerType || event.timeStamp - lastPointerDownAt.current < CLICK_AFTER_POINTER_MS
+      event.detail !== 0 ||
+      !!pointerType ||
+      event.timeStamp - lastPointerDownAt.current < CLICK_AFTER_POINTER_MS
     if (fromPointer || disabled) return
     onPress(pc)
   }
@@ -195,7 +197,9 @@ export function PianoKey({
                 down
                   ? 'translate-y-[2px] bg-key-white-pressed shadow-[inset_0_-2px_0_color-mix(in_oklab,var(--key-border)_14%,transparent),inset_0_10px_8px_-8px_color-mix(in_oklab,var(--key-border)_60%,transparent)]'
                   : 'bg-key-white shadow-[inset_0_-6px_0_color-mix(in_oklab,var(--key-border)_13%,transparent),inset_0_10px_8px_-8px_color-mix(in_oklab,var(--key-border)_45%,transparent),0_2px_0_color-mix(in_oklab,var(--key-border)_80%,transparent)]',
-                !down && !disabled && 'group-hover:bg-[color-mix(in_oklab,var(--key-white)_70%,var(--key-white-pressed))]',
+                !down &&
+                  !disabled &&
+                  'group-hover:bg-[color-mix(in_oklab,var(--key-white)_70%,var(--key-white-pressed))]',
               ]
             : [
                 'inset-0 rounded-b-[clamp(3px,0.9cqw,5px)] group-focus-visible:inset-ring-[3px] group-focus-visible:inset-ring-key-black-foreground/80',
@@ -220,11 +224,16 @@ export function PianoKey({
             key={flash.id}
             aria-hidden
             data-slot="piano-key-flash"
-            className={cn('pointer-events-none absolute inset-0 rounded-[inherit]', FLASH_CLASS[flash.kind])}
+            className={cn(
+              'pointer-events-none absolute inset-0 rounded-[inherit]',
+              FLASH_CLASS[flash.kind],
+            )}
             initial={{ opacity: FLASH_KEYFRAMES[flash.kind][0] }}
             animate={{ opacity: FLASH_KEYFRAMES[flash.kind] }}
             transition={flash.kind === 'answer' ? ANSWER_TRANSITION : HIT_TRANSITION}
-            onAnimationComplete={() => setFlash((current) => (current?.id === flash.id ? null : current))}
+            onAnimationComplete={() =>
+              setFlash((current) => (current?.id === flash.id ? null : current))
+            }
           />
         )}
 

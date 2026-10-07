@@ -48,7 +48,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'guess': {
       if (state.phase !== 'playing' || state.locked || !state.challenge) return state
       if (isExpired(state, action.now)) {
-        return { ...state, phase: 'lost', locked: true, endedAt: state.startedAt! + state.level.durationMs }
+        return {
+          ...state,
+          phase: 'lost',
+          locked: true,
+          endedAt: state.startedAt! + state.level.durationMs,
+        }
       }
       const correct = action.pc === state.challenge.pc
       const streak = correct ? state.streak + 1 : 0

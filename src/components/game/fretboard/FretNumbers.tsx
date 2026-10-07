@@ -16,7 +16,8 @@ export const FretNumbers = memo(function FretNumbers({ layout, fontSize }: FretN
   const marked = new Set(layout.spec.inlays.map((i) => i.fret))
   const [, , bottomRight, bottomLeft] = layout.outline
   const bottomAt = (x: number) =>
-    bottomLeft.y + ((bottomRight.y - bottomLeft.y) * (x - bottomLeft.x)) / (bottomRight.x - bottomLeft.x)
+    bottomLeft.y +
+    ((bottomRight.y - bottomLeft.y) * (x - bottomLeft.x)) / (bottomRight.x - bottomLeft.x)
   const limit = layout.viewBox.y + layout.viewBox.height - fontSize * 0.5
 
   return (

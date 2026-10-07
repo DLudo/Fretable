@@ -57,18 +57,29 @@ export function GameScreen() {
   const feedback = useMemo<PianoFeedback | null>(() => {
     const result = state.lastResult
     if (!result) return null
-    return { id: result.id, guess: result.guess, answer: result.challenge.pc, correct: result.correct }
+    return {
+      id: result.id,
+      guess: result.guess,
+      answer: result.challenge.pc,
+      correct: result.correct,
+    }
   }, [state.lastResult])
 
   const marker =
     playing && !state.locked && state.challenge
-      ? { id: state.challenge.id, stringIndex: state.challenge.stringIndex, fret: state.challenge.fret }
+      ? {
+          id: state.challenge.id,
+          stringIndex: state.challenge.stringIndex,
+          fret: state.challenge.fret,
+        }
       : null
 
   const boardRef = useBoardImpact(game.events)
-  const { mainRef, pianoRef, maxWidth: boardMaxWidth } = useBoardFit(
-    layout.viewBox.width / layout.viewBox.height,
-  )
+  const {
+    mainRef,
+    pianoRef,
+    maxWidth: boardMaxWidth,
+  } = useBoardFit(layout.viewBox.width / layout.viewBox.height)
 
   const overlay = useCallback(
     (projection: BoardProjection) => (
@@ -133,7 +144,9 @@ function useBoardFit(aspectRatio: number) {
     const element = mainRef.current
     if (!element) return
     const style = getComputedStyle(element)
-    setChrome(parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + parseFloat(style.rowGap))
+    setChrome(
+      parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + parseFloat(style.rowGap),
+    )
   }, [mainRef, main.height])
 
   const available = main.height - piano.height - chrome

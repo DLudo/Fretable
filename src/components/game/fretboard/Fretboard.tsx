@@ -64,21 +64,34 @@ function useBoxSize<T extends Element>() {
  * l'échelle par le navigateur. Le calque `overlay` reçoit la projection mm → px
  * pour y placer des éléments HTML exactement sur le manche.
  */
-export function Fretboard({ layout, marker, overlay, showFretNumbers = true, className }: FretboardProps) {
+export function Fretboard({
+  layout,
+  marker,
+  overlay,
+  showFretNumbers = true,
+  className,
+}: FretboardProps) {
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '')
   const reduceMotion = useReducedMotion() ?? false
   const [svgRef, size] = useBoxSize<SVGSVGElement>()
   const vb = layout.viewBox
 
   const projection = useMemo(
-    () => createProjection({ x: vb.x, y: vb.y, width: vb.width, height: vb.height }, size.width, size.height),
+    () =>
+      createProjection(
+        { x: vb.x, y: vb.y, width: vb.width, height: vb.height },
+        size.width,
+        size.height,
+      ),
     [vb.x, vb.y, vb.width, vb.height, size.width, size.height],
   )
 
   // Arrondi au quart de mm : les numéros ne se redessinent qu'à des paliers de taille.
   const fretNumberSize =
     projection.pxPerMm > 0
-      ? Math.round(clamp(FRET_NUMBER_PX / projection.pxPerMm, FRET_NUMBER_MM.min, FRET_NUMBER_MM.max) * 4) / 4
+      ? Math.round(
+          clamp(FRET_NUMBER_PX / projection.pxPerMm, FRET_NUMBER_MM.min, FRET_NUMBER_MM.max) * 4,
+        ) / 4
       : FRET_NUMBER_MM.min
 
   const position = marker ? layout.position(marker.stringIndex, marker.fret) : null
@@ -118,7 +131,10 @@ export function Fretboard({ layout, marker, overlay, showFretNumbers = true, cla
       </svg>
 
       {overlay && size.width > 0 && (
-        <div data-slot="fretboard-overlay" className="pointer-events-none absolute inset-0 overflow-visible">
+        <div
+          data-slot="fretboard-overlay"
+          className="pointer-events-none absolute inset-0 overflow-visible"
+        >
           {overlay(projection)}
         </div>
       )}

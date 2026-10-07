@@ -18,7 +18,11 @@ export function useElementSize<T extends Element>() {
     const rect = element.getBoundingClientRect()
     update(rect.width, rect.height)
     const observer = new ResizeObserver(([entry]) => {
-      if (entry) update(entry.borderBoxSize?.[0]?.inlineSize ?? entry.contentRect.width, entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height)
+      if (entry)
+        update(
+          entry.borderBoxSize?.[0]?.inlineSize ?? entry.contentRect.width,
+          entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height,
+        )
     })
     observer.observe(element)
     return () => observer.disconnect()

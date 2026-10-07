@@ -1,9 +1,18 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useMemo } from 'react'
 import { motion, useReducedMotion, type Easing, type Transition } from 'motion/react'
 
 import { NOTES } from '@/game/music/notes'
 import { cn } from '@/lib/utils'
 import { duration, ease } from '@/theme/motion'
+import {
+  COMBO_MIN_STREAK,
+  REVEAL_CENTERED,
+  REVEAL_COMBO,
+  REVEAL_PILL,
+  comboScaleFor,
+  labelFontSize,
+  useCompleteAfter,
+} from '../kit'
 import { range, seededRandom } from '../random'
 import type { RevealEffect, RevealEffectProps } from '../types'
 
@@ -43,9 +52,6 @@ const EXIT: Transition = {
 /** Mouvement réduit : apparition, maintien, disparition. */
 const REDUCED_EASE: Easing[] = [ease.outQuart, 'linear', ease.inQuad]
 
-const CENTERED = 'absolute top-0 left-0 -translate-1/2'
-const PILL =
-  'block rounded-full px-[0.7em] py-[0.38em] leading-none font-semibold whitespace-nowrap'
 const SVG_CENTERED = { transformBox: 'fill-box', transformOrigin: 'center' } as const
 
 interface Confetto {
@@ -85,7 +91,7 @@ interface Reel {
 
 function buildReel(seed: number, intensity: number, markerSize: number, label: string): Reel {
   const random = seededRandom(seed)
-  const fontSize = Math.min(22, Math.max(12, markerSize * 0.62))
+  const fontSize = labelFontSize(markerSize)
   const item = fontSize * 1.76
   // Le rouleau parle la même notation que l'étiquette, sans case plus longue qu'elle :
   // la fenêtre garde ainsi la largeur de l'étiquette finale.
@@ -113,7 +119,8 @@ function buildReel(seed: number, intensity: number, markerSize: number, label: s
   const count = Math.min(14, Math.max(6, Math.round(6 + 8 * intensity + range(random, -0.5, 0.5))))
   const confetti = Array.from({ length: count }, (_, i): Confetto => {
     // Éventail tourné vers le haut, réparti puis bruité.
-    const theta = -Math.PI / 2 + ((i + 0.5) / count - 0.5) * range(random, 2.4, 3) + range(random, -0.15, 0.15)
+    const theta =
+      -Math.PI / 2 + ((i + 0.5) / count - 0.5) * range(random, 2.4, 3) + range(random, -0.15, 0.15)
     const x0 = range(random, -0.4, 0.4) * width
     const y0 = range(random, -0.25, 0.25) * item
     const distance = markerSize * range(random, 1.5, 2.8) * (1 + 0.5 * intensity)
@@ -150,23 +157,6 @@ function buildReel(seed: number, intensity: number, markerSize: number, label: s
     glow: 18 + 18 * intensity,
     comboTilt: (random() < 0.5 ? -1 : 1) * range(random, 6, 12),
   }
-}
-
-/** Appelle `onComplete` une seule fois après `ms`, robuste au double montage de StrictMode. */
-function useCompleteAfter(ms: number, onComplete: () => void) {
-  const callback = useRef(onComplete)
-  const done = useRef(false)
-  useEffect(() => {
-    callback.current = onComplete
-  })
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (done.current) return
-      done.current = true
-      callback.current()
-    }, ms)
-    return () => window.clearTimeout(timer)
-  }, [ms])
 }
 
 // oxlint-disable-next-line react/only-export-components -- exporté via son descripteur d'effet
@@ -206,8 +196,8 @@ function SlotRoll({
         animate={{ opacity: [0, 1, 1, 0], scale: [0.9, 1, 1, 1] }}
         transition={{ duration: 0.75, times: [0, 0.2, 0.6, 1], ease: REDUCED_EASE }}
       >
-        <div data-slot="reveal-label" className={cn(CENTERED, 'w-max')} style={{ fontSize }}>
-          <span data-slot="reveal-label-pill" className={PILL} style={pillStyle}>
+        <div data-slot="reveal-label" className={cn(REVEAL_CENTERED, 'w-max')} style={{ fontSize }}>
+          <span data-slot="reveal-label-pill" className={REVEAL_PILL} style={pillStyle}>
             {label}
           </span>
         </div>
@@ -215,7 +205,7 @@ function SlotRoll({
     )
   }
 
-  const comboScale = 1 + 0.08 * Math.min(streak - 3, 5)
+  const comboScale = comboScaleFor(streak)
   // Ouverture, attente du verrouillage, coup de tampon, retour au repos.
   const body = ROLL + PUNCH
   const bodyTimes = [0, OPEN / body, ROLL / body, (ROLL + 0.05) / body, 1]
@@ -233,7 +223,7 @@ function SlotRoll({
       {/* Éclair blanc derrière l'étiquette au verrouillage. */}
       <motion.div
         data-slot="reveal-flash"
-        className={cn(CENTERED, 'rounded-full')}
+        className={cn(REVEAL_CENTERED, 'rounded-full')}
         style={{
           width: markerSize * 3,
           height: markerSize * 3,
@@ -252,7 +242,7 @@ function SlotRoll({
       {/* Onde(s) de verrouillage : partent de la largeur de l'étiquette ; un éclair blanc à forte série. */}
       <svg
         data-slot="reveal-rings"
-        className={cn(CENTERED, 'overflow-visible')}
+        className={cn(REVEAL_CENTERED, 'overflow-visible')}
         width={ring}
         height={ring}
         viewBox={`${-ring / 2} ${-ring / 2} ${ring} ${ring}`}
@@ -269,7 +259,12 @@ function SlotRoll({
             delay: ROLL,
             duration: 0.4,
             ease: ease.outExpo,
-            opacity: { delay: ROLL, duration: 0.34, times: [0, 0.05, 1], ease: ['linear', ease.outQuart] },
+            opacity: {
+              delay: ROLL,
+              duration: 0.34,
+              times: [0, 0.05, 1],
+              ease: ['linear', ease.outQuart],
+            },
           }}
         />
         {intensity > 0.5 && (
@@ -285,7 +280,12 @@ function SlotRoll({
               delay: ROLL,
               duration: 0.26,
               ease: ease.outExpo,
-              opacity: { delay: ROLL, duration: 0.22, times: [0, 0.05, 1], ease: ['linear', ease.outQuart] },
+              opacity: {
+                delay: ROLL,
+                duration: 0.22,
+                times: [0, 0.05, 1],
+                ease: ['linear', ease.outQuart],
+              },
             }}
           />
         )}
@@ -296,7 +296,7 @@ function SlotRoll({
         <motion.span
           key={i}
           data-slot="reveal-confetti"
-          className={cn(CENTERED, 'block rounded-[1px]', c.white && 'bg-marker')}
+          className={cn(REVEAL_CENTERED, 'block rounded-[1px]', c.white && 'bg-marker')}
           style={{ width: c.width, height: c.height, background: c.white ? undefined : color }}
           initial={{ x: c.x[0], y: c.y[0], rotate: c.rotate, rotateX: 0, opacity: 0 }}
           animate={{
@@ -311,15 +311,25 @@ function SlotRoll({
             duration: c.duration,
             times: [0, 0.4, 1],
             ease: [ease.outExpo, ease.inQuad],
-            x: { delay: c.delay, duration: c.duration, times: [0, 0.4, 1], ease: [ease.outExpo, 'linear'] },
+            x: {
+              delay: c.delay,
+              duration: c.duration,
+              times: [0, 0.4, 1],
+              ease: [ease.outExpo, 'linear'],
+            },
             rotate: { delay: c.delay, duration: c.duration, ease: ease.outQuart },
             rotateX: { delay: c.delay, duration: c.duration, ease: 'linear' },
-            opacity: { delay: c.delay, duration: c.duration, times: [0, 0.04, 0.72, 1], ease: 'linear' },
+            opacity: {
+              delay: c.delay,
+              duration: c.duration,
+              times: [0, 0.04, 0.72, 1],
+              ease: 'linear',
+            },
           }}
         />
       ))}
 
-      <div data-slot="reveal-label" className={cn(CENTERED, 'w-max')} style={{ fontSize }}>
+      <div data-slot="reveal-label" className={cn(REVEAL_CENTERED, 'w-max')} style={{ fontSize }}>
         {/* Fenêtre du rouleau : le point s'y ouvre, puis coup de tampon au verrouillage. */}
         <motion.div
           data-slot="reveal-label-pill"
@@ -341,7 +351,13 @@ function SlotRoll({
             animate={{ opacity: [1, 0, 0, 0.9, 0] }}
             transition={{
               duration: ROLL + 0.2,
-              times: [0, OPEN / (ROLL + 0.2), (ROLL - 0.005) / (ROLL + 0.2), ROLL / (ROLL + 0.2), 1],
+              times: [
+                0,
+                OPEN / (ROLL + 0.2),
+                (ROLL - 0.005) / (ROLL + 0.2),
+                ROLL / (ROLL + 0.2),
+                1,
+              ],
               ease: [ease.outQuart, 'linear', 'linear', ease.outQuart],
             }}
           />
@@ -369,10 +385,10 @@ function SlotRoll({
           </motion.div>
         </motion.div>
 
-        {streak >= 3 && (
+        {streak >= COMBO_MIN_STREAK && (
           <motion.span
             data-slot="reveal-combo"
-            className="absolute top-0 left-full -translate-x-[45%] -translate-y-[60%] rounded-full px-[0.45em] py-[0.28em] text-[0.66em] leading-none font-bold whitespace-nowrap tabular-nums"
+            className={cn(REVEAL_COMBO, '-translate-x-[45%] -translate-y-[60%]')}
             style={{ background: colorForeground, color, boxShadow: `0 0 0 1.5px ${color}` }}
             // Tombe d'en haut comme un symbole de rouleau, puis rebondit.
             initial={{ y: -item * 0.8, scale: 0.4, rotate: 0, opacity: 0 }}
@@ -392,7 +408,7 @@ function SlotRoll({
       {/* Le point d'origine : il s'étire avec l'ouverture et s'efface. */}
       <motion.div
         data-slot="reveal-origin"
-        className={cn(CENTERED, 'rounded-full bg-marker')}
+        className={cn(REVEAL_CENTERED, 'rounded-full bg-marker')}
         style={{ width: markerSize, height: markerSize }}
         initial={{ scaleX: 1, opacity: 1 }}
         animate={{ scaleX: 1.5, opacity: 0 }}

@@ -1,8 +1,17 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useMemo } from 'react'
 import { motion, useReducedMotion, type Easing, type Transition } from 'motion/react'
 
 import { cn } from '@/lib/utils'
 import { duration, ease } from '@/theme/motion'
+import {
+  COMBO_MIN_STREAK,
+  REVEAL_CENTERED,
+  REVEAL_COMBO,
+  REVEAL_PILL,
+  comboScaleFor,
+  labelFontSize,
+  useCompleteAfter,
+} from '../kit'
 import { range, seededRandom } from '../random'
 import type { RevealEffect, RevealEffectProps } from '../types'
 
@@ -30,9 +39,6 @@ const EXIT: Transition = {
 /** Mouvement réduit : apparition, maintien, disparition. */
 const REDUCED_EASE: Easing[] = [ease.outQuart, 'linear', ease.inQuad]
 
-const CENTERED = 'absolute top-0 left-0 -translate-1/2'
-const PILL =
-  'block rounded-full px-[0.7em] py-[0.38em] leading-none font-semibold whitespace-nowrap'
 /** Étoile à quatre branches. */
 const STAR_CLIP = 'polygon(50% 0%, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0% 50%, 39% 39%)'
 
@@ -69,7 +75,7 @@ interface Spray {
 
 function buildSpray(seed: number, intensity: number, markerSize: number, label: string): Spray {
   const random = seededRandom(seed)
-  const fontSize = Math.min(22, Math.max(12, markerSize * 0.62))
+  const fontSize = labelFontSize(markerSize)
   // Demi-axes estimés de l'étiquette (hauteur exacte : 1em + 2 × 0.38em).
   const halfW = (fontSize * (0.62 * [...label].length + 1.4)) / 2
   const halfH = (fontSize * 1.76) / 2
@@ -85,7 +91,8 @@ function buildSpray(seed: number, intensity: number, markerSize: number, label: 
     const theta = turn + ((i + range(random, -0.35, 0.35)) / count) * Math.PI * 2
     const cos = Math.cos(theta)
     const sin = Math.sin(theta)
-    const isStar = Math.floor((i + starOffset) / starEvery) !== Math.floor((i + starOffset + 1) / starEvery)
+    const isStar =
+      Math.floor((i + starOffset) / starEvery) !== Math.floor((i + starOffset + 1) / starEvery)
     const kind: ParticleKind = isStar ? 'star' : random() < 0.6 ? 'spark' : 'ember'
     const start = markerSize * 0.2
     const distance = reach * (isStar ? range(random, 1.5, 2.4) : range(random, 1.3, 3.1))
@@ -124,23 +131,6 @@ function buildSpray(seed: number, intensity: number, markerSize: number, label: 
   }
 }
 
-/** Appelle `onComplete` une seule fois après `ms`, robuste au double montage de StrictMode. */
-function useCompleteAfter(ms: number, onComplete: () => void) {
-  const callback = useRef(onComplete)
-  const done = useRef(false)
-  useEffect(() => {
-    callback.current = onComplete
-  })
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (done.current) return
-      done.current = true
-      callback.current()
-    }, ms)
-    return () => window.clearTimeout(timer)
-  }, [ms])
-}
-
 function particleMotion(p: Particle, color: string) {
   if (p.kind === 'star') {
     return {
@@ -165,7 +155,12 @@ function particleMotion(p: Particle, color: string) {
           times: [0, 0.18, 0.5, 0.7, 1],
           ease: [ease.outQuart, ease.outQuart, ease.outQuart, ease.inQuad],
         },
-        opacity: { delay: p.delay, duration: p.duration, times: [0, 0.04, 0.85, 1], ease: 'linear' },
+        opacity: {
+          delay: p.delay,
+          duration: p.duration,
+          times: [0, 0.04, 0.85, 1],
+          ease: 'linear',
+        },
       } satisfies Transition,
     }
   }
@@ -226,8 +221,8 @@ function SparkBurst({
         animate={{ opacity: [0, 1, 1, 0], scale: [0.9, 1, 1, 1] }}
         transition={{ duration: 0.75, times: [0, 0.2, 0.6, 1], ease: REDUCED_EASE }}
       >
-        <div data-slot="reveal-label" className={cn(CENTERED, 'w-max')} style={{ fontSize }}>
-          <span data-slot="reveal-label-pill" className={PILL} style={pillStyle}>
+        <div data-slot="reveal-label" className={cn(REVEAL_CENTERED, 'w-max')} style={{ fontSize }}>
+          <span data-slot="reveal-label-pill" className={REVEAL_PILL} style={pillStyle}>
             {label}
           </span>
         </div>
@@ -235,7 +230,7 @@ function SparkBurst({
     )
   }
 
-  const comboScale = 1 + 0.08 * Math.min(streak - 3, 5)
+  const comboScale = comboScaleFor(streak)
 
   return (
     <motion.div
@@ -249,7 +244,7 @@ function SparkBurst({
       {/* Éclair d'impact au moment de l'éclatement. */}
       <motion.div
         data-slot="reveal-flash"
-        className={cn(CENTERED, 'rounded-full')}
+        className={cn(REVEAL_CENTERED, 'rounded-full')}
         style={{
           width: markerSize * 2.8,
           height: markerSize * 2.8,
@@ -272,7 +267,7 @@ function SparkBurst({
           <motion.span
             key={i}
             data-slot={p.kind === 'star' ? 'reveal-sparkle' : 'reveal-particle'}
-            className={cn(CENTERED, 'block', p.kind !== 'star' && 'rounded-full')}
+            className={cn(REVEAL_CENTERED, 'block', p.kind !== 'star' && 'rounded-full')}
             style={style}
             initial={initial}
             animate={animate}
@@ -282,10 +277,10 @@ function SparkBurst({
       })}
 
       {/* Étiquette : jaillit du point avec dépassement. */}
-      <div data-slot="reveal-label" className={cn(CENTERED, 'w-max')} style={{ fontSize }}>
+      <div data-slot="reveal-label" className={cn(REVEAL_CENTERED, 'w-max')} style={{ fontSize }}>
         <motion.span
           data-slot="reveal-label-pill"
-          className={PILL}
+          className={REVEAL_PILL}
           style={pillStyle}
           initial={{ scaleX: spray.fromX, scaleY: spray.fromY, rotate: spray.tilt }}
           animate={{ scaleX: 1, scaleY: 1, rotate: 0 }}
@@ -301,10 +296,10 @@ function SparkBurst({
           </motion.span>
         </motion.span>
 
-        {streak >= 3 && (
+        {streak >= COMBO_MIN_STREAK && (
           <motion.span
             data-slot="reveal-combo"
-            className="absolute top-0 left-full -translate-x-[35%] -translate-y-[62%] rounded-full px-[0.45em] py-[0.28em] text-[0.66em] leading-none font-bold whitespace-nowrap tabular-nums"
+            className={cn(REVEAL_COMBO, '-translate-x-[35%] -translate-y-[62%]')}
             // Ancré en bas à gauche : le badge grossit en s'éloignant de l'étiquette.
             style={{
               background: colorForeground,
@@ -314,7 +309,11 @@ function SparkBurst({
               originY: 0.9,
             }}
             initial={{ scale: 0, rotate: -spray.comboTilt * 3, opacity: 0 }}
-            animate={{ scale: [0, comboScale * 1.3, comboScale], rotate: spray.comboTilt, opacity: 1 }}
+            animate={{
+              scale: [0, comboScale * 1.3, comboScale],
+              rotate: spray.comboTilt,
+              opacity: 1,
+            }}
             transition={{
               delay: WINDUP + 0.07,
               duration: 0.22,
@@ -332,7 +331,7 @@ function SparkBurst({
       {/* Le point d'origine : se contracte puis éclate et s'efface. */}
       <motion.div
         data-slot="reveal-origin"
-        className={cn(CENTERED, 'rounded-full bg-marker')}
+        className={cn(REVEAL_CENTERED, 'rounded-full bg-marker')}
         style={{ width: markerSize, height: markerSize }}
         initial={{ scale: 1, opacity: 1 }}
         animate={{ scale: [1, 0.72, 1.8], opacity: [1, 1, 0] }}

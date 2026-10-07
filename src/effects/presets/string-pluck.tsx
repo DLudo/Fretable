@@ -1,8 +1,17 @@
-import { useEffect, useId, useMemo, useRef } from 'react'
+import { useId, useMemo } from 'react'
 import { motion, useReducedMotion, type Easing, type Transition } from 'motion/react'
 
 import { cn } from '@/lib/utils'
 import { duration, ease } from '@/theme/motion'
+import {
+  COMBO_MIN_STREAK,
+  REVEAL_CENTERED,
+  REVEAL_COMBO,
+  REVEAL_PILL,
+  comboScaleFor,
+  labelFontSize,
+  useCompleteAfter,
+} from '../kit'
 import { range, seededRandom } from '../random'
 import type { RevealEffect, RevealEffectProps } from '../types'
 
@@ -33,9 +42,6 @@ const EXIT: Transition = {
 /** Mouvement réduit : apparition, maintien, disparition. */
 const REDUCED_EASE: Easing[] = [ease.outQuart, 'linear', ease.inQuad]
 
-const CENTERED = 'absolute top-0 left-0 -translate-1/2'
-const PILL =
-  'block rounded-full px-[0.7em] py-[0.38em] leading-none font-semibold whitespace-nowrap'
 /**
  * Origine du groupe qui vibre : milieu du bord haut de sa boîte (fill-box), soit
  * le centre du segment sur l'axe de la corde, l'arc étant tracé sous l'axe.
@@ -92,7 +98,7 @@ function buildPluck(
   label: string,
 ): Pluck {
   const random = seededRandom(seed)
-  const fontSize = Math.min(22, Math.max(12, markerSize * 0.62))
+  const fontSize = labelFontSize(markerSize)
   // Demi-axes estimés de l'étiquette (hauteur exacte : 1em + 2 × 0.38em).
   const halfW = (fontSize * (0.62 * [...label].length + 1.4)) / 2
   const halfH = (fontSize * 1.76) / 2
@@ -135,23 +141,6 @@ function buildPluck(
     glow: 18 + 18 * intensity,
     comboTilt: sign * range(random, 6, 14),
   }
-}
-
-/** Appelle `onComplete` une seule fois après `ms`, robuste au double montage de StrictMode. */
-function useCompleteAfter(ms: number, onComplete: () => void) {
-  const callback = useRef(onComplete)
-  const done = useRef(false)
-  useEffect(() => {
-    callback.current = onComplete
-  })
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (done.current) return
-      done.current = true
-      callback.current()
-    }, ms)
-    return () => window.clearTimeout(timer)
-  }, [ms])
 }
 
 /** Un trait de lumière : la corde s'allume, une tête brillante file devant. */
@@ -228,7 +217,12 @@ function Streak({
           delay: side.delay,
           duration: side.duration,
           ease: ease.outExpo,
-          opacity: { delay: side.delay, duration: side.duration, times: [0, 0.06, 0.5, 1], ease: 'linear' },
+          opacity: {
+            delay: side.delay,
+            duration: side.duration,
+            times: [0, 0.06, 0.5, 1],
+            ease: 'linear',
+          },
         }}
       />
     </div>
@@ -275,8 +269,8 @@ function StringPluck({
         animate={{ opacity: [0, 1, 1, 0], scale: [0.9, 1, 1, 1] }}
         transition={{ duration: 0.75, times: [0, 0.2, 0.6, 1], ease: REDUCED_EASE }}
       >
-        <div data-slot="reveal-label" className={cn(CENTERED, 'w-max')} style={{ fontSize }}>
-          <span data-slot="reveal-label-pill" className={PILL} style={pillStyle}>
+        <div data-slot="reveal-label" className={cn(REVEAL_CENTERED, 'w-max')} style={{ fontSize }}>
+          <span data-slot="reveal-label-pill" className={REVEAL_PILL} style={pillStyle}>
             {label}
           </span>
         </div>
@@ -285,7 +279,7 @@ function StringPluck({
   }
 
   const { halfLength: s, amplitude: a, wobble } = pluck
-  const comboScale = 1 + 0.08 * Math.min(streak - 3, 5)
+  const comboScale = comboScaleFor(streak)
 
   return (
     <motion.div
@@ -305,7 +299,7 @@ function StringPluck({
         {/* Éclair allongé le long de la corde, au relâchement. */}
         <motion.div
           data-slot="reveal-flash"
-          className={CENTERED}
+          className={REVEAL_CENTERED}
           style={{
             width: markerSize * 4,
             height: markerSize * 1.5,
@@ -335,10 +329,20 @@ function StringPluck({
           fill="none"
         >
           <defs>
-            <linearGradient id={gradientId} gradientUnits="userSpaceOnUse" x1={-s} y1={0} x2={s} y2={0}>
+            <linearGradient
+              id={gradientId}
+              gradientUnits="userSpaceOnUse"
+              x1={-s}
+              y1={0}
+              x2={s}
+              y2={0}
+            >
               <stop offset="0" style={{ stopColor: color, stopOpacity: 0 }} />
               {/* oklab : en oklch, la teinte nulle du blanc ferait virer le mélange au jaune. */}
-              <stop offset="0.5" style={{ stopColor: `color-mix(in oklab, ${color} 55%, var(--marker))` }} />
+              <stop
+                offset="0.5"
+                style={{ stopColor: `color-mix(in oklab, ${color} 55%, var(--marker))` }}
+              />
               <stop offset="1" style={{ stopColor: color, stopOpacity: 0 }} />
             </linearGradient>
           </defs>
@@ -350,7 +354,12 @@ function StringPluck({
               delay: PLUCK,
               duration: VIBRATION,
               ease: 'easeInOut',
-              opacity: { delay: PLUCK, duration: VIBRATION + 0.2, times: [0, 0.06, 0.6, 1], ease: 'linear' },
+              opacity: {
+                delay: PLUCK,
+                duration: VIBRATION + 0.2,
+                times: [0, 0.06, 0.6, 1],
+                ease: 'linear',
+              },
             }}
           >
             <path
@@ -370,13 +379,12 @@ function StringPluck({
             />
           </motion.g>
         </svg>
-
       </div>
 
       {/* Étiquette : éclot du point et s'élève au-dessus de la corde. */}
       <motion.div
         data-slot="reveal-label"
-        className={cn(CENTERED, 'w-max')}
+        className={cn(REVEAL_CENTERED, 'w-max')}
         style={{ fontSize }}
         initial={{ y: 0 }}
         animate={{ y: -pluck.rise }}
@@ -384,7 +392,7 @@ function StringPluck({
       >
         <motion.span
           data-slot="reveal-label-pill"
-          className={PILL}
+          className={REVEAL_PILL}
           style={pillStyle}
           initial={{ scaleX: pluck.fromX, scaleY: pluck.fromY, rotate: pluck.tilt }}
           animate={{ scaleX: 1, scaleY: 1, rotate: 0 }}
@@ -400,10 +408,10 @@ function StringPluck({
           </motion.span>
         </motion.span>
 
-        {streak >= 3 && (
+        {streak >= COMBO_MIN_STREAK && (
           <motion.span
             data-slot="reveal-combo"
-            className="absolute top-0 left-full -translate-x-[35%] -translate-y-[62%] rounded-full px-[0.45em] py-[0.28em] text-[0.66em] leading-none font-bold whitespace-nowrap tabular-nums"
+            className={cn(REVEAL_COMBO, '-translate-x-[35%] -translate-y-[62%]')}
             // Ancré en bas à gauche : le badge grossit en s'éloignant de l'étiquette.
             style={{
               background: colorForeground,
@@ -413,7 +421,12 @@ function StringPluck({
               originY: 0.9,
             }}
             initial={{ scale: 0, y: 8, rotate: 0, opacity: 0 }}
-            animate={{ scale: [0, comboScale * 1.25, comboScale], y: 0, rotate: pluck.comboTilt, opacity: 1 }}
+            animate={{
+              scale: [0, comboScale * 1.25, comboScale],
+              y: 0,
+              rotate: pluck.comboTilt,
+              opacity: 1,
+            }}
             transition={{
               delay: PLUCK + 0.08,
               duration: 0.24,
@@ -433,7 +446,7 @@ function StringPluck({
       <div className="absolute top-0 left-0 size-0" style={{ rotate: `${pluck.angle}deg` }}>
         <motion.div
           data-slot="reveal-origin"
-          className={cn(CENTERED, 'rounded-full bg-marker')}
+          className={cn(REVEAL_CENTERED, 'rounded-full bg-marker')}
           style={{ width: markerSize, height: markerSize }}
           initial={{ scaleX: 1, scaleY: 1, opacity: 1 }}
           animate={{ scaleX: [1, 1.5, 2.4], scaleY: [1, 0.55, 0.15], opacity: [1, 1, 0] }}

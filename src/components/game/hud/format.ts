@@ -1,4 +1,7 @@
-const SECONDS = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+const SECONDS = new Intl.NumberFormat('fr-FR', {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+})
 
 /**
  * Durée en secondes, au dixième, à la française : `24300` → « 24,3 s ».

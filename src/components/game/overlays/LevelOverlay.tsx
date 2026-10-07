@@ -1,10 +1,23 @@
 import { useId, type ComponentProps, type ReactNode } from 'react'
-import { AnimatePresence, motion, useIsPresent, useReducedMotion, type Transition } from 'motion/react'
+import {
+  AnimatePresence,
+  motion,
+  useIsPresent,
+  useReducedMotion,
+  type Transition,
+} from 'motion/react'
 import { ArrowRight, Play, RotateCcw } from 'lucide-react'
 
 import { formatSeconds } from '@/components/game/hud/format'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { Kbd } from '@/components/ui/kbd'
 import { NOTATION } from '@/game/config'
 import type { GameState } from '@/game/engine/types'
@@ -66,10 +79,19 @@ export function LevelOverlay({
               className="m-auto w-full max-w-sm"
               initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.94, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0, transition: ENTER }}
-              exit={reduceMotion ? { opacity: 0, transition: LEAVE } : { opacity: 0, scale: 0.98, transition: LEAVE }}
+              exit={
+                reduceMotion
+                  ? { opacity: 0, transition: LEAVE }
+                  : { opacity: 0, scale: 0.98, transition: LEAVE }
+              }
             >
               {phase === 'won' ? (
-                <WonPanel state={state} hasNextLevel={hasNextLevel} onStart={onStart} onNextLevel={onNextLevel} />
+                <WonPanel
+                  state={state}
+                  hasNextLevel={hasNextLevel}
+                  onStart={onStart}
+                  onNextLevel={onNextLevel}
+                />
               ) : phase === 'lost' ? (
                 <LostPanel state={state} onStart={onStart} />
               ) : (
@@ -150,7 +172,10 @@ function ReadyPanel({ state, onStart }: PanelProps) {
         </>
       }
     >
-      <div data-slot="level-overlay-controls" className="flex flex-col gap-3 text-sm text-muted-foreground">
+      <div
+        data-slot="level-overlay-controls"
+        className="flex flex-col gap-3 text-sm text-muted-foreground"
+      >
         <p className="pointer-coarse:hidden">Clique sur le piano ou joue au clavier :</p>
         <p className="hidden pointer-coarse:block">Touche le piano pour répondre.</p>
         <dl className="grid grid-cols-7 gap-1 pointer-coarse:hidden">
@@ -219,7 +244,9 @@ function Stat({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div data-slot="level-overlay-stat" className="flex flex-col justify-between gap-1 px-3 py-2.5">
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-lg leading-tight font-semibold whitespace-nowrap tabular-nums">{value}</dd>
+      <dd className="text-lg leading-tight font-semibold whitespace-nowrap tabular-nums">
+        {value}
+      </dd>
     </div>
   )
 }

@@ -30,7 +30,11 @@ export function MarkerDot({ cx, cy, r, haloId, reduceMotion }: MarkerDotProps) {
       data-slot="fretboard-marker"
       style={CENTERED}
       initial={reduceMotion ? { opacity: 0 } : { scale: 0 }}
-      animate={{ scale: 1, opacity: 1, transition: reduceMotion ? { duration: duration.fast } : POP_IN }}
+      animate={{
+        scale: 1,
+        opacity: 1,
+        transition: reduceMotion ? { duration: duration.fast } : POP_IN,
+      }}
       exit={{ scale: 0.4, opacity: 0, transition: EXIT }}
     >
       <motion.circle

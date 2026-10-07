@@ -6,7 +6,18 @@ import { STANDARD_TUNING, pitchClassAt, stringNumber } from '@/game/music/tuning
 describe('notes', () => {
   it('nomme les douze demi-tons en solfège', () => {
     expect(Array.from({ length: 12 }, (_, i) => noteName(toPitchClass(i)))).toEqual([
-      'Do', 'Do♯', 'Ré', 'Ré♯', 'Mi', 'Fa', 'Fa♯', 'Sol', 'Sol♯', 'La', 'La♯', 'Si',
+      'Do',
+      'Do♯',
+      'Ré',
+      'Ré♯',
+      'Mi',
+      'Fa',
+      'Fa♯',
+      'Sol',
+      'Sol♯',
+      'La',
+      'La♯',
+      'Si',
     ])
   })
 

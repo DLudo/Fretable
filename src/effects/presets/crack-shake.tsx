@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useMemo } from 'react'
 import { motion, useReducedMotion, type Easing, type Transition } from 'motion/react'
 
 import { cn } from '@/lib/utils'
 import { ease } from '@/theme/motion'
+import { REVEAL_CENTERED, REVEAL_PILL, labelFontSize, useCompleteAfter } from '../kit'
 import { range, seededRandom } from '../random'
 import type { RevealEffect, RevealEffectProps } from '../types'
 
@@ -44,10 +45,6 @@ const EXIT: Transition = {
 const REDUCED_EASE: Easing[] = [ease.outQuart, 'linear', ease.outQuart]
 const REDUCED_TIMES = [0, 0.12 / EXIT_TOTAL, HOLD_UNTIL / EXIT_TOTAL, 1]
 
-const CENTERED = 'absolute top-0 left-0 -translate-1/2'
-const PILL =
-  'block rounded-full px-[0.7em] py-[0.38em] leading-none font-semibold whitespace-nowrap'
-
 interface Crack {
   points: string
   width: number
@@ -71,7 +68,7 @@ const toPoints = (pts: [number, number][]) =>
 
 function buildFracture(seed: number, markerSize: number, label: string): Fracture {
   const random = seededRandom(seed)
-  const fontSize = Math.min(22, Math.max(12, markerSize * 0.62))
+  const fontSize = labelFontSize(markerSize)
   // Demi-axes estimés de l'étiquette (hauteur exacte : 1em + 2 × 0.38em).
   const halfW = (fontSize * (0.62 * [...label].length + 1.4)) / 2
   const halfH = (fontSize * 1.76) / 2
@@ -89,7 +86,8 @@ function buildFracture(seed: number, markerSize: number, label: string): Fractur
     // Rayon polaire de l'ellipse inscrite dans l'étiquette : la fêlure dépasse toujours d'elle.
     const edge = (halfW * halfH) / Math.hypot(halfH * Math.cos(theta), halfW * Math.sin(theta))
     const reach =
-      Math.max(edge, markerSize * 0.5) + markerSize * range(random, 0.45, 1.5) * (i === main ? 1.5 : 1)
+      Math.max(edge, markerSize * 0.5) +
+      markerSize * range(random, 0.45, 1.5) * (i === main ? 1.5 : 1)
     // Tracé en zigzag : cap qui dérive (marche aléatoire) + brisures alternées.
     const segments = 4 + Math.floor(random() * 3)
     const step = (reach - start) / segments
@@ -167,23 +165,6 @@ function buildFracture(seed: number, markerSize: number, label: string): Fractur
   }
 }
 
-/** Appelle `onComplete` une seule fois après `ms`, robuste au double montage de StrictMode. */
-function useCompleteAfter(ms: number, onComplete: () => void) {
-  const callback = useRef(onComplete)
-  const done = useRef(false)
-  useEffect(() => {
-    callback.current = onComplete
-  })
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (done.current) return
-      done.current = true
-      callback.current()
-    }, ms)
-    return () => window.clearTimeout(timer)
-  }, [ms])
-}
-
 // oxlint-disable-next-line react/only-export-components -- exporté via son descripteur d'effet
 function CrackShake({
   label,
@@ -197,10 +178,7 @@ function CrackShake({
 }: RevealEffectProps) {
   const reduceMotion = useReducedMotion()
   useCompleteAfter(LIFETIME_MS, onComplete)
-  const fracture = useMemo(
-    () => buildFracture(seed, markerSize, label),
-    [seed, markerSize, label],
-  )
+  const fracture = useMemo(() => buildFracture(seed, markerSize, label), [seed, markerSize, label])
   const { fontSize, cracks, extent } = fracture
   // Ombre serrée : détache l'étiquette du manche sans halo de célébration.
   const pillStyle = {
@@ -220,8 +198,8 @@ function CrackShake({
         animate={{ opacity: [0, 1, 1, 0], scale: [0.9, 1, 1, 1] }}
         transition={{ duration: EXIT_TOTAL, times: REDUCED_TIMES, ease: REDUCED_EASE }}
       >
-        <div data-slot="reveal-label" className={cn(CENTERED, 'w-max')} style={{ fontSize }}>
-          <span data-slot="reveal-label-pill" className={PILL} style={pillStyle}>
+        <div data-slot="reveal-label" className={cn(REVEAL_CENTERED, 'w-max')} style={{ fontSize }}>
+          <span data-slot="reveal-label-pill" className={REVEAL_PILL} style={pillStyle}>
             {label}
           </span>
         </div>
@@ -243,7 +221,7 @@ function CrackShake({
       {/* Fêlures : nées sous le point, tracées vers l'extérieur, puis estompées. */}
       <motion.svg
         data-slot="reveal-cracks"
-        className={cn(CENTERED, 'overflow-visible')}
+        className={cn(REVEAL_CENTERED, 'overflow-visible')}
         width={size}
         height={size}
         viewBox={`${-extent} ${-extent} ${size} ${size}`}
@@ -271,7 +249,7 @@ function CrackShake({
       {/* Le point d'origine, au-dessus des fêlures naissantes, effacé par le flash rouge. */}
       <motion.div
         data-slot="reveal-origin"
-        className={cn(CENTERED, 'rounded-full bg-marker')}
+        className={cn(REVEAL_CENTERED, 'rounded-full bg-marker')}
         style={{ width: markerSize, height: markerSize }}
         initial={{ opacity: 1 }}
         animate={{ opacity: 0 }}
@@ -291,10 +269,10 @@ function CrackShake({
           ease: fracture.shake.times.slice(1).map((): Easing => 'easeInOut'),
         }}
       >
-        <div data-slot="reveal-label" className={cn(CENTERED, 'w-max')} style={{ fontSize }}>
+        <div data-slot="reveal-label" className={cn(REVEAL_CENTERED, 'w-max')} style={{ fontSize }}>
           <motion.span
             data-slot="reveal-label-pill"
-            className={PILL}
+            className={REVEAL_PILL}
             style={pillStyle}
             initial={{ opacity: 0, scaleX: fracture.fromX, scaleY: fracture.fromY }}
             animate={{

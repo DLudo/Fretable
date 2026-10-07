@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useMemo } from 'react'
 import {
   motion,
   useMotionValue,
@@ -10,6 +10,15 @@ import {
 
 import { cn } from '@/lib/utils'
 import { duration, ease } from '@/theme/motion'
+import {
+  COMBO_MIN_STREAK,
+  REVEAL_CENTERED,
+  REVEAL_COMBO,
+  REVEAL_PILL,
+  comboScaleFor,
+  labelFontSize,
+  useCompleteAfter,
+} from '../kit'
 import { range, seededRandom } from '../random'
 import type { RevealEffect, RevealEffectProps } from '../types'
 
@@ -50,10 +59,7 @@ const SLAM: Transition = {
 /** Mouvement réduit : apparition, maintien, disparition. */
 const REDUCED_EASE: Easing[] = [ease.outQuart, 'linear', ease.inQuad]
 
-const CENTERED = 'absolute top-0 left-0 -translate-1/2'
 const SVG_CENTERED = { transformBox: 'fill-box', transformOrigin: 'center' } as const
-const PILL =
-  'block rounded-full px-[0.7em] py-[0.38em] leading-none font-semibold whitespace-nowrap'
 
 interface DustTick {
   /** Point d'ancrage sur le bord de l'étiquette (% de sa boîte). */
@@ -85,7 +91,7 @@ interface Stamp {
 
 function buildStamp(seed: number, intensity: number, markerSize: number, label: string): Stamp {
   const random = seededRandom(seed)
-  const fontSize = Math.min(22, Math.max(12, markerSize * 0.62))
+  const fontSize = labelFontSize(markerSize)
   // Demi-axes estimés de l'étiquette (hauteur exacte : 1em + 2 × 0.38em).
   const halfW = (fontSize * (0.62 * [...label].length + 1.4)) / 2
   const halfH = (fontSize * 1.76) / 2
@@ -134,23 +140,6 @@ function buildStamp(seed: number, intensity: number, markerSize: number, label: 
   }
 }
 
-/** Appelle `onComplete` une seule fois après `ms`, robuste au double montage de StrictMode. */
-function useCompleteAfter(ms: number, onComplete: () => void) {
-  const callback = useRef(onComplete)
-  const done = useRef(false)
-  useEffect(() => {
-    callback.current = onComplete
-  })
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (done.current) return
-      done.current = true
-      callback.current()
-    }, ms)
-    return () => window.clearTimeout(timer)
-  }, [ms])
-}
-
 // oxlint-disable-next-line react/only-export-components -- exporté via son descripteur d'effet
 function StampSlam({
   label,
@@ -192,8 +181,8 @@ function StampSlam({
         animate={{ opacity: [0, 1, 1, 0], scale: [0.9, 1, 1, 1] }}
         transition={{ duration: 0.75, times: [0, 0.2, 0.6, 1], ease: REDUCED_EASE }}
       >
-        <div data-slot="reveal-label" className={cn(CENTERED, 'w-max')} style={{ fontSize }}>
-          <span data-slot="reveal-label-pill" className={PILL} style={pillStyle}>
+        <div data-slot="reveal-label" className={cn(REVEAL_CENTERED, 'w-max')} style={{ fontSize }}>
+          <span data-slot="reveal-label-pill" className={REVEAL_PILL} style={pillStyle}>
             {label}
           </span>
         </div>
@@ -201,7 +190,7 @@ function StampSlam({
     )
   }
 
-  const comboScale = 1 + 0.08 * Math.min(streak - 3, 5)
+  const comboScale = comboScaleFor(streak)
 
   return (
     <motion.div
@@ -215,7 +204,7 @@ function StampSlam({
       {/* Le point d'origine se tasse puis s'efface sous le tampon. */}
       <motion.div
         data-slot="reveal-origin"
-        className={cn(CENTERED, 'rounded-full bg-marker')}
+        className={cn(REVEAL_CENTERED, 'rounded-full bg-marker')}
         style={{ width: markerSize, height: markerSize }}
         initial={{ scale: 1, opacity: 1 }}
         animate={{ scale: [1, 0.8, 0.6], opacity: [1, 1, 0] }}
@@ -229,7 +218,7 @@ function StampSlam({
       {/* Éclair de contact, derrière l'étiquette. */}
       <motion.div
         data-slot="reveal-flash"
-        className={CENTERED}
+        className={REVEAL_CENTERED}
         style={{
           width: markerSize * 5,
           height: markerSize * 3,
@@ -251,7 +240,7 @@ function StampSlam({
         animate={{ x: stamp.shake.x, y: stamp.shake.y }}
         transition={{ delay: IMPACT, duration: 0.15, ease: 'linear' }}
       >
-        <div data-slot="reveal-label" className={cn(CENTERED, 'w-max')} style={{ fontSize }}>
+        <div data-slot="reveal-label" className={cn(REVEAL_CENTERED, 'w-max')} style={{ fontSize }}>
           {/* Anneau d'impact : épouse la forme de l'étiquette ; trait épais qui s'éteint vite
               + trait fin qui persiste = l'onde s'amincit en s'élargissant. */}
           <svg
@@ -330,7 +319,7 @@ function StampSlam({
           {/* Le tampon : chute accélérée, écrasement au contact, rebond, repos. */}
           <motion.span
             data-slot="reveal-label-pill"
-            className={PILL}
+            className={REVEAL_PILL}
             style={{ ...pillStyle, scaleX: slamX, opacity: ghost }}
             initial={{ scaleY: from, rotate: tilt }}
             animate={{
@@ -343,10 +332,10 @@ function StampSlam({
             {label}
           </motion.span>
 
-          {streak >= 3 && (
+          {streak >= COMBO_MIN_STREAK && (
             <motion.span
               data-slot="reveal-combo"
-              className="absolute top-0 left-full -translate-x-[55%] -translate-y-[60%] rounded-full px-[0.45em] py-[0.28em] text-[0.66em] leading-none font-bold whitespace-nowrap tabular-nums"
+              className={cn(REVEAL_COMBO, '-translate-x-[55%] -translate-y-[60%]')}
               style={{ background: colorForeground, color, boxShadow: `0 0 0 1.5px ${color}` }}
               initial={{ scale: 2.4, rotate: stamp.comboTilt * 2, opacity: 0 }}
               animate={{

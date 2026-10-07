@@ -39,7 +39,8 @@ export default function EffectsLab() {
     if (params.get('autoplay') !== '1') return
     const id = params.get('effect')
     const outcome = (params.get('outcome') as RevealOutcome | null) ?? 'correct'
-    const effect = effects.find((e) => e.id === id) ?? effects.find((e) => e.outcomes.includes(outcome))
+    const effect =
+      effects.find((e) => e.id === id) ?? effects.find((e) => e.outcomes.includes(outcome))
     if (!effect) return
     const timer = window.setTimeout(() => play(effect, outcome), Number(params.get('delay') ?? 300))
     return () => window.clearTimeout(timer)
@@ -50,7 +51,10 @@ export default function EffectsLab() {
       <header className="flex flex-wrap items-center gap-3">
         <h1 className="text-lg font-semibold">Lab d’effets</h1>
         <Badge variant="secondary">{effects.length} effets enregistrés</Badge>
-        <a className="ml-auto text-sm text-muted-foreground underline-offset-4 hover:underline" href="./">
+        <a
+          className="ml-auto text-sm text-muted-foreground underline-offset-4 hover:underline"
+          href="./"
+        >
           Retour au jeu
         </a>
       </header>

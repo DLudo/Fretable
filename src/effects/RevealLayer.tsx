@@ -37,7 +37,10 @@ export interface RevealLayerProps {
  */
 export function RevealLayer({ result, layout, projection }: RevealLayerProps) {
   const [active, setActive] = useState<ActiveReveal[]>([])
-  const previousEffect = useRef<Record<RevealOutcome, string | null>>({ correct: null, wrong: null })
+  const previousEffect = useRef<Record<RevealOutcome, string | null>>({
+    correct: null,
+    wrong: null,
+  })
   const seen = useRef<number | null>(null)
 
   useEffect(() => {

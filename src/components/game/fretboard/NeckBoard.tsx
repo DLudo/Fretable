@@ -66,7 +66,13 @@ export const NeckBoard = memo(function NeckBoard({ layout, uid }: NeckBoardProps
           height={vb.height}
           style={{ maskType: 'alpha' }}
         >
-          <rect x={vb.x} y={vb.y} width={vb.width} height={vb.height} fill={`url(#${id.fadeGradient})`} />
+          <rect
+            x={vb.x}
+            y={vb.y}
+            width={vb.width}
+            height={vb.height}
+            fill={`url(#${id.fadeGradient})`}
+          />
         </mask>
         {/* Bombé de la touche : bords assombris, centre neutre. */}
         <linearGradient id={id.radius} x1={0} x2={0} y1={0} y2={1}>
@@ -137,7 +143,13 @@ export const NeckBoard = memo(function NeckBoard({ layout, uid }: NeckBoardProps
         <g data-slot="fretboard-inlays">
           {inlays.map(({ fret, center, r }) => (
             <g key={`${fret}-${center.y}`} data-slot="fretboard-inlay" data-fret={fret}>
-              <circle cx={center.x} cy={center.y} r={r} className="fill-inlay stroke-fretboard-edge" strokeWidth={0.3} />
+              <circle
+                cx={center.x}
+                cy={center.y}
+                r={r}
+                className="fill-inlay stroke-fretboard-edge"
+                strokeWidth={0.3}
+              />
               <circle cx={center.x} cy={center.y} r={r} fill={`url(#${id.sheen})`} />
             </g>
           ))}
@@ -232,7 +244,12 @@ export const NeckBoard = memo(function NeckBoard({ layout, uid }: NeckBoardProps
             return (
               <g key={s.index} data-slot="fretboard-string" data-string={s.index}>
                 {/* Plancher d'un pixel écran : la Mi aiguë reste visible à toute taille. */}
-                <line {...line} className={tone} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+                <line
+                  {...line}
+                  className={tone}
+                  strokeWidth={1}
+                  vectorEffect="non-scaling-stroke"
+                />
                 <line {...line} className={tone} strokeWidth={s.gauge} />
                 {s.wound && (
                   <line

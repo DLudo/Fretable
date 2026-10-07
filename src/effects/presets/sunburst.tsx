@@ -1,8 +1,17 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useMemo } from 'react'
 import { motion, useReducedMotion, type Easing, type Transition } from 'motion/react'
 
 import { cn } from '@/lib/utils'
 import { duration, ease } from '@/theme/motion'
+import {
+  COMBO_MIN_STREAK,
+  REVEAL_CENTERED,
+  REVEAL_COMBO,
+  REVEAL_PILL,
+  comboScaleFor,
+  labelFontSize,
+  useCompleteAfter,
+} from '../kit'
 import { range, seededRandom } from '../random'
 import type { RevealEffect, RevealEffectProps } from '../types'
 
@@ -27,10 +36,6 @@ const EXIT: Transition = {
 
 /** Mouvement réduit : apparition, maintien, disparition. */
 const REDUCED_EASE: Easing[] = [ease.outQuart, 'linear', ease.inQuad]
-
-const CENTERED = 'absolute top-0 left-0 -translate-1/2'
-const PILL =
-  'block rounded-full px-[0.7em] py-[0.38em] leading-none font-semibold whitespace-nowrap'
 
 interface Ray {
   /** Tracé SVG du rayon (losange effilé), centré sur l'origine. */
@@ -61,13 +66,14 @@ function spike(theta: number, inner: number, outer: number, halfWidth: number): 
   const ux = Math.cos(theta)
   const uy = Math.sin(theta)
   const belly = inner + (outer - inner) * 0.28
-  const at = (r: number, w: number) => `${(ux * r - uy * w).toFixed(1)} ${(uy * r + ux * w).toFixed(1)}`
+  const at = (r: number, w: number) =>
+    `${(ux * r - uy * w).toFixed(1)} ${(uy * r + ux * w).toFixed(1)}`
   return `M${at(inner, 0)}L${at(belly, halfWidth)}L${at(outer, 0)}L${at(belly, -halfWidth)}Z`
 }
 
 function buildSun(seed: number, intensity: number, markerSize: number): Sun {
   const random = seededRandom(seed)
-  const fontSize = Math.min(22, Math.max(12, markerSize * 0.62))
+  const fontSize = labelFontSize(markerSize)
   // Nombre pair pour alterner rayons longs et courts.
   const count = 8 + 2 * Math.round(4 * intensity)
   const reach = markerSize * (2.4 + 1.6 * intensity)
@@ -80,7 +86,8 @@ function buildSun(seed: number, intensity: number, markerSize: number): Sun {
     const long = alternate ? i % 2 === 0 : random() < 0.5
     const theta = (i + range(random, -0.12, 0.12)) * step
     const outer = reach * (long ? range(random, 0.86, 1) : range(random, 0.5, 0.68))
-    const halfWidth = markerSize * range(random, 0.12, 0.16) * (long ? 1 : 0.75) * (1 + 0.35 * intensity)
+    const halfWidth =
+      markerSize * range(random, 0.12, 0.16) * (long ? 1 : 0.75) * (1 + 0.35 * intensity)
     return {
       d: spike(theta, inner, outer, halfWidth),
       delay: range(random, 0, 0.035),
@@ -119,23 +126,6 @@ function buildSun(seed: number, intensity: number, markerSize: number): Sun {
   }
 }
 
-/** Appelle `onComplete` une seule fois après `ms`, robuste au double montage de StrictMode. */
-function useCompleteAfter(ms: number, onComplete: () => void) {
-  const callback = useRef(onComplete)
-  const done = useRef(false)
-  useEffect(() => {
-    callback.current = onComplete
-  })
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (done.current) return
-      done.current = true
-      callback.current()
-    }, ms)
-    return () => window.clearTimeout(timer)
-  }, [ms])
-}
-
 // oxlint-disable-next-line react/only-export-components -- exporté via son descripteur d'effet
 function Sunburst({
   label,
@@ -170,8 +160,8 @@ function Sunburst({
         animate={{ opacity: [0, 1, 1, 0], scale: [0.9, 1, 1, 1] }}
         transition={{ duration: 0.75, times: [0, 0.2, 0.6, 1], ease: REDUCED_EASE }}
       >
-        <div data-slot="reveal-label" className={cn(CENTERED, 'w-max')} style={{ fontSize }}>
-          <span data-slot="reveal-label-pill" className={PILL} style={pillStyle}>
+        <div data-slot="reveal-label" className={cn(REVEAL_CENTERED, 'w-max')} style={{ fontSize }}>
+          <span data-slot="reveal-label-pill" className={REVEAL_PILL} style={pillStyle}>
             {label}
           </span>
         </div>
@@ -179,7 +169,7 @@ function Sunburst({
     )
   }
 
-  const comboScale = 1 + 0.08 * Math.min(streak - 3, 5)
+  const comboScale = comboScaleFor(streak)
   const viewBox = `${-box / 2} ${-box / 2} ${box} ${box}`
 
   return (
@@ -194,7 +184,7 @@ function Sunburst({
       {/* Halo : disque coloré diffus qui s'étend et s'éteint. */}
       <motion.div
         data-slot="reveal-halo"
-        className={cn(CENTERED, 'rounded-full')}
+        className={cn(REVEAL_CENTERED, 'rounded-full')}
         style={{
           width: markerSize * 3,
           height: markerSize * 3,
@@ -211,7 +201,7 @@ function Sunburst({
       {/* Couronne de rayons : jaillit du point puis tourne de quelques degrés en s'éteignant. */}
       <motion.div
         data-slot="reveal-rays"
-        className={CENTERED}
+        className={REVEAL_CENTERED}
         style={{ width: box, height: box }}
         initial={{ scale: 0.3, rotate: sun.turn }}
         animate={{ scale: 1, rotate: sun.turn + sun.spin }}
@@ -243,7 +233,7 @@ function Sunburst({
       {sun.needles && (
         <motion.div
           data-slot="reveal-needles"
-          className={CENTERED}
+          className={REVEAL_CENTERED}
           style={{ width: box, height: box }}
           initial={{ scale: 0.25, rotate: 0, opacity: 0 }}
           animate={{ scale: 1, rotate: -sun.spin * 1.6, opacity: [0, 1, 0] }}
@@ -264,7 +254,7 @@ function Sunburst({
       {/* Éclat blanc au cœur, sous l'étiquette. */}
       <motion.div
         data-slot="reveal-flash"
-        className={cn(CENTERED, 'rounded-full')}
+        className={cn(REVEAL_CENTERED, 'rounded-full')}
         style={{
           width: markerSize * 2.2,
           height: markerSize * 2.2,
@@ -276,10 +266,10 @@ function Sunburst({
       />
 
       {/* Étiquette : jaillit du point (0.3 → dépassement → 1) et se redresse. */}
-      <div data-slot="reveal-label" className={cn(CENTERED, 'w-max')} style={{ fontSize }}>
+      <div data-slot="reveal-label" className={cn(REVEAL_CENTERED, 'w-max')} style={{ fontSize }}>
         <motion.span
           data-slot="reveal-label-pill"
-          className={PILL}
+          className={REVEAL_PILL}
           style={pillStyle}
           initial={{ scale: 0.3, rotate: sun.tilt }}
           animate={{ scale: [0.3, sun.pop, 1], rotate: 0 }}
@@ -300,13 +290,17 @@ function Sunburst({
           </motion.span>
         </motion.span>
 
-        {streak >= 3 && (
+        {streak >= COMBO_MIN_STREAK && (
           <motion.span
             data-slot="reveal-combo"
-            className="absolute top-0 left-full -translate-x-[45%] -translate-y-[58%] rounded-full px-[0.45em] py-[0.28em] text-[0.66em] leading-none font-bold whitespace-nowrap tabular-nums"
+            className={cn(REVEAL_COMBO, '-translate-x-[45%] -translate-y-[58%]')}
             style={{ background: colorForeground, color, boxShadow: `0 0 0 1.5px ${color}` }}
             initial={{ scale: 0, rotate: -sun.comboTilt * 4, opacity: 0 }}
-            animate={{ scale: [0, comboScale * 1.25, comboScale], rotate: sun.comboTilt, opacity: 1 }}
+            animate={{
+              scale: [0, comboScale * 1.25, comboScale],
+              rotate: sun.comboTilt,
+              opacity: 1,
+            }}
             transition={{
               delay: 0.08,
               duration: 0.24,
@@ -324,7 +318,7 @@ function Sunburst({
       {/* Le point d'origine : il s'embrase et s'efface sur l'étiquette naissante. */}
       <motion.div
         data-slot="reveal-origin"
-        className={cn(CENTERED, 'rounded-full bg-marker')}
+        className={cn(REVEAL_CENTERED, 'rounded-full bg-marker')}
         style={{ width: markerSize, height: markerSize }}
         initial={{ scale: 1, opacity: 1 }}
         animate={{ scale: 1.45, opacity: 0 }}

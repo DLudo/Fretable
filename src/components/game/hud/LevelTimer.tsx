@@ -65,7 +65,10 @@ export function LevelTimer({ state, className, barClassName }: LevelTimerProps):
         aria-hidden
         data-slot="level-timebar"
         data-critical={critical || undefined}
-        className={cn('pointer-events-none absolute inset-x-0 bottom-0 h-0.5 bg-hud-track', barClassName)}
+        className={cn(
+          'pointer-events-none absolute inset-x-0 bottom-0 h-0.5 bg-hud-track',
+          barClassName,
+        )}
       >
         <span
           data-slot="level-timebar-fill"

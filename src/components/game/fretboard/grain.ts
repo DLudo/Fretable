@@ -22,7 +22,12 @@ const STEP_MM = 4
  * Veinage déterministe de la touche : longues fibres à peine ondulées qui
  * suivent l'évasement du manche. Même graine → même bois à chaque rendu.
  */
-export function createGrain(layout: NeckLayout, seed = 0x0f12e7, count = 38, poreCount = 260): Grain {
+export function createGrain(
+  layout: NeckLayout,
+  seed = 0x0f12e7,
+  count = 38,
+  poreCount = 260,
+): Grain {
   const random = seededRandom(seed)
   const [topLeft, topRight] = layout.outline
   const { endX } = layout
@@ -31,8 +36,16 @@ export function createGrain(layout: NeckLayout, seed = 0x0f12e7, count = 38, por
   const fibers = Array.from({ length: count }, (_, i): GrainFiber => {
     // Répartition stratifiée sur la largeur, pour un veinage régulier sans paquets.
     const lane = -0.98 + (1.96 * (i + range(random, 0.15, 0.85))) / count
-    const ripple = { a: range(random, 0.06, 0.32), k: (2 * Math.PI) / range(random, 28, 90), p: range(random, 0, 7) }
-    const drift = { a: range(random, 0.2, 0.9), k: (2 * Math.PI) / range(random, 160, 420), p: range(random, 0, 7) }
+    const ripple = {
+      a: range(random, 0.06, 0.32),
+      k: (2 * Math.PI) / range(random, 28, 90),
+      p: range(random, 0, 7),
+    }
+    const drift = {
+      a: range(random, 0.2, 0.9),
+      k: (2 * Math.PI) / range(random, 160, 420),
+      p: range(random, 0, 7),
+    }
     const partial = random() < 0.35
     const start = partial ? range(random, -2, endX * 0.6) : -2
     const end = partial ? Math.min(endX + 2, start + range(random, 60, 220)) : endX + 2

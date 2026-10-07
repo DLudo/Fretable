@@ -6,7 +6,9 @@ import type { GameState } from './types'
  * Temps restant (ms), rafraîchi à chaque frame pendant la partie.
  * À n'utiliser que dans le composant qui l'affiche : seul lui se re-rend à 60 i/s.
  */
-export function useCountdown(state: Pick<GameState, 'phase' | 'startedAt' | 'endedAt' | 'level'>): number {
+export function useCountdown(
+  state: Pick<GameState, 'phase' | 'startedAt' | 'endedAt' | 'level'>,
+): number {
   const { phase, startedAt, endedAt } = state
   const duration = state.level.durationMs
   const [now, setNow] = useState(() => performance.now())

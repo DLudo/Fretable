@@ -32,7 +32,12 @@ const valueLabel = (value: number, max: number) => `${value} notes trouvées sur
  * Barre de progression du niveau, découpée en autant de segments que de notes.
  * Sémantique Radix (`role="progressbar"`) ; l'indicateur est animé par Motion.
  */
-export function LevelProgress({ value, max, pulseId = 0, className }: LevelProgressProps): ReactNode {
+export function LevelProgress({
+  value,
+  max,
+  pulseId = 0,
+  className,
+}: LevelProgressProps): ReactNode {
   const reduceMotion = useReducedMotion()
   const safeMax = Math.max(1, max)
   const safeValue = Math.min(safeMax, Math.max(0, value))
@@ -50,7 +55,10 @@ export function LevelProgress({ value, max, pulseId = 0, className }: LevelProgr
       aria-label="Progression du niveau"
       className={cn('relative h-2 w-full rounded-full bg-hud-track', className)}
     >
-      <div data-slot="level-progress-clip" className="absolute inset-0 overflow-hidden rounded-[inherit]">
+      <div
+        data-slot="level-progress-clip"
+        className="absolute inset-0 overflow-hidden rounded-[inherit]"
+      >
         <ProgressPrimitive.Indicator asChild>
           <motion.div
             data-slot="level-progress-indicator"

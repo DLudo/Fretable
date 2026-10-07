@@ -35,8 +35,7 @@ export function pickEffect(
   previousId?: string | null,
 ): RevealEffect | null {
   const candidates = listEffects(outcome)
-  const pool =
-    candidates.length > 1 ? candidates.filter((e) => e.id !== previousId) : candidates
+  const pool = candidates.length > 1 ? candidates.filter((e) => e.id !== previousId) : candidates
   if (pool.length === 0) return null
   const total = pool.reduce((sum, e) => sum + (e.weight ?? 1), 0)
   let roll = random() * total
