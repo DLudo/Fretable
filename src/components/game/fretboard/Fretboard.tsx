@@ -2,7 +2,13 @@ import { AnimatePresence, useReducedMotion } from 'motion/react'
 import { useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import type { NeckLayout } from '@/game/fretboard/geometry'
-import { createProjection, type BoardProjection } from '@/game/fretboard/projection'
+import {
+  createProjection,
+  ORIENTATION_TRANSFORM,
+  orientViewBox,
+  type BoardOrientation,
+  type BoardProjection,
+} from '@/game/fretboard/projection'
 import { stringNumber } from '@/game/music/tuning'
 import { cn } from '@/lib/utils'
 import { FretNumbers } from './FretNumbers'
@@ -23,6 +29,8 @@ export interface FretboardProps {
   overlay?: (projection: BoardProjection) => ReactNode
   /** Fret numbers under the neck (default true). */
   showFretNumbers?: boolean
+  /** Orientation d'affichage (défaut : horizontal). */
+  orientation?: BoardOrientation
   className?: string
 }
 
@@ -69,12 +77,14 @@ export function Fretboard({
   marker,
   overlay,
   showFretNumbers = true,
+  orientation = 'horizontal',
   className,
 }: FretboardProps) {
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '')
   const reduceMotion = useReducedMotion() ?? false
   const [svgRef, size] = useBoxSize<SVGSVGElement>()
   const vb = layout.viewBox
+  const box = orientViewBox(vb, orientation)
 
   const projection = useMemo(
     () =>
@@ -82,8 +92,9 @@ export function Fretboard({
         { x: vb.x, y: vb.y, width: vb.width, height: vb.height },
         size.width,
         size.height,
+        orientation,
       ),
-    [vb.x, vb.y, vb.width, vb.height, size.width, size.height],
+    [vb.x, vb.y, vb.width, vb.height, size.width, size.height, orientation],
   )
 
   // Arrondi au quart de mm : les numéros ne se redessinent qu'à des paliers de taille.
@@ -103,31 +114,33 @@ export function Fretboard({
         ref={svgRef}
         role="img"
         aria-label="Manche de guitare, cases 1 à 12"
-        viewBox={`${vb.x} ${vb.y} ${vb.width} ${vb.height}`}
+        viewBox={`${box.x} ${box.y} ${box.width} ${box.height}`}
         preserveAspectRatio="xMidYMid meet"
         className="block h-auto w-full"
-        style={{ aspectRatio: vb.width / vb.height }}
+        style={{ aspectRatio: box.width / box.height }}
       >
-        <NeckBoard layout={layout} uid={uid} />
-        {showFretNumbers && <FretNumbers layout={layout} fontSize={fretNumberSize} />}
-        <defs>
-          <radialGradient id={haloId}>
-            <stop offset={0.45} style={{ stopColor: 'var(--marker-ring)', stopOpacity: 1 }} />
-            <stop offset={1} style={{ stopColor: 'var(--marker-ring)', stopOpacity: 0 }} />
-          </radialGradient>
-        </defs>
-        <AnimatePresence>
-          {marker && position && (
-            <MarkerDot
-              key={marker.id}
-              cx={position.x}
-              cy={position.y}
-              r={layout.markerRadius}
-              haloId={haloId}
-              reduceMotion={reduceMotion}
-            />
-          )}
-        </AnimatePresence>
+        <g transform={ORIENTATION_TRANSFORM[orientation]}>
+          <NeckBoard layout={layout} uid={uid} />
+          {showFretNumbers && <FretNumbers layout={layout} fontSize={fretNumberSize} />}
+          <defs>
+            <radialGradient id={haloId}>
+              <stop offset={0.45} style={{ stopColor: 'var(--marker-ring)', stopOpacity: 1 }} />
+              <stop offset={1} style={{ stopColor: 'var(--marker-ring)', stopOpacity: 0 }} />
+            </radialGradient>
+          </defs>
+          <AnimatePresence>
+            {marker && position && (
+              <MarkerDot
+                key={marker.id}
+                cx={position.x}
+                cy={position.y}
+                r={layout.markerRadius}
+                haloId={haloId}
+                reduceMotion={reduceMotion}
+              />
+            )}
+          </AnimatePresence>
+        </g>
       </svg>
 
       {overlay && size.width > 0 && (

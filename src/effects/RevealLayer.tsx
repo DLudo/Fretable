@@ -97,8 +97,11 @@ function ActiveEffect({
   }, [complete])
 
   const { x, y } = projection.toPx(layout.position(challenge.stringIndex, challenge.fret))
+  // Angle mesuré à l'écran : suit l'orientation du manche (horizontal ou vertical).
   const string = layout.strings[challenge.stringIndex]
-  const stringAngle = Math.atan2(string.to.y - string.from.y, string.to.x - string.from.x)
+  const from = projection.toPx(string.from)
+  const to = projection.toPx(string.to)
+  const stringAngle = Math.atan2(to.y - from.y, to.x - from.x)
   const { Component } = effect
 
   return (
