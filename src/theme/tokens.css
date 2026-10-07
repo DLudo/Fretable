@@ -1,0 +1,91 @@
+/*
+ * Jetons propres au jeu (manche, piano, feedback).
+ *
+ * Toute la couche visuelle du jeu lit ces variables : pour brancher un design
+ * system, il suffit de redéfinir ces valeurs (ou de surcharger ce fichier).
+ * Les composants n'emploient jamais de couleur en dur.
+ *
+ * Exposés à Tailwind via `@theme inline` : `fill-fretboard`, `bg-key-white`,
+ * `text-feedback-success`, etc.
+ */
+:root {
+  /* — Manche — (niveaux de gris ; un préréglage « érable » est donné plus bas) */
+  --fretboard: oklch(0.27 0 0);
+  --fretboard-edge: oklch(0.2 0 0);
+  --fretboard-grain: oklch(0.31 0 0);
+  --fret-wire: oklch(0.78 0 0);
+  --fret-wire-highlight: oklch(0.95 0 0);
+  --nut: oklch(0.93 0 0);
+  --inlay: oklch(0.5 0 0);
+  --string: oklch(0.82 0 0);
+  --string-wound: oklch(0.68 0 0);
+  --fret-number: oklch(0.5 0 0);
+
+  /* — Repère (le point à deviner) — */
+  --marker: oklch(0.985 0 0);
+  --marker-ring: oklch(0.985 0 0 / 35%);
+
+  /* — Piano — */
+  --key-white: oklch(0.96 0 0);
+  --key-white-pressed: oklch(0.84 0 0);
+  --key-white-foreground: oklch(0.2 0 0);
+  --key-black: oklch(0.18 0 0);
+  --key-black-pressed: oklch(0.32 0 0);
+  --key-black-foreground: oklch(0.9 0 0);
+  --key-border: oklch(0.12 0 0);
+
+  /* — Feedback — (seules couleurs saturées de l'interface) */
+  --feedback-success: oklch(0.78 0.2 150);
+  --feedback-success-foreground: oklch(0.18 0.05 150);
+  --feedback-error: oklch(0.66 0.23 25);
+  --feedback-error-foreground: oklch(0.98 0.01 25);
+
+  /* — HUD — */
+  --hud-track: oklch(1 0 0 / 10%);
+  --hud-fill: oklch(0.985 0 0);
+  --hud-time: oklch(1 0 0 / 35%);
+  --hud-time-critical: var(--feedback-error);
+}
+
+/*
+ * Préréglage « touche en érable » — décommentez ou appliquez
+ * `data-fretboard="maple"` sur un ancêtre pour l'activer.
+ */
+[data-fretboard='maple'] {
+  --fretboard: oklch(0.86 0.06 80);
+  --fretboard-edge: oklch(0.78 0.07 75);
+  --fretboard-grain: oklch(0.82 0.07 78);
+  --fret-wire: oklch(0.72 0.01 90);
+  --inlay: oklch(0.25 0.01 60);
+  --fret-number: oklch(0.6 0.03 80);
+}
+
+@theme inline {
+  --color-fretboard: var(--fretboard);
+  --color-fretboard-edge: var(--fretboard-edge);
+  --color-fretboard-grain: var(--fretboard-grain);
+  --color-fret-wire: var(--fret-wire);
+  --color-fret-wire-highlight: var(--fret-wire-highlight);
+  --color-nut: var(--nut);
+  --color-inlay: var(--inlay);
+  --color-string: var(--string);
+  --color-string-wound: var(--string-wound);
+  --color-fret-number: var(--fret-number);
+  --color-marker: var(--marker);
+  --color-marker-ring: var(--marker-ring);
+  --color-key-white: var(--key-white);
+  --color-key-white-pressed: var(--key-white-pressed);
+  --color-key-white-foreground: var(--key-white-foreground);
+  --color-key-black: var(--key-black);
+  --color-key-black-pressed: var(--key-black-pressed);
+  --color-key-black-foreground: var(--key-black-foreground);
+  --color-key-border: var(--key-border);
+  --color-feedback-success: var(--feedback-success);
+  --color-feedback-success-foreground: var(--feedback-success-foreground);
+  --color-feedback-error: var(--feedback-error);
+  --color-feedback-error-foreground: var(--feedback-error-foreground);
+  --color-hud-track: var(--hud-track);
+  --color-hud-fill: var(--hud-fill);
+  --color-hud-time: var(--hud-time);
+  --color-hud-time-critical: var(--hud-time-critical);
+}
