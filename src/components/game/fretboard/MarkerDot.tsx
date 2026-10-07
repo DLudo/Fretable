@@ -1,16 +1,15 @@
 import { motion, type Transition } from 'motion/react'
 
-import { duration, ease } from '@/theme/motion'
+import { duration, ease, spring } from '@/theme/motion'
 
-/**
- * Apparition « note suivante ! » : ressort très raide avec ~15 % de dépassement,
- * pic vers 100 ms, posé en moins de 250 ms.
- */
-const POP_IN: Transition = { type: 'spring', stiffness: 800, damping: 22, mass: 0.6 }
+/** Apparition « note suivante ! » : pop très raide, posé en moins de 250 ms. */
+const POP_IN: Transition = spring.pop
 /** Disparition éclair : un effet de révélation prend le relais au même endroit. */
 const EXIT: Transition = { duration: duration.instant, ease: ease.inQuad }
 /** Respiration du halo : faible amplitude, en boucle. */
-const PULSE: Transition = { duration: 1.6, ease: 'easeInOut', repeat: Infinity }
+const PULSE: Transition = { duration: duration.pulse, ease: ease.inOut, repeat: Infinity }
+/** Onde de choc à l'apparition. */
+const SHOCKWAVE: Transition = { duration: duration.reveal, ease: ease.outExpo }
 
 const CENTERED = { transformBox: 'fill-box', transformOrigin: 'center' } as const
 
@@ -18,7 +17,7 @@ interface MarkerDotProps {
   cx: number
   cy: number
   r: number
-  /** Identifiant du dégradé de halo (défini une fois par le parent). */
+  /** Identifiant du dégradé de halo (défini une fois par le parent, couleur `--marker-halo`). */
   haloId: string
   reduceMotion: boolean
 }
@@ -59,16 +58,23 @@ export function MarkerDot({ cx, cy, r, haloId, reduceMotion }: MarkerDotProps) {
           style={CENTERED}
           initial={{ scale: 0.9, opacity: 0.9 }}
           animate={{ scale: 2.5, opacity: 0 }}
-          transition={{ duration: duration.reveal, ease: ease.outExpo }}
+          transition={SHOCKWAVE}
         />
       )}
-      <circle cx={cx} cy={cy + r * 0.14} r={r} className="fill-fretboard-edge" fillOpacity={0.8} />
+      <circle
+        data-slot="fretboard-marker-shadow"
+        cx={cx}
+        cy={cy + r * 0.14}
+        r={r}
+        className="fill-fretboard-shadow"
+        fillOpacity={0.8}
+      />
       <circle
         data-slot="fretboard-marker-dot"
         cx={cx}
         cy={cy}
         r={r}
-        className="fill-marker stroke-fretboard-edge"
+        className="fill-marker stroke-marker-outline"
         strokeWidth={r * 0.08}
       />
     </motion.g>

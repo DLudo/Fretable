@@ -1,40 +1,67 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useAnimate, useReducedMotion } from 'motion/react'
-import { RotateCcw } from 'lucide-react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useAnimate, useReducedMotion, type Transition } from 'motion/react'
 
 import { RevealLayer } from '@/effects'
-import { GAME_FEEL } from '@/game/config'
+import type { GameEventBus } from '@/game/engine/events'
+import { endScreenAt } from '@/game/engine/selectors'
 import { useGame } from '@/game/engine/useGame'
 import { createNeckLayout } from '@/game/fretboard/geometry'
-import type { BoardProjection } from '@/game/fretboard/projection'
+import {
+  orientViewBox,
+  type BoardOrientation,
+  type BoardProjection,
+} from '@/game/fretboard/projection'
 import { useKeyboardControls } from '@/game/input/useKeyboardControls'
 import type { PitchClass } from '@/game/music/notes'
 import { useElementSize } from '@/hooks/useElementSize'
-import { ease } from '@/theme/motion'
-import { Fretboard } from './fretboard/Fretboard'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
+import { cn } from '@/lib/utils'
+import { duration, ease } from '@/theme/motion'
+import { Fretboard } from './fretboard'
 import { LevelHud } from './hud'
 import { LevelOverlay } from './overlays'
 import { Piano, type PianoFeedback } from './piano'
+
+/** Largeur maximale du manche sur grand écran. */
+const BOARD_MAX_WIDTH = '72rem'
+
+/** Téléphone tenu en portrait : le manche passe à la verticale (sillet en haut). */
+const PORTRAIT_QUERY = '(orientation: portrait) and (max-width: 639px)'
+
+/** Petit coup sec du manche sur une bonne réponse. */
+const BOARD_HIT: Transition = { duration: duration.fast, ease: ease.outQuart }
+/** Secousse latérale sur une erreur. */
+const BOARD_SHAKE: Transition = { duration: duration.base, ease: ease.outQuart }
+
+export interface GameScreenProps {
+  className?: string
+}
 
 /**
  * Écran de jeu : assemble HUD, manche, piano, révélations et overlays.
  * Toute la logique vit dans `useGame` ; ce composant ne fait que du câblage.
  */
-export function GameScreen() {
+export function GameScreen({ className }: GameScreenProps) {
   const game = useGame()
   const { state } = game
   const layout = useMemo(() => createNeckLayout({ tuning: game.tuning }), [game.tuning])
   const playing = state.phase === 'playing'
+  const orientation: BoardOrientation = useMediaQuery(PORTRAIT_QUERY) ? 'vertical' : 'horizontal'
 
-  // L'écran de victoire attend la fin de la dernière révélation.
-  const [victoryShownFor, setVictoryShownFor] = useState<number | null>(null)
+  // L'écran de fin attend que la dernière révélation ait pu être lue.
+  const overlayAt = endScreenAt(state)
+  const [overlayShownFor, setOverlayShownFor] = useState<number | null>(null)
   useEffect(() => {
-    if (state.phase !== 'won' || state.endedAt === null) return
     const endedAt = state.endedAt
-    const timer = window.setTimeout(() => setVictoryShownFor(endedAt), GAME_FEEL.victoryDelayMs)
+    if (overlayAt === null || endedAt === null || overlayAt <= endedAt) return
+    const timer = window.setTimeout(
+      () => setOverlayShownFor(endedAt),
+      Math.max(0, overlayAt - performance.now()),
+    )
     return () => window.clearTimeout(timer)
-  }, [state.phase, state.endedAt])
-  const overlayVisible = state.phase !== 'won' || victoryShownFor === state.endedAt
+  }, [overlayAt, state.endedAt])
+  const overlayVisible =
+    overlayAt === null || overlayAt === state.endedAt || overlayShownFor === state.endedAt
 
   const confirm = () => {
     if (!overlayVisible) return
@@ -75,11 +102,8 @@ export function GameScreen() {
       : null
 
   const boardRef = useBoardImpact(game.events)
-  const {
-    mainRef,
-    pianoRef,
-    maxWidth: boardMaxWidth,
-  } = useBoardFit(layout.viewBox.width / layout.viewBox.height)
+  const box = orientViewBox(layout.viewBox, orientation)
+  const { mainRef, pianoRef, maxWidth: boardMaxWidth } = useBoardFit(box.width / box.height)
 
   const overlay = useCallback(
     (projection: BoardProjection) => (
@@ -89,22 +113,24 @@ export function GameScreen() {
   )
 
   return (
-    <div data-slot="game-screen" className="flex h-dvh flex-col overflow-hidden">
+    <div data-slot="game-screen" className={cn('flex h-dvh flex-col overflow-hidden', className)}>
       <LevelHud state={state} className="shrink-0" />
       <main
         ref={mainRef}
+        data-slot="game-stage"
+        data-orientation={orientation}
         className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-[clamp(1rem,6vh,4.5rem)] px-4 pt-2 pb-[clamp(0.75rem,3vh,1.5rem)]"
       >
-        <div className="flex w-full flex-col items-center gap-2">
-          <div ref={boardRef} className="w-full" style={{ maxWidth: boardMaxWidth }}>
-            <Fretboard layout={layout} marker={marker} overlay={overlay} />
-          </div>
-          <p className="hidden items-center gap-1.5 text-xs text-muted-foreground max-sm:portrait:flex">
-            <RotateCcw className="size-3.5" aria-hidden />
-            En paysage, le manche est plus grand.
-          </p>
+        <div
+          ref={boardRef}
+          data-slot="game-board"
+          className="w-full"
+          style={{ maxWidth: boardMaxWidth }}
+        >
+          <Fretboard layout={layout} marker={marker} overlay={overlay} orientation={orientation} />
         </div>
-        <div ref={pianoRef} className="w-full">
+        {/* Hors partie, le piano sort du parcours clavier et de l'arbre d'accessibilité. */}
+        <div ref={pianoRef} data-slot="game-piano" className="w-full" inert={!playing}>
           <Piano
             onPress={game.guess}
             pressed={pressed}
@@ -126,21 +152,19 @@ export function GameScreen() {
   )
 }
 
-/** Largeur maximale du manche sur grand écran. */
-const BOARD_MAX_WIDTH = '72rem'
-
 /**
- * Le manche est dimensionné par la largeur… sauf sur les écrans bas (mobile en
- * paysage) : on borne alors sa largeur pour que sa hauteur tienne dans
- * l'espace laissé par le HUD et le piano, proportions conservées.
+ * Le manche est dimensionné par la largeur, mais jamais plus haut que l'espace
+ * laissé par le HUD et le piano (proportions conservées). `aspectRatio` est
+ * celui du manche orienté : à la verticale, c'est donc la hauteur disponible
+ * qui fixe sa taille.
  */
 function useBoardFit(aspectRatio: number) {
   const [mainRef, main] = useElementSize<HTMLElement>()
   const [pianoRef, piano] = useElementSize<HTMLDivElement>()
   const [chrome, setChrome] = useState(0)
 
-  // Marges verticales et espacement du conteneur, relus quand sa taille change.
-  useEffect(() => {
+  // Marges verticales et espacement du conteneur, relus avant affichage quand sa taille change.
+  useLayoutEffect(() => {
     const element = mainRef.current
     if (!element) return
     const style = getComputedStyle(element)
@@ -161,18 +185,15 @@ function useBoardFit(aspectRatio: number) {
  * Impact physique du manche : petit coup sec sur une bonne réponse,
  * secousse sur une erreur. Branché sur le bus d'événements du jeu.
  */
-function useBoardImpact(events: ReturnType<typeof useGame>['events']) {
+function useBoardImpact(events: GameEventBus) {
   const [scope, animate] = useAnimate<HTMLDivElement>()
   const reduced = useReducedMotion()
   useEffect(() => {
     if (reduced) return
     return events.on('guess', (result) => {
       if (!scope.current) return
-      if (result.correct) {
-        animate(scope.current, { y: [0, 3, 0] }, { duration: 0.16, ease: ease.outQuart })
-      } else {
-        animate(scope.current, { x: [0, -7, 6, -4, 3, -1, 0] }, { duration: 0.32, ease: 'easeOut' })
-      }
+      if (result.correct) animate(scope.current, { y: [0, 3, 0] }, BOARD_HIT)
+      else animate(scope.current, { x: [0, -7, 6, -4, 3, -1, 0] }, BOARD_SHAKE)
     })
   }, [events, animate, scope, reduced])
   return scope

@@ -1,10 +1,18 @@
 import { useMemo } from 'react'
-import { motion, useReducedMotion, type Easing, type Transition } from 'motion/react'
+import { motion, type Easing, type Transition } from 'motion/react'
 
+import { range, seededRandom } from '@/lib/random'
 import { cn } from '@/lib/utils'
 import { ease } from '@/theme/motion'
-import { REVEAL_CENTERED, REVEAL_PILL, labelFontSize, useCompleteAfter } from '../kit'
-import { range, seededRandom } from '@/lib/random'
+import {
+  REVEAL_CENTERED,
+  REVEAL_PILL,
+  RevealRoot,
+  labelFontSize,
+  revealExit,
+  revealPillStyle,
+  useCompleteAfter,
+} from '../kit'
 import type { RevealEffect, RevealEffectProps } from '../types'
 
 /**
@@ -15,8 +23,6 @@ import type { RevealEffect, RevealEffectProps } from '../types'
  * parasite parfois l'étiquette, puis l'écran « s'éteint ». Sec, jamais festif.
  */
 
-/** Durée de vie (ms). La note suivante n'apparaît que ~950 ms après une erreur. */
-const LIFETIME_MS = 1100
 /** Le point s'écrase en trait, puis disparaît (s). */
 const SQUASH_AT = 0.022
 const LABEL_AT = 0.042
@@ -25,16 +31,14 @@ const SNAP_FOR = 0.075
 /** Parasitage principal (s). */
 const GLITCH_AT = LABEL_AT + SNAP_FOR / 2
 const GLITCH_FOR = 0.25
-/** Fin du maintien (s) : la bonne note reste lisible jusque-là, puis l'écran s'éteint. */
-const HOLD_UNTIL = 0.9
-const EXIT_FOR = 0.12
-
-const EXIT_TOTAL = HOLD_UNTIL + EXIT_FOR
-const EXIT_TIMES = [0, HOLD_UNTIL / EXIT_TOTAL, 1]
-
-/** Mouvement réduit : apparition, maintien, disparition. */
-const REDUCED_EASE: Easing[] = [ease.outQuart, 'linear', ease.outQuart]
-const REDUCED_TIMES = [0, 0.12 / EXIT_TOTAL, HOLD_UNTIL / EXIT_TOTAL, 1]
+/**
+ * Extinction cathodique (ms) : la bonne note reste lisible jusqu'à l'approche de
+ * la note suivante (`budgetMs`), puis l'écran s'éteint d'un coup.
+ */
+const OFF_MS = 120
+/** Ombre serrée de l'étiquette (px, % de couleur) : la détache du manche sans halo de célébration. */
+const SHADOW_PX = 10
+const SHADOW_MIX = 35
 
 /** Courbe « en créneau » : la valeur tient jusqu'au keyframe suivant, puis saute (signal numérique). */
 const hold = (t: number) => (t < 1 ? 0 : 1)
@@ -176,47 +180,25 @@ function buildGlitch(seed: number, markerSize: number): Glitch {
   }
 }
 
-// oxlint-disable-next-line react/only-export-components -- exporté via son descripteur d'effet
 function GlitchSlice({
   label,
   x,
   y,
   markerSize,
   seed,
+  budgetMs,
   color,
   colorForeground,
+  highlight,
   onComplete,
 }: RevealEffectProps) {
-  const reduceMotion = useReducedMotion()
-  useCompleteAfter(LIFETIME_MS, onComplete)
+  const exit = useMemo(() => revealExit(budgetMs, { fadeMs: OFF_MS }), [budgetMs])
+  useCompleteAfter(exit.lifetimeMs, onComplete)
   const glitch = useMemo(() => buildGlitch(seed, markerSize), [seed, markerSize])
   const { fontSize } = glitch
-  const pillStyle = { background: color, color: colorForeground }
-  // Ombre serrée : détache l'étiquette du manche sans halo de célébration.
-  const settledStyle = {
-    ...pillStyle,
-    boxShadow: `0 0 10px color-mix(in oklch, ${color} 35%, transparent)`,
-  }
-
-  if (reduceMotion) {
-    return (
-      <motion.div
-        data-slot="reveal-effect"
-        data-effect="glitch-slice"
-        className="pointer-events-none absolute size-0 overflow-visible"
-        style={{ left: x, top: y }}
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: [0, 1, 1, 0], scale: [0.9, 1, 1, 1] }}
-        transition={{ duration: EXIT_TOTAL, times: REDUCED_TIMES, ease: REDUCED_EASE }}
-      >
-        <div data-slot="reveal-label" className={cn(REVEAL_CENTERED, 'w-max')} style={{ fontSize }}>
-          <span data-slot="reveal-label-pill" className={REVEAL_PILL} style={settledStyle}>
-            {label}
-          </span>
-        </div>
-      </motion.div>
-    )
-  }
+  // Copies parasitées sans ombre ; l'étiquette stabilisée garde une ombre serrée.
+  const pillStyle = revealPillStyle(color, colorForeground, 0)
+  const settledStyle = revealPillStyle(color, colorForeground, SHADOW_PX, SHADOW_MIX)
 
   /**
    * Tous les sauts partagent la même horloge, en créneaux. Le premier tient pendant
@@ -228,25 +210,25 @@ function GlitchSlice({
     times: glitch.times,
     ease: holdEach(glitch.times.length),
   }
+  /** Extinction : l'image s'écrase en trait (ease-out) pendant que l'opacité tombe (ease-in). */
+  const off: Transition = {
+    ...exit.transition,
+    ease: ['linear', ease.outExpo],
+    opacity: { ...exit.transition, ease: ['linear', ease.inQuad] },
+  }
   const ghostBackgrounds = [
     `color-mix(in oklch, ${color} 55%, transparent)`,
-    'color-mix(in oklch, var(--marker) 40%, transparent)',
+    `color-mix(in oklch, ${highlight} 40%, transparent)`,
   ]
 
   return (
-    <motion.div
-      data-slot="reveal-effect"
-      data-effect="glitch-slice"
-      className="pointer-events-none absolute size-0 overflow-visible"
-      style={{ left: x, top: y }}
+    <RevealRoot
+      x={x}
+      y={y}
+      effect="glitch-slice"
       // Extinction cathodique : l'image s'écrase en trait puis disparaît.
       animate={{ opacity: [1, 1, 0], scaleY: [1, 1, 0.08], scaleX: [1, 1, 1.2] }}
-      transition={{
-        duration: EXIT_TOTAL,
-        times: EXIT_TIMES,
-        ease: ['linear', ease.outExpo],
-        opacity: { duration: EXIT_TOTAL, times: EXIT_TIMES, ease: ['linear', ease.inQuad] },
-      }}
+      transition={off}
     >
       {/* Le point d'origine s'écrase en trait horizontal, puis s'éteint. */}
       <motion.div
@@ -322,7 +304,7 @@ function GlitchSlice({
               top: `${bar.top}%`,
               left: `${bar.left}%`,
               width: `${bar.width}%`,
-              background: bar.hot ? 'var(--marker)' : color,
+              background: bar.hot ? highlight : color,
             }}
             initial={{ x: bar.x[0], opacity: 0 }}
             animate={{ x: bar.x, opacity: bar.opacity }}
@@ -330,7 +312,7 @@ function GlitchSlice({
           />
         ))}
       </motion.div>
-    </motion.div>
+    </RevealRoot>
   )
 }
 

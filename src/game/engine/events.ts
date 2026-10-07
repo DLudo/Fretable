@@ -31,3 +31,44 @@ export function createGameEventBus(): GameEventBus {
     },
   }
 }
+
+/** Un événement du bus, prêt à être diffusé. */
+export type GameEvent = {
+  [K in keyof GameEventMap]: { type: K; payload: GameEventMap[K] }
+}[keyof GameEventMap]
+
+/** Ce que le bus a déjà diffusé (ou doit diffuser) de l'état du jeu. */
+export interface GameEventSnapshot {
+  phase: GamePhase | null
+  challenge: Challenge | null
+  lastResult: GuessResult | null
+}
+
+export const EMPTY_EVENT_SNAPSHOT: GameEventSnapshot = {
+  phase: null,
+  challenge: null,
+  lastResult: null,
+}
+
+/**
+ * Événements à diffuser pour passer de `prev` à `next`, dans un ordre fixe :
+ * tentative → phase → note. D'où, au démarrage : phase puis première note ;
+ * sur la dernière réponse ou à la fin du temps : révélation puis phase.
+ * Une valeur inchangée n'est jamais rediffusée.
+ */
+export function diffGameEvents(prev: GameEventSnapshot, next: GameEventSnapshot): GameEvent[] {
+  const list: GameEvent[] = []
+  if (next.lastResult && next.lastResult !== prev.lastResult)
+    list.push({ type: 'guess', payload: next.lastResult })
+  if (next.phase && next.phase !== prev.phase) list.push({ type: 'phase', payload: next.phase })
+  if (next.challenge && next.challenge !== prev.challenge)
+    list.push({ type: 'challenge', payload: next.challenge })
+  return list
+}
+
+export function emitGameEvent<K extends keyof GameEventMap>(
+  bus: GameEventBus,
+  event: { type: K; payload: GameEventMap[K] },
+): void {
+  bus.emit(event.type, event.payload)
+}

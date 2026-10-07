@@ -2,10 +2,11 @@ import { memo, useMemo } from 'react'
 
 import type { NeckLayout } from '@/game/fretboard/geometry'
 import { createGrain } from './grain'
+import { NeckInlays } from './NeckInlays'
 
-/** Longueur du fondu à l'extrémité droite (mm) : le manche semble continuer. */
+/** Longueur du fondu à l'extrémité côté chevalet (mm) : le manche semble continuer. */
 const FADE_MM = 8
-/** Décalage de l'ombre portée des cordes (mm), lumière venant du haut. */
+/** Décalage de l'ombre portée des cordes (mm), lumière venant du haut du manche horizontal. */
 const STRING_SHADOW_MM = 0.5
 /** Pas de la texture de filage des cordes filées (mm). */
 const WINDING_DASH = '0.32 0.3'
@@ -17,8 +18,9 @@ interface NeckBoardProps {
 }
 
 /**
- * Partie statique du manche : bois, sillet, frettes, repères, cordes.
- * Mémoïsée : seul un changement de `layout` la redessine.
+ * Partie statique du manche : bois, sillet, frettes, repères, cordes, dessinés
+ * à l'horizontale (le parent oriente le tout). Mémoïsée : seul un changement de
+ * `layout` la redessine ; l'estompage des repères passe par `CoveredInlaysContext`.
  */
 export const NeckBoard = memo(function NeckBoard({ layout, uid }: NeckBoardProps) {
   const { outline, nut, frets, strings, inlays, endX, spec, viewBox: vb } = layout
@@ -82,17 +84,17 @@ export const NeckBoard = memo(function NeckBoard({ layout, uid }: NeckBoardProps
           <stop offset={1} style={{ stopColor: 'var(--fretboard-edge)', stopOpacity: 0.9 }} />
         </linearGradient>
         <linearGradient id={id.nutShade} x1={0} x2={1} y1={0} y2={0}>
-          <stop offset={0} style={{ stopColor: 'var(--fretboard-edge)', stopOpacity: 0.35 }} />
-          <stop offset={0.4} style={{ stopColor: 'var(--fretboard-edge)', stopOpacity: 0 }} />
-          <stop offset={0.75} style={{ stopColor: 'var(--fretboard-edge)', stopOpacity: 0 }} />
-          <stop offset={1} style={{ stopColor: 'var(--fretboard-edge)', stopOpacity: 0.3 }} />
+          <stop offset={0} style={{ stopColor: 'var(--fretboard-shadow)', stopOpacity: 0.35 }} />
+          <stop offset={0.4} style={{ stopColor: 'var(--fretboard-shadow)', stopOpacity: 0 }} />
+          <stop offset={0.75} style={{ stopColor: 'var(--fretboard-shadow)', stopOpacity: 0 }} />
+          <stop offset={1} style={{ stopColor: 'var(--fretboard-shadow)', stopOpacity: 0.3 }} />
         </linearGradient>
         {/* Profil arrondi du fil de frette. */}
         <linearGradient id={id.crown} x1={0} x2={1} y1={0} y2={0}>
-          <stop offset={0} style={{ stopColor: 'var(--fretboard-edge)', stopOpacity: 0.45 }} />
-          <stop offset={0.42} style={{ stopColor: 'var(--fretboard-edge)', stopOpacity: 0 }} />
-          <stop offset={0.62} style={{ stopColor: 'var(--fretboard-edge)', stopOpacity: 0 }} />
-          <stop offset={1} style={{ stopColor: 'var(--fretboard-edge)', stopOpacity: 0.6 }} />
+          <stop offset={0} style={{ stopColor: 'var(--fretboard-shadow)', stopOpacity: 0.45 }} />
+          <stop offset={0.42} style={{ stopColor: 'var(--fretboard-shadow)', stopOpacity: 0 }} />
+          <stop offset={0.62} style={{ stopColor: 'var(--fretboard-shadow)', stopOpacity: 0 }} />
+          <stop offset={1} style={{ stopColor: 'var(--fretboard-shadow)', stopOpacity: 0.6 }} />
         </linearGradient>
         <radialGradient id={id.sheen} cx={0.36} cy={0.32} r={0.7}>
           <stop offset={0} style={{ stopColor: 'var(--fret-wire-highlight)', stopOpacity: 0.28 }} />
@@ -140,20 +142,7 @@ export const NeckBoard = memo(function NeckBoard({ layout, uid }: NeckBoardProps
           />
         </g>
 
-        <g data-slot="fretboard-inlays">
-          {inlays.map(({ fret, center, r }) => (
-            <g key={`${fret}-${center.y}`} data-slot="fretboard-inlay" data-fret={fret}>
-              <circle
-                cx={center.x}
-                cy={center.y}
-                r={r}
-                className="fill-inlay stroke-fretboard-edge"
-                strokeWidth={0.3}
-              />
-              <circle cx={center.x} cy={center.y} r={r} fill={`url(#${id.sheen})`} />
-            </g>
-          ))}
-        </g>
+        <NeckInlays inlays={inlays} sheenId={id.sheen} />
 
         <g data-slot="fretboard-frets">
           {frets.map(({ n, x, halfWidth }) => (
@@ -164,7 +153,7 @@ export const NeckBoard = memo(function NeckBoard({ layout, uid }: NeckBoardProps
                 y={-halfWidth}
                 width={wire / 2 + 0.9}
                 height={halfWidth * 2}
-                className="fill-fretboard-edge"
+                className="fill-fretboard-shadow"
                 fillOpacity={0.75}
               />
               <rect
@@ -220,7 +209,7 @@ export const NeckBoard = memo(function NeckBoard({ layout, uid }: NeckBoardProps
             width={0.5}
             height={nut.halfWidth * 2 - 1.2}
             rx={0.25}
-            className="fill-fret-wire-highlight"
+            className="fill-nut-highlight"
             fillOpacity={0.6}
           />
         </g>
@@ -233,7 +222,7 @@ export const NeckBoard = memo(function NeckBoard({ layout, uid }: NeckBoardProps
               y1={s.from.y + STRING_SHADOW_MM}
               x2={s.to.x}
               y2={s.to.y + STRING_SHADOW_MM}
-              className="stroke-fretboard-edge"
+              className="stroke-fretboard-shadow"
               strokeWidth={s.gauge * 1.15}
               strokeOpacity={0.9}
             />
@@ -254,7 +243,7 @@ export const NeckBoard = memo(function NeckBoard({ layout, uid }: NeckBoardProps
                 {s.wound && (
                   <line
                     {...line}
-                    className="stroke-fretboard-edge"
+                    className="stroke-fretboard-shadow"
                     strokeWidth={s.gauge}
                     strokeDasharray={WINDING_DASH}
                     strokeOpacity={0.4}
@@ -265,7 +254,7 @@ export const NeckBoard = memo(function NeckBoard({ layout, uid }: NeckBoardProps
                   y1={s.from.y - s.gauge * 0.2}
                   x2={s.to.x}
                   y2={s.to.y - s.gauge * 0.2}
-                  className="stroke-fret-wire-highlight"
+                  className="stroke-string-highlight"
                   strokeWidth={s.gauge * 0.3}
                   strokeOpacity={0.55}
                 />

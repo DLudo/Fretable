@@ -1,18 +1,20 @@
 import { useMemo } from 'react'
-import { motion, useReducedMotion, type Easing, type Transition } from 'motion/react'
+import { motion } from 'motion/react'
 
+import { range, seededRandom } from '@/lib/random'
 import { cn } from '@/lib/utils'
 import { duration, ease } from '@/theme/motion'
 import {
-  COMBO_MIN_STREAK,
   REVEAL_CENTERED,
-  REVEAL_COMBO,
   REVEAL_PILL,
+  RevealCombo,
+  RevealRoot,
   comboScaleFor,
   labelFontSize,
+  revealExit,
+  revealPillStyle,
   useCompleteAfter,
 } from '../kit'
-import { range, seededRandom } from '@/lib/random'
 import type { RevealEffect, RevealEffectProps } from '../types'
 
 /**
@@ -21,21 +23,6 @@ import type { RevealEffect, RevealEffectProps } from '../types'
  * s'éteindre. Nombre de rayons (8 → 16), portée, dépassement et aiguilles
  * blanches en contre-rotation montent avec la série.
  */
-
-/** Durée de vie (ms) : la traîne chevauche la note suivante, affichée ~420 ms après. */
-const LIFETIME_MS = 760
-/** Début et durée (s) du fondu de sortie global. */
-const FADE_AT = 0.42
-const FADE_FOR = 0.3
-const EXIT: Transition = {
-  duration: FADE_AT + FADE_FOR,
-  times: [0, FADE_AT / (FADE_AT + FADE_FOR), 1],
-  // Une courbe par segment : avec `times`, une courbe unique s'appliquerait à toute la timeline.
-  ease: ['linear', ease.outQuart],
-}
-
-/** Mouvement réduit : apparition, maintien, disparition. */
-const REDUCED_EASE: Easing[] = [ease.outQuart, 'linear', ease.inQuad]
 
 interface Ray {
   /** Tracé SVG du rayon (losange effilé), centré sur l'origine. */
@@ -126,7 +113,6 @@ function buildSun(seed: number, intensity: number, markerSize: number): Sun {
   }
 }
 
-// oxlint-disable-next-line react/only-export-components -- exporté via son descripteur d'effet
 function Sunburst({
   label,
   x,
@@ -135,51 +121,27 @@ function Sunburst({
   intensity,
   streak,
   seed,
+  budgetMs,
   color,
   colorForeground,
+  highlight,
   onComplete,
 }: RevealEffectProps) {
-  const reduceMotion = useReducedMotion()
-  useCompleteAfter(LIFETIME_MS, onComplete)
+  // Sortie calée sur la note suivante : l'étiquette s'efface juste avant son apparition.
+  const exit = useMemo(() => revealExit(budgetMs), [budgetMs])
+  useCompleteAfter(exit.lifetimeMs, onComplete)
   const sun = useMemo(() => buildSun(seed, intensity, markerSize), [seed, intensity, markerSize])
   const { fontSize, box } = sun
-  const pillStyle = {
-    background: color,
-    color: colorForeground,
-    boxShadow: `0 0 ${sun.glow}px color-mix(in oklch, ${color} 55%, transparent)`,
-  }
-
-  if (reduceMotion) {
-    return (
-      <motion.div
-        data-slot="reveal-effect"
-        data-effect="sunburst"
-        className="pointer-events-none absolute size-0 overflow-visible"
-        style={{ left: x, top: y }}
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: [0, 1, 1, 0], scale: [0.9, 1, 1, 1] }}
-        transition={{ duration: 0.75, times: [0, 0.2, 0.6, 1], ease: REDUCED_EASE }}
-      >
-        <div data-slot="reveal-label" className={cn(REVEAL_CENTERED, 'w-max')} style={{ fontSize }}>
-          <span data-slot="reveal-label-pill" className={REVEAL_PILL} style={pillStyle}>
-            {label}
-          </span>
-        </div>
-      </motion.div>
-    )
-  }
-
   const comboScale = comboScaleFor(streak)
   const viewBox = `${-box / 2} ${-box / 2} ${box} ${box}`
 
   return (
-    <motion.div
-      data-slot="reveal-effect"
-      data-effect="sunburst"
-      className="pointer-events-none absolute size-0 overflow-visible"
-      style={{ left: x, top: y }}
+    <RevealRoot
+      x={x}
+      y={y}
+      effect="sunburst"
       animate={{ opacity: [1, 1, 0], scale: [1, 1, 0.96] }}
-      transition={EXIT}
+      transition={exit.transition}
     >
       {/* Halo : disque coloré diffus qui s'étend et s'éteint. */}
       <motion.div
@@ -246,7 +208,7 @@ function Sunburst({
           }}
         >
           <svg className="size-full overflow-visible" viewBox={viewBox}>
-            <path d={sun.needles} className="fill-marker" />
+            <path d={sun.needles} style={{ fill: highlight }} />
           </svg>
         </motion.div>
       )}
@@ -258,7 +220,7 @@ function Sunburst({
         style={{
           width: markerSize * 2.2,
           height: markerSize * 2.2,
-          background: 'radial-gradient(closest-side, var(--marker), transparent)',
+          background: `radial-gradient(closest-side, ${highlight}, transparent)`,
         }}
         initial={{ scale: 0.5, opacity: 1 }}
         animate={{ scale: 1.5 + 0.4 * intensity, opacity: 0 }}
@@ -270,7 +232,7 @@ function Sunburst({
         <motion.span
           data-slot="reveal-label-pill"
           className={REVEAL_PILL}
-          style={pillStyle}
+          style={revealPillStyle(color, colorForeground, sun.glow)}
           initial={{ scale: 0.3, rotate: sun.tilt }}
           animate={{ scale: [0.3, sun.pop, 1], rotate: 0 }}
           transition={{
@@ -290,29 +252,26 @@ function Sunburst({
           </motion.span>
         </motion.span>
 
-        {streak >= COMBO_MIN_STREAK && (
-          <motion.span
-            data-slot="reveal-combo"
-            className={cn(REVEAL_COMBO, '-translate-x-[45%] -translate-y-[58%]')}
-            style={{ background: colorForeground, color, boxShadow: `0 0 0 1.5px ${color}` }}
-            initial={{ scale: 0, rotate: -sun.comboTilt * 4, opacity: 0 }}
-            animate={{
-              scale: [0, comboScale * 1.25, comboScale],
-              rotate: sun.comboTilt,
-              opacity: 1,
-            }}
-            transition={{
-              delay: 0.08,
-              duration: 0.24,
-              times: [0, 0.5, 1],
-              ease: [ease.outExpo, ease.outBack],
-              rotate: { delay: 0.08, duration: 0.3, ease: ease.outBack },
-              opacity: { delay: 0.08, duration: 0.04, ease: 'linear' },
-            }}
-          >
-            ×{streak}
-          </motion.span>
-        )}
+        <RevealCombo
+          streak={streak}
+          color={color}
+          colorForeground={colorForeground}
+          className="-translate-x-[45%] -translate-y-[58%]"
+          initial={{ scale: 0, rotate: -sun.comboTilt * 4, opacity: 0 }}
+          animate={{
+            scale: [0, comboScale * 1.25, comboScale],
+            rotate: sun.comboTilt,
+            opacity: 1,
+          }}
+          transition={{
+            delay: 0.08,
+            duration: 0.24,
+            times: [0, 0.5, 1],
+            ease: [ease.outExpo, ease.outBack],
+            rotate: { delay: 0.08, duration: 0.3, ease: ease.outBack },
+            opacity: { delay: 0.08, duration: 0.04, ease: 'linear' },
+          }}
+        />
       </div>
 
       {/* Le point d'origine : il s'embrase et s'efface sur l'étiquette naissante. */}
@@ -327,7 +286,7 @@ function Sunburst({
           opacity: { duration: 0.1, ease: 'linear' },
         }}
       />
-    </motion.div>
+    </RevealRoot>
   )
 }
 

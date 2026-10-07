@@ -5,7 +5,14 @@ import { hasNextLevel } from '@/game/levels/levels'
 import type { PitchClass } from '@/game/music/notes'
 import { STANDARD_TUNING, type Tuning } from '@/game/music/tuning'
 import { createChallenge, type Random } from './challenge'
-import { createGameEventBus, type GameEventBus } from './events'
+import {
+  createGameEventBus,
+  diffGameEvents,
+  emitGameEvent,
+  EMPTY_EVENT_SNAPSHOT,
+  type GameEventBus,
+  type GameEventSnapshot,
+} from './events'
 import { createInitialState, gameReducer } from './reducer'
 import type { Challenge, GameState } from './types'
 
@@ -18,6 +25,7 @@ export interface UseGameOptions {
 export interface GameController {
   state: GameState
   tuning: Tuning
+  /** Bus d'événements ; pour un même changement d'état : `guess` → `phase` → `challenge`. */
   events: GameEventBus
   /** Démarre (ou redémarre) le niveau courant. */
   start(): void
@@ -77,16 +85,16 @@ export function useGame(options: UseGameOptions = {}): GameController {
     return () => window.clearTimeout(timer)
   }, [phase, startedAt, durationMs])
 
-  // Diffusion des événements.
+  // Diffusion des événements, dans un ordre défini (voir `diffGameEvents`).
+  // Le ref mémorise ce qui a déjà été publié : rien n'est émis deux fois,
+  // même quand StrictMode rejoue les effets au montage.
+  const emitted = useRef<GameEventSnapshot>(EMPTY_EVENT_SNAPSHOT)
   useEffect(() => {
-    if (challenge) events.emit('challenge', challenge)
-  }, [challenge, events])
-  useEffect(() => {
-    if (lastResult) events.emit('guess', lastResult)
-  }, [lastResult, events])
-  useEffect(() => {
-    events.emit('phase', phase)
-  }, [phase, events])
+    const snapshot: GameEventSnapshot = { phase, challenge, lastResult }
+    const pending = diffGameEvents(emitted.current, snapshot)
+    emitted.current = snapshot
+    for (const event of pending) emitGameEvent(events, event)
+  }, [phase, challenge, lastResult, events])
 
   return {
     state,

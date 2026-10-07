@@ -78,6 +78,8 @@ export interface StringLine {
 }
 
 export interface InlayDot {
+  /** Identifiant stable (`'5'`, `'12-1'`, `'12-2'`), pour les clés et les attributs `data-*`. */
+  id: string
   fret: number
   center: Point
   r: number
@@ -113,10 +115,22 @@ export interface NeckLayout {
   fretX(n: number): number
   /** Centre de la case `fret` (entre les frettes `fret - 1` et `fret`). */
   fretCenterX(fret: number): number
+  /** Demi-largeur de la touche à l'abscisse `x` (bord haut en `-h`, bord bas en `+h`). */
+  halfWidthAt(x: number): number
   /** Ordonnée de la corde `stringIndex` à l'abscisse `x`. */
   stringY(stringIndex: number, x: number): number
   /** Position du repère pour une note (corde, case). */
   position(stringIndex: number, fret: number): Point
+}
+
+/**
+ * Repères de touche que recouvre un disque (le point à deviner) : ceux dont le
+ * disque intersecte celui de centre `point` et de rayon `radius`.
+ */
+export function inlaysUnder(inlays: readonly InlayDot[], point: Point, radius: number): InlayDot[] {
+  return inlays.filter(
+    (inlay) => Math.hypot(inlay.center.x - point.x, inlay.center.y - point.y) < inlay.r + radius,
+  )
 }
 
 /** Règle des douze demi-tons égaux : distance sillet → frette `n`. */
@@ -183,11 +197,11 @@ export function createNeckLayout(options: NeckLayoutOptions = {}): NeckLayout {
     .flatMap(({ fret, double }) => {
       const cx = fretCenterX(fret)
       const r = spec.inlayDiameter / 2
-      if (!double) return [{ fret, center: { x: cx, y: 0 }, r }]
+      if (!double) return [{ id: `${fret}`, fret, center: { x: cx, y: 0 }, r }]
       const dy = (inlayOffset * spreadAt(cx)) / spec.stringSpreadNut
       return [
-        { fret, center: { x: cx, y: -dy }, r },
-        { fret, center: { x: cx, y: dy }, r },
+        { id: `${fret}-1`, fret, center: { x: cx, y: -dy }, r },
+        { id: `${fret}-2`, fret, center: { x: cx, y: dy }, r },
       ]
     })
 
@@ -216,6 +230,7 @@ export function createNeckLayout(options: NeckLayoutOptions = {}): NeckLayout {
     markerRadius: minSpacing * 0.44,
     fretX,
     fretCenterX,
+    halfWidthAt,
     stringY,
     position(stringIndex: number, fret: number): Point {
       const x = fretCenterX(fret)

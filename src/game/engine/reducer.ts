@@ -30,6 +30,8 @@ function isExpired(state: GameState, now: number): boolean {
  *   ready ──start──▶ playing ──(dernière bonne réponse)──▶ won
  *                       │
  *                       └──────────(timeUp)──────────────▶ lost
+ *
+ * `load` ramène à `ready` sur un autre niveau ; `start` relance depuis n'importe quelle phase.
  */
 export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
@@ -47,13 +49,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'guess': {
       if (state.phase !== 'playing' || state.locked || !state.challenge) return state
+      // Réponse arrivée après l'échéance : refusée, comme si le minuteur avait sonné à temps.
       if (isExpired(state, action.now)) {
-        return {
-          ...state,
-          phase: 'lost',
-          locked: true,
-          endedAt: state.startedAt! + state.level.durationMs,
-        }
+        return timeUp(state, state.startedAt! + state.level.durationMs)
       }
       const correct = action.pc === state.challenge.pc
       const streak = correct ? state.streak + 1 : 0
@@ -87,6 +85,25 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'timeUp':
       if (state.phase !== 'playing') return state
-      return { ...state, phase: 'lost', locked: true, endedAt: action.now }
+      return timeUp(state, action.now)
   }
+}
+
+/**
+ * Fin du temps imparti. Une note encore en attente de réponse est révélée
+ * (tentative `guess: null`, non comptée comme erreur) ; si une révélation est
+ * déjà en cours (`locked`), elle suffit.
+ */
+function timeUp(state: GameState, now: number): GameState {
+  const ended: GameState = { ...state, phase: 'lost', locked: true, endedAt: now }
+  if (state.locked || !state.challenge) return ended
+  const result: GuessResult = {
+    id: state.challenge.id,
+    challenge: state.challenge,
+    guess: null,
+    correct: false,
+    streak: 0,
+    at: now,
+  }
+  return { ...ended, streak: 0, lastResult: result, results: [...state.results, result] }
 }

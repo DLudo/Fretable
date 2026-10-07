@@ -79,11 +79,11 @@
   --fretboard-edge: oklch(0.78 0.07 75);
   --fretboard-grain: oklch(0.82 0.07 78);
   --fret-wire: oklch(0.72 0.01 90);
-  --inlay: oklch(0.25 0.01 60);
+  --inlay: oklch(0.52 0.05 65);
   --fret-number: oklch(0.72 0.04 80);
-  /* Sur bois clair, le repère passe au sombre pour rester lisible. */
-  --marker: oklch(0.24 0 0);
-  --marker-ring: oklch(0.24 0 0 / 35%);
+  /* Sur bois clair, le repère passe au quasi-noir, nettement plus sombre que les repères de touche. */
+  --marker: oklch(0.17 0 0);
+  --marker-ring: oklch(0.17 0 0 / 40%);
   --marker-outline: oklch(0.15 0 0);
   --fretboard-shadow: oklch(0.55 0.05 70);
 }

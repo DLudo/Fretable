@@ -9,8 +9,17 @@ export const WHITE_KEY_COUNT = NATURAL_PCS.length
 /** Largeur d'une touche noire, relative à une touche blanche (≈ 13,7 / 23,5 mm). */
 export const BLACK_KEY_WIDTH = 0.58
 
+/** Largeur maximale d'une touche noire : sur un clavier étroit, elle s'élargit jusque-là. */
+export const BLACK_KEY_MAX_WIDTH = 0.66
+
+/** Largeur visée pour une touche noire (cible tactile confortable), bornée par les deux ratios. */
+export const BLACK_KEY_TARGET_PX = 40
+
 /** Hauteur d'une touche noire, relative à une touche blanche. */
 export const BLACK_KEY_HEIGHT = 0.62
+
+/** Glyphe « Maj » des raccourcis de dièse (« ⇧Q »). */
+export const SHIFT_GLYPH = '⇧'
 
 export interface BlackKeyPlacement {
   pc: PitchClass
@@ -36,16 +45,26 @@ export type PianoKeyColor = 'white' | 'black'
 export interface PianoKeySlot {
   pc: PitchClass
   color: PianoKeyColor
-  /** Touches noires seulement : boîte CSS (en %) dans le lit de touches. */
+  /** Touches noires seulement : boîte CSS dans le lit de touches. */
   box?: { left: string; width: string; height: string }
 }
 
-/** Boîte CSS (en %) d'une touche noire dans le lit de touches. */
+/** Largeur en touches blanches → pourcentage du lit de touches. */
+const toPercent = (units: number) => `${+((units / WHITE_KEY_COUNT) * 100).toFixed(4)}%`
+
+/**
+ * Largeur CSS d'une touche noire : {@link BLACK_KEY_TARGET_PX} si possible, entre
+ * 0,58 et 0,66 touche blanche. Sur un clavier large, elle garde la proportion
+ * réaliste ; sur un clavier étroit (téléphone), elle s'élargit pour rester jouable.
+ * Surchargeable en CSS via `--black-key-width` sur un ancêtre.
+ */
+export const BLACK_KEY_WIDTH_CSS = `var(--black-key-width, clamp(${toPercent(BLACK_KEY_WIDTH)}, ${BLACK_KEY_TARGET_PX}px, ${toPercent(BLACK_KEY_MAX_WIDTH)}))`
+
+/** Boîte CSS d'une touche noire dans le lit de touches, centrée sur `center`. */
 export function blackKeyBox(center: number): { left: string; width: string; height: string } {
-  const toPercent = (units: number) => `${(units / WHITE_KEY_COUNT) * 100}%`
   return {
-    left: toPercent(center - BLACK_KEY_WIDTH / 2),
-    width: toPercent(BLACK_KEY_WIDTH),
+    left: `calc(${toPercent(center)} - ${BLACK_KEY_WIDTH_CSS} / 2)`,
+    width: BLACK_KEY_WIDTH_CSS,
     height: `${BLACK_KEY_HEIGHT * 100}%`,
   }
 }
@@ -66,8 +85,16 @@ export function spokenNoteName(pc: PitchClass, notation: Notation): string {
   return info.sharp ? `${base} dièse` : base
 }
 
+/** Décompose un raccourci affiché : « ⇧Q » → Maj + « Q ». */
+export function splitHint(hint: string): { shift: boolean; key: string } {
+  return hint.startsWith(SHIFT_GLYPH)
+    ? { shift: true, key: hint.slice(SHIFT_GLYPH.length) }
+    : { shift: false, key: hint }
+}
+
 /** Raccourci au format `aria-keyshortcuts` (« Q », « Shift+Q »). */
 export function ariaShortcut(hint: string | null): string | undefined {
   if (!hint) return undefined
-  return hint.startsWith('⇧') ? `Shift+${hint.slice(1)}` : hint
+  const { shift, key } = splitHint(hint)
+  return shift ? `Shift+${key}` : key
 }

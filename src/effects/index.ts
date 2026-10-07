@@ -1,8 +1,10 @@
 import { PRESET_EFFECTS } from './presets'
-import { registerEffects } from './registry'
+import { replaceEffects } from './registry'
 
-registerEffects(PRESET_EFFECTS)
+// Réévalué par le HMR quand un preset change : `replaceEffects` purge les effets renommés ou supprimés.
+replaceEffects(PRESET_EFFECTS)
 
-export { RevealLayer } from './RevealLayer'
+export { RevealEffectHost, RevealLayer } from './RevealLayer'
 export * from './registry'
+export * from './reveal-props'
 export type * from './types'

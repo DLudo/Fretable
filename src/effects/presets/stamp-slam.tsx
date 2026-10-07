@@ -1,25 +1,21 @@
 import { useMemo } from 'react'
-import {
-  motion,
-  useMotionValue,
-  useReducedMotion,
-  useTransform,
-  type Easing,
-  type Transition,
-} from 'motion/react'
+import { motion, useMotionValue, useTransform, type Transition } from 'motion/react'
 
+import { range, seededRandom } from '@/lib/random'
 import { cn } from '@/lib/utils'
 import { duration, ease } from '@/theme/motion'
 import {
-  COMBO_MIN_STREAK,
   REVEAL_CENTERED,
-  REVEAL_COMBO,
   REVEAL_PILL,
+  RevealCombo,
+  RevealRoot,
   comboScaleFor,
+  estimateLabelBox,
   labelFontSize,
+  revealExit,
+  revealPillStyle,
   useCompleteAfter,
 } from '../kit'
-import { range, seededRandom } from '@/lib/random'
 import type { RevealEffect, RevealEffectProps } from '../types'
 
 /**
@@ -36,18 +32,6 @@ const DROP = 0.07
 const IMPACT = WINDUP + DROP
 /** Durée totale de l'atterrissage (chute + rebonds), en s. */
 const LANDING = 0.26
-/** Durée de vie (ms) : la traîne chevauche la note suivante, affichée ~420 ms après. */
-const LIFETIME_MS = 760
-/** Début et durée (s) du fondu de sortie global : l'essentiel de l'opacité part dès le début. */
-const FADE_AT = 0.42
-const FADE_FOR = 0.28
-const EXIT: Transition = {
-  duration: FADE_AT + FADE_FOR,
-  times: [0, FADE_AT / (FADE_AT + FADE_FOR), 1],
-  // Une courbe par segment : avec `times`, une courbe unique s'appliquerait à toute la
-  // timeline quand Motion délègue l'opacité à WAAPI.
-  ease: ['linear', ease.outQuart],
-}
 /** Chute accélérée, contact, rebond, repos. */
 const SLAM: Transition = {
   delay: WINDUP,
@@ -55,9 +39,6 @@ const SLAM: Transition = {
   times: [0, DROP / LANDING, 0.62, 1],
   ease: [ease.inQuad, ease.outQuart, ease.outQuart],
 }
-
-/** Mouvement réduit : apparition, maintien, disparition. */
-const REDUCED_EASE: Easing[] = [ease.outQuart, 'linear', ease.inQuad]
 
 const SVG_CENTERED = { transformBox: 'fill-box', transformOrigin: 'center' } as const
 
@@ -92,9 +73,7 @@ interface Stamp {
 function buildStamp(seed: number, intensity: number, markerSize: number, label: string): Stamp {
   const random = seededRandom(seed)
   const fontSize = labelFontSize(markerSize)
-  // Demi-axes estimés de l'étiquette (hauteur exacte : 1em + 2 × 0.38em).
-  const halfW = (fontSize * (0.62 * [...label].length + 1.4)) / 2
-  const halfH = (fontSize * 1.76) / 2
+  const { halfW, halfH } = estimateLabelBox(fontSize, label)
   const sign = random() < 0.5 ? -1 : 1
 
   const count = Math.min(12, Math.max(6, Math.round(6 + 6 * intensity + range(random, -0.5, 0.5))))
@@ -140,7 +119,6 @@ function buildStamp(seed: number, intensity: number, markerSize: number, label: 
   }
 }
 
-// oxlint-disable-next-line react/only-export-components -- exporté via son descripteur d'effet
 function StampSlam({
   label,
   x,
@@ -149,12 +127,15 @@ function StampSlam({
   intensity,
   streak,
   seed,
+  budgetMs,
   color,
   colorForeground,
+  highlight,
   onComplete,
 }: RevealEffectProps) {
-  const reduceMotion = useReducedMotion()
-  useCompleteAfter(LIFETIME_MS, onComplete)
+  // Sortie calée sur la note suivante : l'étiquette s'efface juste avant son apparition.
+  const exit = useMemo(() => revealExit(budgetMs), [budgetMs])
+  useCompleteAfter(exit.lifetimeMs, onComplete)
   const stamp = useMemo(
     () => buildStamp(seed, intensity, markerSize, label),
     [seed, intensity, markerSize, label],
@@ -164,42 +145,15 @@ function StampSlam({
   // plein au contact, quel que soit le décalage de démarrage entre JS et WAAPI.
   const slamX = useMotionValue(from)
   const ghost = useTransform(slamX, [from, (from + 1.12) / 2, 1.12], [0, 0.35, 1])
-  const pillStyle = {
-    background: color,
-    color: colorForeground,
-    boxShadow: `0 0 ${stamp.glow}px color-mix(in oklch, ${color} 55%, transparent)`,
-  }
-
-  if (reduceMotion) {
-    return (
-      <motion.div
-        data-slot="reveal-effect"
-        data-effect="stamp-slam"
-        className="pointer-events-none absolute size-0 overflow-visible"
-        style={{ left: x, top: y }}
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: [0, 1, 1, 0], scale: [0.9, 1, 1, 1] }}
-        transition={{ duration: 0.75, times: [0, 0.2, 0.6, 1], ease: REDUCED_EASE }}
-      >
-        <div data-slot="reveal-label" className={cn(REVEAL_CENTERED, 'w-max')} style={{ fontSize }}>
-          <span data-slot="reveal-label-pill" className={REVEAL_PILL} style={pillStyle}>
-            {label}
-          </span>
-        </div>
-      </motion.div>
-    )
-  }
-
   const comboScale = comboScaleFor(streak)
 
   return (
-    <motion.div
-      data-slot="reveal-effect"
-      data-effect="stamp-slam"
-      className="pointer-events-none absolute size-0 overflow-visible"
-      style={{ left: x, top: y }}
+    <RevealRoot
+      x={x}
+      y={y}
+      effect="stamp-slam"
       animate={{ opacity: [1, 1, 0], scale: [1, 1, 0.95] }}
-      transition={EXIT}
+      transition={exit.transition}
     >
       {/* Le point d'origine se tasse puis s'efface sous le tampon. */}
       <motion.div
@@ -222,7 +176,7 @@ function StampSlam({
         style={{
           width: markerSize * 5,
           height: markerSize * 3,
-          background: 'radial-gradient(closest-side, var(--marker), transparent)',
+          background: `radial-gradient(closest-side, ${highlight}, transparent)`,
         }}
         initial={{ scale: 0.6, opacity: 0 }}
         animate={{ scale: [0.6, 1.35], opacity: [0, 0.6 + 0.3 * intensity, 0] }}
@@ -291,7 +245,7 @@ function StampSlam({
                   height: tick.thickness,
                   top: -tick.thickness / 2,
                   originX: 1,
-                  background: tick.hot ? 'var(--marker)' : color,
+                  background: tick.hot ? highlight : color,
                 }}
                 initial={{ x: markerSize * 0.06, scaleX: 0.3, opacity: 0 }}
                 animate={{ x: tick.travel, scaleX: [0.3, 1, 0], opacity: [0, 1, 1, 0] }}
@@ -320,7 +274,11 @@ function StampSlam({
           <motion.span
             data-slot="reveal-label-pill"
             className={REVEAL_PILL}
-            style={{ ...pillStyle, scaleX: slamX, opacity: ghost }}
+            style={{
+              ...revealPillStyle(color, colorForeground, stamp.glow),
+              scaleX: slamX,
+              opacity: ghost,
+            }}
             initial={{ scaleY: from, rotate: tilt }}
             animate={{
               scaleX: [from, 1.12, 0.96, 1],
@@ -332,31 +290,28 @@ function StampSlam({
             {label}
           </motion.span>
 
-          {streak >= COMBO_MIN_STREAK && (
-            <motion.span
-              data-slot="reveal-combo"
-              className={cn(REVEAL_COMBO, '-translate-x-[55%] -translate-y-[60%]')}
-              style={{ background: colorForeground, color, boxShadow: `0 0 0 1.5px ${color}` }}
-              initial={{ scale: 2.4, rotate: stamp.comboTilt * 2, opacity: 0 }}
-              animate={{
-                scale: [2.4, comboScale * 0.9, comboScale],
-                rotate: stamp.comboTilt,
-                opacity: [0, 1, 1],
-              }}
-              transition={{
-                delay: IMPACT + 0.08,
-                duration: 0.2,
-                times: [0, 0.4, 1],
-                ease: [ease.inQuad, ease.outBack],
-                rotate: { delay: IMPACT + 0.08, duration: 0.08, ease: ease.inQuad },
-              }}
-            >
-              ×{streak}
-            </motion.span>
-          )}
+          <RevealCombo
+            streak={streak}
+            color={color}
+            colorForeground={colorForeground}
+            className="-translate-x-[55%] -translate-y-[60%]"
+            initial={{ scale: 2.4, rotate: stamp.comboTilt * 2, opacity: 0 }}
+            animate={{
+              scale: [2.4, comboScale * 0.9, comboScale],
+              rotate: stamp.comboTilt,
+              opacity: [0, 1, 1],
+            }}
+            transition={{
+              delay: IMPACT + 0.08,
+              duration: 0.2,
+              times: [0, 0.4, 1],
+              ease: [ease.inQuad, ease.outBack],
+              rotate: { delay: IMPACT + 0.08, duration: 0.08, ease: ease.inQuad },
+            }}
+          />
         </div>
       </motion.div>
-    </motion.div>
+    </RevealRoot>
   )
 }
 

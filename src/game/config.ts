@@ -9,6 +9,11 @@ export const GAME_FEEL = {
   holdAfterWrongMs: 950,
   /** Délai avant l'affichage de l'écran de victoire, pour laisser vivre la dernière révélation (ms). */
   victoryDelayMs: 650,
+  /**
+   * Délai avant l'écran « Temps écoulé » quand une révélation joue encore
+   * (note révélée faute de réponse, ou erreur juste avant la fin) : le temps de lire la note (ms).
+   */
+  defeatDelayMs: 950,
   /** En dessous de ce temps restant, le timer passe en alerte (ms). */
   criticalTimeMs: 10_000,
   /** Série au-delà de laquelle l'intensité des effets est maximale. */

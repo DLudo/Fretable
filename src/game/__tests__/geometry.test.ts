@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { DEFAULT_NECK, createNeckLayout, fretDistance } from '@/game/fretboard/geometry'
+import {
+  DEFAULT_NECK,
+  createNeckLayout,
+  fretDistance,
+  inlaysUnder,
+} from '@/game/fretboard/geometry'
 import { createProjection, orientViewBox } from '@/game/fretboard/projection'
 
 describe('géométrie du manche', () => {
@@ -48,6 +53,47 @@ describe('géométrie du manche', () => {
   it('pose un double repère à l’octave', () => {
     expect(layout.inlays.filter((i) => i.fret === 12)).toHaveLength(2)
     expect(layout.inlays.filter((i) => i.fret !== 12).map((i) => i.fret)).toEqual([3, 5, 7, 9])
+  })
+
+  it('donne à chaque repère un identifiant stable et unique', () => {
+    const ids = layout.inlays.map((i) => i.id)
+    expect(ids).toEqual(['3', '5', '7', '9', '12-1', '12-2'])
+    expect(createNeckLayout().inlays.map((i) => i.id)).toEqual(ids)
+  })
+
+  it('expose la demi-largeur de la touche', () => {
+    for (const fret of layout.frets)
+      expect(layout.halfWidthAt(fret.x)).toBeCloseTo(fret.halfWidth, 9)
+    expect(layout.halfWidthAt(0) * 2).toBeCloseTo(DEFAULT_NECK.nutWidth, 9)
+  })
+
+  describe('repères recouverts par le point', () => {
+    const under = (stringIndex: number, fret: number) =>
+      inlaysUnder(layout.inlays, layout.position(stringIndex, fret), layout.markerRadius).map(
+        (i) => i.id,
+      )
+
+    it('trouve le repère central sous les cordes 3 et 4', () => {
+      for (const fret of [3, 5, 7, 9]) {
+        expect(under(2, fret)).toEqual([`${fret}`])
+        expect(under(3, fret)).toEqual([`${fret}`])
+        for (const s of [0, 1, 4, 5]) expect(under(s, fret)).toEqual([])
+      }
+    })
+
+    it('distingue les deux repères de l’octave', () => {
+      expect(under(0, 12)).toEqual([])
+      expect(under(1, 12)).toEqual(['12-2'])
+      expect(under(2, 12)).toEqual(['12-2'])
+      expect(under(3, 12)).toEqual(['12-1'])
+      expect(under(4, 12)).toEqual(['12-1'])
+      expect(under(5, 12)).toEqual([])
+    })
+
+    it('ne trouve rien hors des cases à repère', () => {
+      for (const fret of [1, 2, 4, 6, 8, 10, 11])
+        for (let s = 0; s < 6; s++) expect(under(s, fret)).toEqual([])
+    })
   })
 
   it('respecte des proportions de guitare réelle', () => {

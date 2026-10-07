@@ -1,18 +1,21 @@
 import { useMemo } from 'react'
-import { motion, useReducedMotion, type Easing, type Transition } from 'motion/react'
+import { motion, type Transition } from 'motion/react'
 
+import { range, seededRandom } from '@/lib/random'
 import { cn } from '@/lib/utils'
 import { duration, ease } from '@/theme/motion'
 import {
-  COMBO_MIN_STREAK,
   REVEAL_CENTERED,
-  REVEAL_COMBO,
   REVEAL_PILL,
+  RevealCombo,
+  RevealRoot,
   comboScaleFor,
+  estimateLabelBox,
   labelFontSize,
+  revealExit,
+  revealPillStyle,
   useCompleteAfter,
 } from '../kit'
-import { range, seededRandom } from '@/lib/random'
 import type { RevealEffect, RevealEffectProps } from '../types'
 
 /**
@@ -22,23 +25,8 @@ import type { RevealEffect, RevealEffectProps } from '../types'
  * Le nombre de particules (10 → 28), leur portée et le dépassement montent avec la série.
  */
 
-/** Durée de vie (ms) : la traîne chevauche la note suivante (affichée ~420 ms après). */
-const LIFETIME_MS = 780
 /** Contraction du point avant l'éclatement (s). */
 const WINDUP = 0.03
-/** Début et durée (s) du fondu de sortie global. */
-const FADE_AT = 0.44
-const FADE_FOR = 0.28
-const EXIT: Transition = {
-  duration: FADE_AT + FADE_FOR,
-  times: [0, FADE_AT / (FADE_AT + FADE_FOR), 1],
-  // Une courbe par segment : avec `times`, une courbe unique s'appliquerait à toute la timeline.
-  ease: ['linear', ease.outQuart],
-}
-
-/** Mouvement réduit : apparition, maintien, disparition. */
-const REDUCED_EASE: Easing[] = [ease.outQuart, 'linear', ease.inQuad]
-
 /** Étoile à quatre branches. */
 const STAR_CLIP = 'polygon(50% 0%, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0% 50%, 39% 39%)'
 
@@ -76,9 +64,7 @@ interface Spray {
 function buildSpray(seed: number, intensity: number, markerSize: number, label: string): Spray {
   const random = seededRandom(seed)
   const fontSize = labelFontSize(markerSize)
-  // Demi-axes estimés de l'étiquette (hauteur exacte : 1em + 2 × 0.38em).
-  const halfW = (fontSize * (0.62 * [...label].length + 1.4)) / 2
-  const halfH = (fontSize * 1.76) / 2
+  const { halfW, halfH } = estimateLabelBox(fontSize, label)
 
   const count = Math.round(10 + 18 * intensity)
   const stars = Math.round(2 + 3 * intensity + range(random, -0.4, 0.4))
@@ -131,10 +117,10 @@ function buildSpray(seed: number, intensity: number, markerSize: number, label: 
   }
 }
 
-function particleMotion(p: Particle, color: string) {
+function particleMotion(p: Particle, color: string, highlight: string) {
   if (p.kind === 'star') {
     return {
-      style: { width: p.width, height: p.height, background: 'var(--marker)', clipPath: STAR_CLIP },
+      style: { width: p.width, height: p.height, background: highlight, clipPath: STAR_CLIP },
       initial: { x: p.fromX, y: p.fromY, rotate: p.rotate, scale: 0.3, opacity: 0 },
       // Scintillement en bout de course : rebond d'échelle avant extinction.
       animate: {
@@ -184,7 +170,6 @@ function particleMotion(p: Particle, color: string) {
   }
 }
 
-// oxlint-disable-next-line react/only-export-components -- exporté via son descripteur d'effet
 function SparkBurst({
   label,
   x,
@@ -193,53 +178,29 @@ function SparkBurst({
   intensity,
   streak,
   seed,
+  budgetMs,
   color,
   colorForeground,
+  highlight,
   onComplete,
 }: RevealEffectProps) {
-  const reduceMotion = useReducedMotion()
-  useCompleteAfter(LIFETIME_MS, onComplete)
+  // Sortie calée sur la note suivante : l'étiquette s'efface juste avant son apparition.
+  const exit = useMemo(() => revealExit(budgetMs), [budgetMs])
+  useCompleteAfter(exit.lifetimeMs, onComplete)
   const spray = useMemo(
     () => buildSpray(seed, intensity, markerSize, label),
     [seed, intensity, markerSize, label],
   )
   const { fontSize } = spray
-  const pillStyle = {
-    background: color,
-    color: colorForeground,
-    boxShadow: `0 0 ${spray.glow}px color-mix(in oklch, ${color} 55%, transparent)`,
-  }
-
-  if (reduceMotion) {
-    return (
-      <motion.div
-        data-slot="reveal-effect"
-        data-effect="spark-burst"
-        className="pointer-events-none absolute size-0 overflow-visible"
-        style={{ left: x, top: y }}
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: [0, 1, 1, 0], scale: [0.9, 1, 1, 1] }}
-        transition={{ duration: 0.75, times: [0, 0.2, 0.6, 1], ease: REDUCED_EASE }}
-      >
-        <div data-slot="reveal-label" className={cn(REVEAL_CENTERED, 'w-max')} style={{ fontSize }}>
-          <span data-slot="reveal-label-pill" className={REVEAL_PILL} style={pillStyle}>
-            {label}
-          </span>
-        </div>
-      </motion.div>
-    )
-  }
-
   const comboScale = comboScaleFor(streak)
 
   return (
-    <motion.div
-      data-slot="reveal-effect"
-      data-effect="spark-burst"
-      className="pointer-events-none absolute size-0 overflow-visible"
-      style={{ left: x, top: y }}
+    <RevealRoot
+      x={x}
+      y={y}
+      effect="spark-burst"
       animate={{ opacity: [1, 1, 0], scale: [1, 1, 0.95] }}
-      transition={EXIT}
+      transition={exit.transition}
     >
       {/* Éclair d'impact au moment de l'éclatement. */}
       <motion.div
@@ -248,7 +209,7 @@ function SparkBurst({
         style={{
           width: markerSize * 2.8,
           height: markerSize * 2.8,
-          background: 'radial-gradient(closest-side, var(--marker), transparent)',
+          background: `radial-gradient(closest-side, ${highlight}, transparent)`,
         }}
         initial={{ scale: 0.3, opacity: 0 }}
         animate={{ scale: [0.3, spray.flash], opacity: [0, 1, 0] }}
@@ -262,7 +223,7 @@ function SparkBurst({
 
       {/* La gerbe : étincelles et braises colorées, étoiles blanches. */}
       {spray.particles.map((p, i) => {
-        const { style, initial, animate, transition } = particleMotion(p, color)
+        const { style, initial, animate, transition } = particleMotion(p, color, highlight)
         return (
           <motion.span
             key={i}
@@ -281,7 +242,7 @@ function SparkBurst({
         <motion.span
           data-slot="reveal-label-pill"
           className={REVEAL_PILL}
-          style={pillStyle}
+          style={revealPillStyle(color, colorForeground, spray.glow)}
           initial={{ scaleX: spray.fromX, scaleY: spray.fromY, rotate: spray.tilt }}
           animate={{ scaleX: 1, scaleY: 1, rotate: 0 }}
           transition={spray.pop}
@@ -296,36 +257,28 @@ function SparkBurst({
           </motion.span>
         </motion.span>
 
-        {streak >= COMBO_MIN_STREAK && (
-          <motion.span
-            data-slot="reveal-combo"
-            className={cn(REVEAL_COMBO, '-translate-x-[35%] -translate-y-[62%]')}
-            // Ancré en bas à gauche : le badge grossit en s'éloignant de l'étiquette.
-            style={{
-              background: colorForeground,
-              color,
-              boxShadow: `0 0 0 1.5px ${color}`,
-              originX: 0.1,
-              originY: 0.9,
-            }}
-            initial={{ scale: 0, rotate: -spray.comboTilt * 3, opacity: 0 }}
-            animate={{
-              scale: [0, comboScale * 1.3, comboScale],
-              rotate: spray.comboTilt,
-              opacity: 1,
-            }}
-            transition={{
-              delay: WINDUP + 0.07,
-              duration: 0.22,
-              times: [0, 0.45, 1],
-              ease: [ease.outQuart, ease.outBack],
-              rotate: { delay: WINDUP + 0.07, duration: 0.22, ease: ease.outBack },
-              opacity: { delay: WINDUP + 0.07, duration: 0.05, ease: 'linear' },
-            }}
-          >
-            ×{streak}
-          </motion.span>
-        )}
+        <RevealCombo
+          streak={streak}
+          color={color}
+          colorForeground={colorForeground}
+          className="-translate-x-[35%] -translate-y-[62%]"
+          // Ancré en bas à gauche : le badge grossit en s'éloignant de l'étiquette.
+          style={{ originX: 0.1, originY: 0.9 }}
+          initial={{ scale: 0, rotate: -spray.comboTilt * 3, opacity: 0 }}
+          animate={{
+            scale: [0, comboScale * 1.3, comboScale],
+            rotate: spray.comboTilt,
+            opacity: 1,
+          }}
+          transition={{
+            delay: WINDUP + 0.07,
+            duration: 0.22,
+            times: [0, 0.45, 1],
+            ease: [ease.outQuart, ease.outBack],
+            rotate: { delay: WINDUP + 0.07, duration: 0.22, ease: ease.outBack },
+            opacity: { delay: WINDUP + 0.07, duration: 0.05, ease: 'linear' },
+          }}
+        />
       </div>
 
       {/* Le point d'origine : se contracte puis éclate et s'efface. */}
@@ -341,7 +294,7 @@ function SparkBurst({
           ease: [ease.outQuart, ease.outExpo],
         }}
       />
-    </motion.div>
+    </RevealRoot>
   )
 }
 

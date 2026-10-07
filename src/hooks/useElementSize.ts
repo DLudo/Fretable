@@ -5,7 +5,10 @@ export interface ElementSize {
   height: number
 }
 
-/** Taille de la boîte de contenu d'un élément, suivie par ResizeObserver. */
+/**
+ * Taille de la *border box* d'un élément (padding et bordure compris, comme
+ * `getBoundingClientRect`), suivie par ResizeObserver. Aucun rendu si elle ne change pas.
+ */
 export function useElementSize<T extends Element>() {
   const ref = useRef<T>(null)
   const [size, setSize] = useState<ElementSize>({ width: 0, height: 0 })

@@ -1,4 +1,11 @@
-import { useId, type ComponentProps, type ReactNode } from 'react'
+import {
+  useId,
+  useLayoutEffect,
+  useRef,
+  type ComponentProps,
+  type MouseEvent,
+  type ReactNode,
+} from 'react'
 import {
   AnimatePresence,
   motion,
@@ -6,9 +13,9 @@ import {
   useReducedMotion,
   type Transition,
 } from 'motion/react'
-import { ArrowRight, Play, RotateCcw } from 'lucide-react'
+import { ArrowBigUp, ArrowRight, Play, RotateCcw } from 'lucide-react'
 
-import { formatSeconds } from '@/components/game/hud/format'
+import { formatSeconds } from '@/components/game/hud'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -28,11 +35,13 @@ import { duration, ease } from '@/theme/motion'
 
 export interface LevelOverlayProps {
   state: GameState
-  /** false while the final reveal is still playing (victory delay handled by the parent). */
+  /** `false` tant que la dernière révélation se joue (délai de fin géré par le parent). */
   visible: boolean
+  /** Affiche « Niveau suivant » sur l'écran de victoire. */
   hasNextLevel: boolean
   /** Lance ou relance le niveau courant. */
   onStart: () => void
+  /** Charge le niveau suivant (écran « prêt »). */
   onNextLevel: () => void
   className?: string
 }
@@ -106,12 +115,32 @@ export function LevelOverlay({
 }
 
 /**
- * Calque animé rendu inerte dès sa sortie : ni clic ni Entrée tardif ne peut
- * réactiver un bouton qui s'efface (double « Niveau suivant », par exemple).
+ * Calque animé rendu inerte dès sa sortie : plus aucun clic sur ce qui s'efface.
+ * `inert` ne suffit pas au clavier : le navigateur laisse le focus au bouton
+ * quelques dizaines de ms, et un second Entrée ou Espace l'activerait encore
+ * (double départ). Le focus est donc retiré dès que la sortie commence.
  */
-function PresenceLayer(props: ComponentProps<typeof motion.div>) {
+function PresenceLayer(props: Omit<ComponentProps<typeof motion.div>, 'ref'>) {
   const isPresent = useIsPresent()
-  return <motion.div inert={!isPresent} {...props} />
+  const ref = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const focused = document.activeElement
+    if (!isPresent && focused instanceof HTMLElement && ref.current?.contains(focused)) {
+      focused.blur()
+    }
+  }, [isPresent])
+  return <motion.div ref={ref} inert={!isPresent} {...props} />
+}
+
+/**
+ * Action de bouton qui rend d'abord le focus : la touche suivante revient aux
+ * contrôles clavier du jeu au lieu de réactiver ce bouton (voir `PresenceLayer`).
+ */
+function blurThen(action: () => void) {
+  return (event: MouseEvent<HTMLButtonElement>) => {
+    event.currentTarget.blur()
+    action()
+  }
 }
 
 interface PanelProps {
@@ -125,18 +154,22 @@ function Panel({
   description,
   children,
   actions,
+  describeContent = false,
 }: {
   title: ReactNode
   description: ReactNode
   children?: ReactNode
   actions: ReactNode
+  /** Le contenu complète la description lue à l'ouverture (texte court uniquement). */
+  describeContent?: boolean
 }) {
   const id = useId()
+  const describedBy = `${id}-description` + (describeContent && children ? ` ${id}-content` : '')
   return (
     <Card
       role="dialog"
       aria-labelledby={`${id}-title`}
-      aria-describedby={`${id}-description`}
+      aria-describedby={describedBy}
       className="shadow-lg"
     >
       <CardHeader>
@@ -145,7 +178,7 @@ function Panel({
         </CardTitle>
         <CardDescription id={`${id}-description`}>{description}</CardDescription>
       </CardHeader>
-      {children && <CardContent>{children}</CardContent>}
+      {children && <CardContent id={`${id}-content`}>{children}</CardContent>}
       <CardFooter data-slot="level-overlay-actions" className="flex-col gap-2">
         {actions}
       </CardFooter>
@@ -162,11 +195,11 @@ function ReadyPanel({ state, onStart }: PanelProps) {
       description={`Trouve ${level.targetCount} notes en ${seconds} secondes.`}
       actions={
         <>
-          <Button size="lg" className="w-full" autoFocus onClick={onStart}>
+          <Button size="lg" className="w-full" autoFocus onClick={blurThen(onStart)}>
             <Play />
             Commencer
           </Button>
-          <p className="text-xs text-muted-foreground pointer-coarse:hidden">
+          <p className="text-xs text-muted-foreground pointer-coarse:hidden short:hidden">
             ou appuie sur <Kbd>Entrée</Kbd>
           </p>
         </>
@@ -176,9 +209,14 @@ function ReadyPanel({ state, onStart }: PanelProps) {
         data-slot="level-overlay-controls"
         className="flex flex-col gap-3 text-sm text-muted-foreground"
       >
-        <p className="pointer-coarse:hidden">Clique sur le piano ou joue au clavier :</p>
+        <p className="pointer-coarse:hidden short:hidden">
+          Clique sur le piano ou joue au clavier :
+        </p>
         <p className="hidden pointer-coarse:block">Touche le piano pour répondre.</p>
-        <dl className="grid grid-cols-7 gap-1 pointer-coarse:hidden">
+        <dl
+          data-slot="level-overlay-keymap"
+          className="grid grid-cols-7 gap-1 pointer-coarse:hidden"
+        >
           {NATURAL_PCS.map((pc) => (
             <div key={pc} className="flex flex-col items-center gap-1.5">
               <dt>
@@ -189,7 +227,12 @@ function ReadyPanel({ state, onStart }: PanelProps) {
           ))}
         </dl>
         <p className="pointer-coarse:hidden">
-          Maintiens <Kbd>⇧ Maj</Kbd> pour jouer le dièse.
+          Maintiens{' '}
+          <Kbd>
+            <ArrowBigUp aria-hidden className="size-3.5" strokeWidth={2.25} />
+            Maj
+          </Kbd>{' '}
+          pour jouer le dièse.
         </p>
       </div>
     </Panel>
@@ -211,18 +254,18 @@ function WonPanel({
       actions={
         hasNextLevel ? (
           <>
-            <Button size="lg" className="w-full" autoFocus onClick={onNextLevel}>
+            <Button size="lg" className="w-full" autoFocus onClick={blurThen(onNextLevel)}>
               Niveau suivant
               <ArrowRight />
             </Button>
-            <Button variant="outline" className="w-full" onClick={onStart}>
+            <Button variant="outline" className="w-full" onClick={blurThen(onStart)}>
               <RotateCcw />
               Rejouer
             </Button>
           </>
         ) : (
           <>
-            <Button size="lg" className="w-full" autoFocus onClick={onStart}>
+            <Button size="lg" className="w-full" autoFocus onClick={blurThen(onStart)}>
               <RotateCcw />
               Rejouer
             </Button>
@@ -232,7 +275,8 @@ function WonPanel({
       }
     >
       <dl data-slot="level-overlay-stats" className="grid grid-cols-3 divide-x rounded-lg border">
-        <Stat label="Temps" value={formatSeconds(elapsed)} />
+        {/* Tronqué : avec le minuteur du HUD (arrondi au-dessus), le total fait la durée du niveau. */}
+        <Stat label="Temps" value={formatSeconds(elapsed, 'floor')} />
         <Stat label="Erreurs" value={state.mistakes} />
         <Stat label="Meilleure série" value={state.bestStreak} />
       </dl>
@@ -252,17 +296,29 @@ function Stat({ label, value }: { label: string; value: ReactNode }) {
 }
 
 function LostPanel({ state, onStart }: PanelProps) {
-  const { level, correctCount } = state
+  const { level, correctCount, lastResult } = state
+  // Note restée sans réponse à la fin du temps : on la nomme, pour que l'essai serve.
+  const missed = lastResult?.guess === null ? lastResult.challenge : null
   return (
     <Panel
       title="Temps écoulé"
       description={`${correctCount} / ${level.targetCount} notes trouvées`}
+      describeContent
       actions={
-        <Button size="lg" className="w-full" autoFocus onClick={onStart}>
+        <Button size="lg" className="w-full" autoFocus onClick={blurThen(onStart)}>
           <RotateCcw />
           Réessayer
         </Button>
       }
-    />
+    >
+      {missed && (
+        <p data-slot="level-overlay-missed" className="text-sm text-muted-foreground">
+          La note était{' '}
+          <strong data-slot="level-overlay-missed-note" className="font-semibold text-foreground">
+            {noteName(missed.pc, NOTATION)}
+          </strong>
+        </p>
+      )}
+    </Panel>
   )
 }

@@ -1,11 +1,14 @@
 import type { RevealEffect } from '../types'
 
 /**
- * Auto-découverte des effets : tout objet `RevealEffect` exporté par un
- * fichier de ce dossier est enregistré. Pour ajouter une animation conçue en
- * isolation, déposez simplement son fichier ici.
+ * Auto-découverte des effets : tout objet `RevealEffect` exporté par un fichier
+ * `.tsx` de ce dossier, ou par le `index.tsx` d'un sous-dossier (effet livré
+ * avec ses fichiers .riv, .json, images…), est enregistré. Pour ajouter une
+ * animation conçue en isolation, déposez simplement son fichier ici.
  */
-const modules = import.meta.glob<Record<string, unknown>>('./*.tsx', { eager: true })
+const modules = import.meta.glob<Record<string, unknown>>(['./*.tsx', './*/index.tsx'], {
+  eager: true,
+})
 
 export function isRevealEffect(value: unknown): value is RevealEffect {
   if (typeof value !== 'object' || value === null) return false

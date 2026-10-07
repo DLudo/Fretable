@@ -52,6 +52,7 @@ export function LevelTimer({ state, className, barClassName }: LevelTimerProps):
         <span className="sr-only">Temps restant :</span>
         <motion.span
           key={beat}
+          data-slot="level-timer-value"
           className="inline-block min-w-[4.25ch] text-right"
           initial={pulse ? { scale: 1.16, opacity: 0.6 } : false}
           animate={{ scale: 1, opacity: 1 }}

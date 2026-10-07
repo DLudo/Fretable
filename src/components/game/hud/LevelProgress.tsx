@@ -75,7 +75,7 @@ export function LevelProgress({
           key={i}
           aria-hidden
           data-slot="level-progress-tick"
-          className="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-background"
+          className="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-hud-tick"
           style={{ left: `${((i + 1) / safeMax) * 100}%` }}
         />
       ))}

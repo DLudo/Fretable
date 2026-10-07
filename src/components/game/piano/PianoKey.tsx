@@ -3,10 +3,12 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type KeyboardEvent,
   type MouseEvent,
   type PointerEvent,
   type ReactNode,
 } from 'react'
+import { ArrowBigUp } from 'lucide-react'
 import { motion, useAnimate, useReducedMotion, type Transition } from 'motion/react'
 
 import { Kbd } from '@/components/ui/kbd'
@@ -14,7 +16,7 @@ import { GAME_FEEL } from '@/game/config'
 import type { PitchClass } from '@/game/music/notes'
 import { cn } from '@/lib/utils'
 import { duration, ease } from '@/theme/motion'
-import type { PianoKeyColor } from './layout'
+import { BLACK_KEY_HEIGHT, splitHint, type PianoKeyColor } from './layout'
 
 /** Rôle d'une touche dans le dernier retour : touche jouée (juste / fausse) ou bonne réponse. */
 export type PianoKeyFeedback = 'correct' | 'wrong' | 'answer'
@@ -35,9 +37,14 @@ export interface PianoKeyProps {
   sharpMode: boolean
   /** Raccourci estompé (Mi et Si en mode dièse : pas de touche noire). */
   hintMuted: boolean
+  /** Appuis ignorés et touche retirée du parcours Tab. */
   disabled: boolean
-  /** Identifiant du retour qui concerne cette touche ; chaque nouvel id rejoue le flash. */
+  /**
+   * Identifiant du dernier retour du piano. Un nouvel id rejoue le flash si
+   * `feedbackKind` concerne cette touche ; `null` (nouvelle partie) l'efface aussitôt.
+   */
   feedbackId: number | null
+  /** Rôle de la touche dans ce retour, ou `null` si elle n'est pas concernée. */
   feedbackKind: PianoKeyFeedback | null
   /** Chaque nouvel id fait trembler la touche. */
   nudgeId: number | null
@@ -63,7 +70,7 @@ const ANSWER_TRANSITION: Transition = {
   duration: GAME_FEEL.holdAfterWrongMs / 1000,
   times: [0, 0.1, 0.36, 0.58, 1],
   // Une courbe par segment (une courbe unique s'appliquerait à toute la timeline).
-  ease: [[...ease.outQuart], 'easeInOut', 'easeInOut', [...ease.outQuart]],
+  ease: [[...ease.outQuart], [...ease.inOut], [...ease.inOut], [...ease.outQuart]],
 }
 
 const FLASH_KEYFRAMES: Record<PianoKeyFeedback, number[]> = {
@@ -80,6 +87,29 @@ const FLASH_CLASS: Record<PianoKeyFeedback, string> = {
 }
 
 const NUDGE_KEYFRAMES = [0, -3, 3, -2, 2, -1, 0]
+
+/** Tremblement de refus : bref et amorti. */
+const NUDGE_TRANSITION: Transition = { duration: 0.25, ease: 'easeOut' }
+
+/** Transitions CSS de la surface : enfoncement quasi instantané, relâchement en `duration.fast`. */
+const SURFACE_PRESS_DURATION = 'duration-40'
+const SURFACE_RELEASE_DURATION = 'duration-180'
+
+/*
+ * Étiquettes des touches blanches. Chaque taille est le minimum entre une
+ * fraction de la largeur du piano (cqw) et une fonction de la hauteur du lit de
+ * touches (`--keybed-h`, défini par <Piano>) : sur un piano bas, l'empilement
+ * marge + nom + raccourci rétrécit pour tenir sous les touches noires.
+ * Garde-fou : la zone d'étiquette commence sous les touches noires et, si le
+ * contenu déborde, il déborde vers le bas (`mt-auto`), jamais sous une noire.
+ */
+const WHITE_LABEL =
+  'bottom-[clamp(5px,min(3.4cqw,calc(var(--keybed-h)*0.15_-_9px)),18px)] gap-[clamp(2px,min(1.1cqw,calc(var(--keybed-h)*0.045_-_2px)),7px)]'
+const WHITE_LABEL_STYLE: CSSProperties = { top: `calc(${BLACK_KEY_HEIGHT * 100}% + 2px)` }
+const WHITE_NAME =
+  'mt-auto text-[length:clamp(12px,min(3.2cqw,calc(var(--keybed-h)*0.092)),1rem)] text-key-white-foreground'
+const WHITE_HINT =
+  'h-[clamp(12px,min(4.2cqw,calc(var(--keybed-h)*0.125)),21px)] min-w-[clamp(12px,min(4.2cqw,calc(var(--keybed-h)*0.125)),21px)] px-[clamp(3px,1cqw,5px)] text-[length:clamp(9px,min(2.6cqw,calc(var(--keybed-h)*0.08)),12px)]'
 
 /** Fenêtre pendant laquelle un `click` est attribué au `pointerdown` qui le précède. */
 const CLICK_AFTER_POINTER_MS = 1000
@@ -144,19 +174,28 @@ export function PianoKey({
     onPress(pc)
   }
 
+  // Entrée maintenue sur une touche focalisée : le navigateur synthétiserait un
+  // clic à chaque répétition. Espace, lui, ne s'active qu'au relâchement.
+  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.repeat && event.key === 'Enter') event.preventDefault()
+  }
+
   // — Flash de retour : chaque nouvel id le rejoue, même sur la même touche —
+  // Un retour qui ne concerne pas cette touche laisse finir le flash en cours ;
+  // `null` (nouvelle partie) l'efface pour ne rien laisser deviner.
   const [flash, setFlash] = useState<Flash | null>(null)
   const [seenFeedbackId, setSeenFeedbackId] = useState<number | null>(null)
-  if (feedbackId !== null && feedbackKind !== null && feedbackId !== seenFeedbackId) {
+  if (feedbackId !== seenFeedbackId) {
     setSeenFeedbackId(feedbackId)
-    setFlash({ id: feedbackId, kind: feedbackKind })
+    if (feedbackId === null) setFlash(null)
+    else if (feedbackKind !== null) setFlash({ id: feedbackId, kind: feedbackKind })
   }
 
   // — Refus (Maj + Mi / Maj + Si) : tremblement amorti —
   const [surface, animate] = useAnimate<HTMLSpanElement>()
   useEffect(() => {
     if (nudgeId === null || reduceMotion || !surface.current) return
-    animate(surface.current, { x: NUDGE_KEYFRAMES }, { duration: 0.25, ease: 'easeOut' })
+    animate(surface.current, { x: NUDGE_KEYFRAMES }, NUDGE_TRANSITION)
   }, [nudgeId, reduceMotion, animate, surface])
 
   return (
@@ -170,6 +209,8 @@ export function PianoKey({
       aria-label={label}
       aria-keyshortcuts={shortcut}
       aria-disabled={disabled || undefined}
+      tabIndex={disabled ? -1 : undefined}
+      onKeyDown={handleKeyDown}
       onPointerDown={handlePointerDown}
       onPointerUp={release}
       onPointerCancel={release}
@@ -190,16 +231,14 @@ export function PianoKey({
         data-slot="piano-key-surface"
         className={cn(
           'absolute transition-[background-color,box-shadow,translate] ease-out',
-          down ? 'duration-[40ms]' : 'duration-150',
+          down ? SURFACE_PRESS_DURATION : SURFACE_RELEASE_DURATION,
           white
             ? [
                 'inset-x-px inset-y-0 rounded-b-[clamp(4px,1.3cqw,8px)] group-focus-visible:inset-ring-[3px] group-focus-visible:inset-ring-key-white-foreground/45',
                 down
                   ? 'translate-y-[2px] bg-key-white-pressed shadow-[inset_0_-2px_0_color-mix(in_oklab,var(--key-border)_14%,transparent),inset_0_10px_8px_-8px_color-mix(in_oklab,var(--key-border)_60%,transparent)]'
                   : 'bg-key-white shadow-[inset_0_-6px_0_color-mix(in_oklab,var(--key-border)_13%,transparent),inset_0_10px_8px_-8px_color-mix(in_oklab,var(--key-border)_45%,transparent),0_2px_0_color-mix(in_oklab,var(--key-border)_80%,transparent)]',
-                !down &&
-                  !disabled &&
-                  'group-hover:bg-[color-mix(in_oklab,var(--key-white)_70%,var(--key-white-pressed))]',
+                !down && !disabled && 'group-hover:bg-key-white-hover',
               ]
             : [
                 'inset-0 rounded-b-[clamp(3px,0.9cqw,5px)] group-focus-visible:inset-ring-[3px] group-focus-visible:inset-ring-key-black-foreground/80',
@@ -210,12 +249,9 @@ export function PianoKey({
                   : 'shadow-[inset_1px_0_0_color-mix(in_oklab,var(--key-black-foreground)_9%,transparent),inset_-1px_0_0_color-mix(in_oklab,var(--key-black-foreground)_9%,transparent),inset_0_-7px_0_color-mix(in_oklab,var(--key-black-foreground)_10%,transparent),0_4px_5px_color-mix(in_oklab,var(--key-border)_75%,transparent)]',
                 !down &&
                   (sharpMode
-                    ? 'bg-[color-mix(in_oklab,var(--key-black)_68%,var(--key-black-foreground))] inset-ring-2 inset-ring-key-black-foreground/60 before:from-key-black-foreground/25'
+                    ? 'bg-key-black-sharp inset-ring-2 inset-ring-key-black-foreground/60 before:from-key-black-foreground/25'
                     : 'bg-key-black'),
-                !down &&
-                  !disabled &&
-                  !sharpMode &&
-                  'group-hover:bg-[color-mix(in_oklab,var(--key-black)_75%,var(--key-black-pressed))]',
+                !down && !disabled && !sharpMode && 'group-hover:bg-key-black-hover',
               ],
         )}
       >
@@ -241,18 +277,17 @@ export function PianoKey({
           data-slot="piano-key-label"
           className={cn(
             'pointer-events-none absolute inset-x-0 flex flex-col items-center leading-none',
-            white
-              ? 'bottom-[clamp(12px,3.4cqw,18px)] gap-[clamp(4px,1.1cqw,7px)]'
-              : 'bottom-[clamp(6px,1.9cqw,11px)] gap-[clamp(3px,0.8cqw,5px)]',
+            white ? WHITE_LABEL : 'bottom-[clamp(6px,1.9cqw,11px)] gap-[clamp(3px,0.8cqw,5px)]',
           )}
+          style={white ? WHITE_LABEL_STYLE : undefined}
         >
           <span
             data-slot="piano-key-name"
             className={cn(
               'font-semibold tracking-tight whitespace-nowrap',
               white
-                ? 'text-[length:clamp(0.75rem,3.2cqw,1rem)] text-key-white-foreground'
-                : 'text-[length:clamp(10px,2.55cqw,12.5px)] text-key-black-foreground',
+                ? WHITE_NAME
+                : 'text-[length:clamp(11px,2.55cqw,12.5px)] text-key-black-foreground',
             )}
           >
             {name}
@@ -261,9 +296,10 @@ export function PianoKey({
             <Kbd
               data-slot="piano-key-hint"
               className={cn(
-                'font-mono leading-none transition-[opacity,background-color,color] duration-[120ms]',
+                // Raccourcis inutiles sans clavier : masqués quand aucun pointeur fin n'est disponible.
+                'hidden gap-[0.08em] font-mono leading-none transition-[opacity,background-color,color] duration-120 any-pointer-fine:inline-flex',
                 white
-                  ? 'h-[clamp(16px,4.2cqw,21px)] min-w-[clamp(16px,4.2cqw,21px)] px-[clamp(3px,1cqw,5px)] text-[length:clamp(10px,2.6cqw,12px)]'
+                  ? WHITE_HINT
                   : 'h-[clamp(14px,3.5cqw,18px)] min-w-0 px-[clamp(2px,0.6cqw,4px)] text-[length:clamp(9px,2.2cqw,11px)]',
                 white
                   ? 'bg-key-white-foreground/8 text-key-white-foreground/65 shadow-[inset_0_-1px_0_color-mix(in_oklab,var(--key-white-foreground)_18%,transparent)]'
@@ -273,11 +309,31 @@ export function PianoKey({
                 hintMuted && 'opacity-25',
               )}
             >
-              {hint}
+              <HintLabel hint={hint} />
             </Kbd>
           )}
         </span>
       </span>
     </button>
+  )
+}
+
+/**
+ * Contenu d'un raccourci. Le glyphe ⇧ manque aux polices du projet (repli
+ * minuscule selon la plateforme) : il est dessiné en icône, à la taille du texte.
+ */
+function HintLabel({ hint }: { hint: string }): ReactNode {
+  const { shift, key } = splitHint(hint)
+  if (!shift) return key
+  return (
+    <>
+      <ArrowBigUp
+        aria-hidden
+        data-slot="piano-key-hint-shift"
+        className="size-[1.05em] shrink-0"
+        strokeWidth={2.4}
+      />
+      {key}
+    </>
   )
 }

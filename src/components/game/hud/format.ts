@@ -4,11 +4,20 @@ const SECONDS = new Intl.NumberFormat('fr-FR', {
 })
 
 /**
+ * Arrondi au dixième de seconde :
+ * - `round` : au plus proche (valeur neutre) ;
+ * - `ceil` : compte à rebours, « 0,0 s » ne s'affiche qu'à zéro pile ;
+ * - `floor` : chronomètre, tronqué. Avec un compte à rebours en `ceil` sur la
+ *   même échéance, les deux affichages totalisent toujours la durée exacte.
+ */
+export type SecondsRounding = 'round' | 'ceil' | 'floor'
+
+/**
  * Durée en secondes, au dixième, à la française : `24300` → « 24,3 s ».
- * `ceil` sert au compte à rebours : « 0,0 s » ne s'affiche qu'à zéro pile.
+ * Les durées négatives valent zéro.
  * (Afficher dans un élément `whitespace-nowrap` : l'espace avant l'unité est sécable.)
  */
-export function formatSeconds(ms: number, rounding: 'round' | 'ceil' = 'round'): string {
-  const tenths = rounding === 'ceil' ? Math.ceil(ms / 100) : Math.round(ms / 100)
+export function formatSeconds(ms: number, rounding: SecondsRounding = 'round'): string {
+  const tenths = Math[rounding](ms / 100)
   return SECONDS.format(Math.max(0, tenths) / 10) + ' s'
 }

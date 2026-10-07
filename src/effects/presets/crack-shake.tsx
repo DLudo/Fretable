@@ -1,10 +1,19 @@
 import { useMemo } from 'react'
-import { motion, useReducedMotion, type Easing, type Transition } from 'motion/react'
+import { motion, type Easing } from 'motion/react'
 
+import { range, seededRandom } from '@/lib/random'
 import { cn } from '@/lib/utils'
 import { ease } from '@/theme/motion'
-import { REVEAL_CENTERED, REVEAL_PILL, labelFontSize, useCompleteAfter } from '../kit'
-import { range, seededRandom } from '@/lib/random'
+import {
+  REVEAL_CENTERED,
+  REVEAL_PILL,
+  RevealRoot,
+  estimateLabelBox,
+  labelFontSize,
+  revealExit,
+  revealPillStyle,
+  useCompleteAfter,
+} from '../kit'
 import type { RevealEffect, RevealEffectProps } from '../types'
 
 /**
@@ -14,11 +23,14 @@ import type { RevealEffect, RevealEffectProps } from '../types'
  * jamais festif : ni dépassement, ni particules, ni halo de célébration.
  */
 
-/** Durée de vie (ms). La note suivante n'apparaît que ~950 ms après une erreur. */
-const LIFETIME_MS = 1120
-/** Fin du maintien (s) : la bonne note reste lisible jusque-là, puis s'efface vite. */
-const HOLD_UNTIL = 0.9
-const FADE_FOR = 0.16
+/**
+ * Fondu de sortie (ms), court : la bonne note reste lisible jusqu'à l'approche de
+ * la note suivante (`budgetMs`), puis s'efface vite.
+ */
+const FADE_MS = 160
+/** Ombre serrée de l'étiquette (px, % de couleur) : la détache du manche sans halo de célébration. */
+const SHADOW_PX = 10
+const SHADOW_MIX = 35
 /** Le point rougit (s) avant de s'ouvrir en étiquette. */
 const FLASH = 0.04
 /** Ouverture du point en étiquette (s). */
@@ -32,18 +44,6 @@ const CRACK_FADE_FOR = 0.3
 /** Secousse horizontale amortie (s). */
 const SHAKE_AT = 0.075
 const SHAKE_FOR = 0.3
-
-const EXIT_TOTAL = HOLD_UNTIL + FADE_FOR
-const EXIT: Transition = {
-  duration: EXIT_TOTAL,
-  times: [0, HOLD_UNTIL / EXIT_TOTAL, 1],
-  // Une courbe par segment : avec `times`, une courbe unique s'appliquerait à toute la timeline.
-  ease: ['linear', ease.outQuart],
-}
-
-/** Mouvement réduit : apparition, maintien, disparition. */
-const REDUCED_EASE: Easing[] = [ease.outQuart, 'linear', ease.outQuart]
-const REDUCED_TIMES = [0, 0.12 / EXIT_TOTAL, HOLD_UNTIL / EXIT_TOTAL, 1]
 
 interface Crack {
   points: string
@@ -69,9 +69,7 @@ const toPoints = (pts: [number, number][]) =>
 function buildFracture(seed: number, markerSize: number, label: string): Fracture {
   const random = seededRandom(seed)
   const fontSize = labelFontSize(markerSize)
-  // Demi-axes estimés de l'étiquette (hauteur exacte : 1em + 2 × 0.38em).
-  const halfW = (fontSize * (0.62 * [...label].length + 1.4)) / 2
-  const halfH = (fontSize * 1.76) / 2
+  const { halfW, halfH } = estimateLabelBox(fontSize, label)
 
   // 4 à 7 fêlures, réparties irrégulièrement autour du point, de longueurs très variables.
   const count = 4 + Math.floor(random() * 4)
@@ -165,58 +163,30 @@ function buildFracture(seed: number, markerSize: number, label: string): Fractur
   }
 }
 
-// oxlint-disable-next-line react/only-export-components -- exporté via son descripteur d'effet
 function CrackShake({
   label,
   x,
   y,
   markerSize,
   seed,
+  budgetMs,
   color,
   colorForeground,
   onComplete,
 }: RevealEffectProps) {
-  const reduceMotion = useReducedMotion()
-  useCompleteAfter(LIFETIME_MS, onComplete)
+  const exit = useMemo(() => revealExit(budgetMs, { fadeMs: FADE_MS }), [budgetMs])
+  useCompleteAfter(exit.lifetimeMs, onComplete)
   const fracture = useMemo(() => buildFracture(seed, markerSize, label), [seed, markerSize, label])
   const { fontSize, cracks, extent } = fracture
-  // Ombre serrée : détache l'étiquette du manche sans halo de célébration.
-  const pillStyle = {
-    background: color,
-    color: colorForeground,
-    boxShadow: `0 0 10px color-mix(in oklch, ${color} 35%, transparent)`,
-  }
-
-  if (reduceMotion) {
-    return (
-      <motion.div
-        data-slot="reveal-effect"
-        data-effect="crack-shake"
-        className="pointer-events-none absolute size-0 overflow-visible"
-        style={{ left: x, top: y }}
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: [0, 1, 1, 0], scale: [0.9, 1, 1, 1] }}
-        transition={{ duration: EXIT_TOTAL, times: REDUCED_TIMES, ease: REDUCED_EASE }}
-      >
-        <div data-slot="reveal-label" className={cn(REVEAL_CENTERED, 'w-max')} style={{ fontSize }}>
-          <span data-slot="reveal-label-pill" className={REVEAL_PILL} style={pillStyle}>
-            {label}
-          </span>
-        </div>
-      </motion.div>
-    )
-  }
-
   const size = extent * 2
 
   return (
-    <motion.div
-      data-slot="reveal-effect"
-      data-effect="crack-shake"
-      className="pointer-events-none absolute size-0 overflow-visible"
-      style={{ left: x, top: y }}
+    <RevealRoot
+      x={x}
+      y={y}
+      effect="crack-shake"
       animate={{ opacity: [1, 1, 0], scale: [1, 1, 0.94] }}
-      transition={EXIT}
+      transition={exit.transition}
     >
       {/* Fêlures : nées sous le point, tracées vers l'extérieur, puis estompées. */}
       <motion.svg
@@ -266,14 +236,14 @@ function CrackShake({
           delay: SHAKE_AT,
           duration: SHAKE_FOR,
           times: fracture.shake.times,
-          ease: fracture.shake.times.slice(1).map((): Easing => 'easeInOut'),
+          ease: fracture.shake.times.slice(1).map((): Easing => ease.inOut),
         }}
       >
         <div data-slot="reveal-label" className={cn(REVEAL_CENTERED, 'w-max')} style={{ fontSize }}>
           <motion.span
             data-slot="reveal-label-pill"
             className={REVEAL_PILL}
-            style={pillStyle}
+            style={revealPillStyle(color, colorForeground, SHADOW_PX, SHADOW_MIX)}
             initial={{ opacity: 0, scaleX: fracture.fromX, scaleY: fracture.fromY }}
             animate={{
               opacity: 1,
@@ -300,7 +270,7 @@ function CrackShake({
           </motion.span>
         </div>
       </motion.div>
-    </motion.div>
+    </RevealRoot>
   )
 }
 

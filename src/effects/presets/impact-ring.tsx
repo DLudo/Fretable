@@ -1,18 +1,21 @@
 import { useMemo } from 'react'
-import { motion, useReducedMotion, type Easing, type Transition } from 'motion/react'
+import { motion, type Transition } from 'motion/react'
 
+import { range, seededRandom } from '@/lib/random'
 import { cn } from '@/lib/utils'
 import { duration, ease } from '@/theme/motion'
 import {
-  COMBO_MIN_STREAK,
   REVEAL_CENTERED,
-  REVEAL_COMBO,
   REVEAL_PILL,
+  RevealCombo,
+  RevealRoot,
   comboScaleFor,
+  estimateLabelBox,
   labelFontSize,
+  revealExit,
+  revealPillStyle,
   useCompleteAfter,
 } from '../kit'
-import { range, seededRandom } from '@/lib/random'
 import type { RevealEffect, RevealEffectProps } from '../types'
 
 /**
@@ -20,22 +23,6 @@ import type { RevealEffect, RevealEffectProps } from '../types'
  * cœur, deux ondes de choc qui s'amincissent et des traits de vitesse.
  * Tout grossit avec l'intensité de la série.
  */
-
-/** Durée de vie (ms) : la traîne chevauche la note suivante, affichée ~420 ms après. */
-const LIFETIME_MS = 740
-/** Début et durée (s) du fondu de sortie global : l'essentiel de l'opacité part dès le début. */
-const FADE_AT = 0.4
-const FADE_FOR = 0.28
-const EXIT: Transition = {
-  duration: FADE_AT + FADE_FOR,
-  times: [0, FADE_AT / (FADE_AT + FADE_FOR), 1],
-  // Une courbe par segment : avec `times`, une courbe unique s'appliquerait à toute la
-  // timeline quand Motion délègue l'opacité à WAAPI.
-  ease: ['linear', ease.outQuart],
-}
-
-/** Mouvement réduit : apparition, maintien, disparition. */
-const REDUCED_EASE: Easing[] = [ease.outQuart, 'linear', ease.inQuad]
 
 const SVG_CENTERED = { transformBox: 'fill-box', transformOrigin: 'center' } as const
 
@@ -73,9 +60,7 @@ interface Burst {
 function buildBurst(seed: number, intensity: number, markerSize: number, label: string): Burst {
   const random = seededRandom(seed)
   const fontSize = labelFontSize(markerSize)
-  // Demi-axes estimés de l'étiquette (hauteur exacte : 1em + 2 × 0.38em).
-  const halfW = (fontSize * (0.62 * [...label].length + 1.4)) / 2
-  const halfH = (fontSize * 1.76) / 2
+  const { halfW, halfH } = estimateLabelBox(fontSize, label)
 
   const count = Math.min(10, Math.max(4, Math.round(4 + 6 * intensity + range(random, -0.5, 0.5))))
   const turn = random() * Math.PI * 2
@@ -113,7 +98,6 @@ function buildBurst(seed: number, intensity: number, markerSize: number, label: 
   }
 }
 
-// oxlint-disable-next-line react/only-export-components -- exporté via son descripteur d'effet
 function ImpactRing({
   label,
   x,
@@ -122,54 +106,29 @@ function ImpactRing({
   intensity,
   streak,
   seed,
+  budgetMs,
   color,
   colorForeground,
+  highlight,
   onComplete,
 }: RevealEffectProps) {
-  const reduceMotion = useReducedMotion()
-  useCompleteAfter(LIFETIME_MS, onComplete)
+  // Sortie calée sur la note suivante : l'étiquette s'efface juste avant son apparition.
+  const exit = useMemo(() => revealExit(budgetMs), [budgetMs])
+  useCompleteAfter(exit.lifetimeMs, onComplete)
   const burst = useMemo(
     () => buildBurst(seed, intensity, markerSize, label),
     [seed, intensity, markerSize, label],
   )
   const { fontSize, lines, waves } = burst
-  const pillStyle = {
-    background: color,
-    color: colorForeground,
-    boxShadow: `0 0 ${burst.glow}px color-mix(in oklch, ${color} 55%, transparent)`,
-  }
-
-  if (reduceMotion) {
-    return (
-      <motion.div
-        data-slot="reveal-effect"
-        data-effect="impact-ring"
-        className="pointer-events-none absolute size-0 overflow-visible"
-        style={{ left: x, top: y }}
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: [0, 1, 1, 0], scale: [0.9, 1, 1, 1] }}
-        transition={{ duration: 0.75, times: [0, 0.2, 0.6, 1], ease: REDUCED_EASE }}
-      >
-        <div data-slot="reveal-label" className={cn(REVEAL_CENTERED, 'w-max')} style={{ fontSize }}>
-          <span data-slot="reveal-label-pill" className={REVEAL_PILL} style={pillStyle}>
-            {label}
-          </span>
-        </div>
-      </motion.div>
-    )
-  }
-
   const outer = waves[0].diameter
-  const comboScale = comboScaleFor(streak)
 
   return (
-    <motion.div
-      data-slot="reveal-effect"
-      data-effect="impact-ring"
-      className="pointer-events-none absolute size-0 overflow-visible"
-      style={{ left: x, top: y }}
+    <RevealRoot
+      x={x}
+      y={y}
+      effect="impact-ring"
       animate={{ opacity: [1, 1, 0], scale: [1, 1, 0.94] }}
-      transition={EXIT}
+      transition={exit.transition}
     >
       {/* Flash de cœur, sous l'étiquette pour ne pas gêner la lecture. */}
       <motion.div
@@ -178,7 +137,7 @@ function ImpactRing({
         style={{
           width: markerSize * 2.6,
           height: markerSize * 2.6,
-          background: 'radial-gradient(closest-side, var(--marker), transparent)',
+          background: `radial-gradient(closest-side, ${highlight}, transparent)`,
         }}
         initial={{ scale: 0.4, opacity: 1 }}
         animate={{ scale: burst.flash, opacity: 0 }}
@@ -240,7 +199,7 @@ function ImpactRing({
               height: line.thickness,
               top: -line.thickness / 2,
               originX: 1,
-              background: line.hot ? 'var(--marker)' : color,
+              background: line.hot ? highlight : color,
             }}
             initial={{ x: line.from, scaleX: 0.4, opacity: 0 }}
             animate={{ x: line.to, scaleX: [0.4, 1, 0], opacity: [0, 1, 1, 0] }}
@@ -270,7 +229,7 @@ function ImpactRing({
         <motion.span
           data-slot="reveal-label-pill"
           className={REVEAL_PILL}
-          style={pillStyle}
+          style={revealPillStyle(color, colorForeground, burst.glow)}
           initial={{ scaleX: burst.fromX, scaleY: burst.fromY }}
           animate={{ scaleX: 1, scaleY: 1 }}
           transition={burst.pop}
@@ -285,18 +244,15 @@ function ImpactRing({
           </motion.span>
         </motion.span>
 
-        {streak >= COMBO_MIN_STREAK && (
-          <motion.span
-            data-slot="reveal-combo"
-            className={cn(REVEAL_COMBO, '-translate-x-[55%] -translate-y-[60%]')}
-            style={{ background: colorForeground, color, boxShadow: `0 0 0 1.5px ${color}` }}
-            initial={{ scale: 0, rotate: -40, opacity: 0 }}
-            animate={{ scale: comboScale, rotate: -10, opacity: 1 }}
-            transition={{ ...burst.pop, delay: 0.06 }}
-          >
-            ×{streak}
-          </motion.span>
-        )}
+        <RevealCombo
+          streak={streak}
+          color={color}
+          colorForeground={colorForeground}
+          className="-translate-x-[55%] -translate-y-[60%]"
+          initial={{ scale: 0, rotate: -40, opacity: 0 }}
+          animate={{ scale: comboScaleFor(streak), rotate: -10, opacity: 1 }}
+          transition={{ ...burst.pop, delay: 0.06 }}
+        />
       </div>
 
       {/* Le point d'origine : il gonfle, blanchit et s'efface sur l'étiquette naissante. */}
@@ -311,7 +267,7 @@ function ImpactRing({
           opacity: { duration: 0.09, ease: 'linear' },
         }}
       />
-    </motion.div>
+    </RevealRoot>
   )
 }
 

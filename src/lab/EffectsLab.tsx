@@ -1,50 +1,206 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { TriangleAlert } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { listEffects } from '@/effects'
+import {
+  buildRevealProps,
+  DEFAULT_MAX_DURATION_MS,
+  listEffects,
+  revealBudgetMs,
+  revealCapMs,
+  RevealEffectHost,
+  revealGeometry,
+  revealSeed,
+  type RevealGeometry,
+} from '@/effects'
 import type { RevealEffect, RevealOutcome } from '@/effects/types'
 import { GAME_FEEL } from '@/game/config'
-import { NOTES } from '@/game/music/notes'
+import { createNeckLayout, type NeckLayout, type Point } from '@/game/fretboard/geometry'
+import {
+  ORIENTATION_TRANSFORM,
+  orientPoint,
+  type BoardOrientation,
+  type BoardProjection,
+} from '@/game/fretboard/projection'
+import { NOTES, toPitchClass, type PitchClass } from '@/game/music/notes'
+import { useElementSize } from '@/hooks/useElementSize'
 
 /**
- * Lab d'effets — banc d'essai isolé pour concevoir et régler les révélations.
+ * Lab d'effets — banc d'essai isolé pour concevoir et régler les révélations,
+ * à l'échelle exacte du jeu (mêmes props, même graine, même géométrie).
  * Accès : `/?lab`. Paramètres facultatifs pour l'automatisation :
  *   `effect=<id>` `outcome=correct|wrong` `streak=<n>` `label=<texte>` `autoplay=1` `delay=<ms>`
+ *   `marker=desktop|paysage|portrait` `string=<1-6>` `fret=<1-12>` `reduced=1` `timeout=1`
  */
-const MARKER_SIZE = 26
-const PX_PER_MM = 3.7
 
+interface MarkerPreset {
+  name: string
+  /** Échelle du manche relevée en jeu pour ce format d'écran. */
+  pxPerMm: number
+  orientation: BoardOrientation
+}
+
+/** Formats d'écran types : le repère y mesure ≈ 21, 14 et 10 px. */
+const MARKER_PRESETS = {
+  desktop: { name: 'Bureau', pxPerMm: 3.38, orientation: 'horizontal' },
+  paysage: { name: 'Paysage', pxPerMm: 2.25, orientation: 'horizontal' },
+  portrait: { name: 'Portrait', pxPerMm: 1.6, orientation: 'vertical' },
+} as const satisfies Record<string, MarkerPreset>
+
+type MarkerId = keyof typeof MARKER_PRESETS
+
+const isMarkerId = (value: string | null): value is MarkerId =>
+  value !== null && Object.hasOwn(MARKER_PRESETS, value)
+
+/** Sel fixe : une même suite de clics rejoue exactement les mêmes variantes. */
+const LAB_SALT = 0
+
+const LAYOUT = createNeckLayout()
+
+const params = new URLSearchParams(window.location.search)
+
+const clampInt = (value: string | null, min: number, max: number, fallback: number) => {
+  const n = Math.round(Number(value ?? NaN))
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback
+}
+
+const STRING_COUNT = LAYOUT.tuning.strings.length
+/** Position de la note : corde 3 (Sol), case 5 par défaut, au milieu des frettes. */
+const STRING_INDEX = STRING_COUNT - clampInt(params.get('string'), 1, STRING_COUNT, 3)
+const FRET = clampInt(params.get('fret'), 1, LAYOUT.spec.lastFret, 5)
+
+const prefersReducedMotion = () =>
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+/** Projection du manche centrée sur la note : le repère tombe au centre de la scène. */
+function stageProjection(
+  size: { width: number; height: number },
+  preset: MarkerPreset,
+  anchor: Point,
+): BoardProjection {
+  const center = orientPoint(anchor, preset.orientation)
+  return {
+    pxPerMm: preset.pxPerMm,
+    width: size.width,
+    height: size.height,
+    orientation: preset.orientation,
+    toPx: (point) => {
+      const p = orientPoint(point, preset.orientation)
+      return {
+        x: size.width / 2 + (p.x - center.x) * preset.pxPerMm,
+        y: size.height / 2 + (p.y - center.y) * preset.pxPerMm,
+      }
+    },
+  }
+}
+
+/** Réglages figés au lancement d'un essai. */
 interface Run {
   key: number
   effect: RevealEffect
   outcome: RevealOutcome
+  streak: number
+  label: string
+  pc: PitchClass
+  reducedMotion: boolean
+  timedOut: boolean
+  startedAt: number
 }
 
-const params = new URLSearchParams(window.location.search)
+/** Dernière mesure d'un effet : durée réelle (null = encore en cours) et limite du jeu. */
+interface Measure {
+  ms: number | null
+  capMs: number
+}
 
 export default function EffectsLab() {
-  const [streak, setStreak] = useState(() => Number(params.get('streak') ?? 1))
+  const [streak, setStreak] = useState(() => clampInt(params.get('streak'), 0, 99, 1))
   const [label, setLabel] = useState(() => params.get('label') ?? 'Sol♯')
+  const [marker, setMarker] = useState<MarkerId>(() => {
+    const value = params.get('marker')
+    return isMarkerId(value) ? value : 'desktop'
+  })
+  const [reducedMotion, setReducedMotion] = useState(() =>
+    params.has('reduced') ? params.get('reduced') === '1' : prefersReducedMotion(),
+  )
+  const [timedOut, setTimedOut] = useState(() => params.get('timeout') === '1')
   const [runs, setRuns] = useState<Run[]>([])
+  const [measures, setMeasures] = useState<Record<string, Measure>>({})
   const counter = useRef(0)
   const effects = useMemo(() => listEffects(), [])
+  const [stageRef, stage] = useElementSize<HTMLDivElement>()
+  const preset = MARKER_PRESETS[marker]
 
-  const play = useCallback((effect: RevealEffect, outcome: RevealOutcome) => {
-    const key = ++counter.current
-    setRuns((list) => [...list, { key, effect, outcome }])
+  const geometry = useMemo<RevealGeometry | null>(() => {
+    if (stage.width === 0) return null
+    const anchor = LAYOUT.position(STRING_INDEX, FRET)
+    return revealGeometry(LAYOUT, stageProjection(stage, preset, anchor), STRING_INDEX, FRET)
+  }, [stage, preset])
+
+  const play = useCallback(
+    (effect: RevealEffect, outcome: RevealOutcome) => {
+      const key = ++counter.current
+      const pc = NOTES.find((n) => n.solfege === label)?.pc ?? 8
+      const run: Run = {
+        key,
+        effect,
+        outcome,
+        streak: outcome === 'correct' ? streak : 0,
+        label,
+        pc,
+        reducedMotion,
+        timedOut: outcome === 'wrong' && timedOut,
+        startedAt: performance.now(),
+      }
+      setRuns((list) => [...list, run])
+    },
+    [label, streak, reducedMotion, timedOut],
+  )
+
+  // Un effet peut appeler `onComplete` plusieurs fois : seul le premier appel compte.
+  const finished = useRef(new Set<number>())
+  const finish = useCallback((run: Run, ms: number, capMs: number) => {
+    if (finished.current.has(run.key)) return
+    finished.current.add(run.key)
+    setRuns((list) => list.filter((r) => r.key !== run.key))
+    setMeasures((all) => ({ ...all, [run.effect.id]: { ms, capMs } }))
   }, [])
 
+  const overrun = useCallback((run: Run, capMs: number) => {
+    if (finished.current.has(run.key)) return
+    setMeasures((all) => ({ ...all, [run.effect.id]: { ms: null, capMs } }))
+  }, [])
+
+  const chooseMarker = (id: MarkerId) => {
+    setMarker(id)
+    setRuns([])
+    const url = new URL(window.location.href)
+    url.searchParams.set('marker', id)
+    window.history.replaceState(null, '', url)
+  }
+
+  // Lecture automatique, une seule fois, dès que la scène est mesurée.
+  const autoplay = useRef(params.get('autoplay') === '1')
   useEffect(() => {
-    if (params.get('autoplay') !== '1') return
+    if (!autoplay.current || !geometry) return
     const id = params.get('effect')
-    const outcome = (params.get('outcome') as RevealOutcome | null) ?? 'correct'
+    const outcome: RevealOutcome = params.get('outcome') === 'wrong' ? 'wrong' : 'correct'
     const effect =
       effects.find((e) => e.id === id) ?? effects.find((e) => e.outcomes.includes(outcome))
     if (!effect) return
-    const timer = window.setTimeout(() => play(effect, outcome), Number(params.get('delay') ?? 300))
+    const timer = window.setTimeout(
+      () => {
+        autoplay.current = false
+        play(effect, outcome)
+      },
+      Number(params.get('delay') ?? 300),
+    )
     return () => window.clearTimeout(timer)
-  }, [effects, play])
+  }, [effects, play, geometry])
+
+  const markerPx = LAYOUT.markerRadius * 2 * preset.pxPerMm
 
   return (
     <div className="flex min-h-full flex-col gap-6 p-6">
@@ -59,11 +215,29 @@ export default function EffectsLab() {
         </a>
       </header>
 
-      <div className="flex flex-wrap items-center gap-4 text-sm">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm">
+        <div role="group" aria-label="Format d'écran" className="flex items-center gap-1">
+          {(Object.keys(MARKER_PRESETS) as MarkerId[]).map((id) => (
+            <Button
+              key={id}
+              size="sm"
+              variant={id === marker ? 'secondary' : 'ghost'}
+              aria-pressed={id === marker}
+              data-slot="lab-marker-preset"
+              onClick={() => chooseMarker(id)}
+            >
+              {MARKER_PRESETS[id].name}
+            </Button>
+          ))}
+          <span className="ml-1 text-muted-foreground tabular-nums">
+            repère ≈ {Math.round(markerPx)} px
+          </span>
+        </div>
         <label className="flex items-center gap-2">
           Série
           <input
             type="range"
+            className="accent-foreground"
             min={0}
             max={GAME_FEEL.maxStreakIntensity + 2}
             value={streak}
@@ -78,110 +252,246 @@ export default function EffectsLab() {
             value={label}
             onChange={(e) => setLabel(e.target.value)}
           >
+            {!NOTES.some((n) => n.solfege === label) && <option>{label}</option>}
             {NOTES.map((n) => (
               <option key={n.pc}>{n.solfege}</option>
             ))}
           </select>
         </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            className="accent-foreground"
+            checked={reducedMotion}
+            onChange={(e) => setReducedMotion(e.target.checked)}
+          />
+          Mouvement réduit
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            className="accent-foreground"
+            checked={timedOut}
+            onChange={(e) => setTimedOut(e.target.checked)}
+          />
+          Temps écoulé (faux)
+        </label>
       </div>
 
       <div
         data-slot="lab-stage"
-        className="relative h-64 overflow-visible rounded-xl border bg-fretboard"
+        data-orientation={preset.orientation}
+        className="relative h-64 overflow-visible rounded-xl border bg-card"
       >
-        <div className="absolute inset-x-0 top-1/2 h-px bg-string" />
-        <div
-          className="absolute top-1/2 left-1/2 -translate-1/2 rounded-full bg-marker"
-          style={{ width: MARKER_SIZE, height: MARKER_SIZE }}
-        />
-        {runs.map(({ key, effect, outcome }) => (
-          <StageEffect
-            key={key}
-            id={key}
-            effect={effect}
-            outcome={outcome}
-            label={label}
-            streak={outcome === 'correct' ? streak : 0}
-            onDone={() => setRuns((list) => list.filter((r) => r.key !== key))}
-          />
-        ))}
+        <div ref={stageRef} className="absolute inset-0 overflow-hidden rounded-[inherit]">
+          {geometry && (
+            <StageNeck layout={LAYOUT} size={stage} preset={preset} hideMarker={runs.length > 0} />
+          )}
+        </div>
+        {geometry &&
+          runs.map((run) => (
+            <StageEffect
+              key={run.key}
+              run={run}
+              geometry={geometry}
+              onDone={finish}
+              onOverrun={overrun}
+            />
+          ))}
+        {runs.length > 0 && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="absolute top-2 right-2"
+            onClick={() => setRuns([])}
+          >
+            Vider
+          </Button>
+        )}
       </div>
 
+      <p className="text-sm text-muted-foreground">
+        Note suivante après {revealBudgetMs('correct')} ms (juste) · {revealBudgetMs('wrong')} ms
+        (faux) · écran de fin {revealBudgetMs('wrong', true)} ms (temps écoulé). Limite de vie par
+        défaut : {DEFAULT_MAX_DURATION_MS} ms.
+      </p>
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {effects.map((effect) => (
-          <div key={effect.id} className="flex items-center gap-2 rounded-lg border p-3">
-            <div className="mr-auto">
-              <div className="text-sm font-medium">{effect.name}</div>
-              <div className="font-mono text-xs text-muted-foreground">{effect.id}</div>
+        {effects.map((effect) => {
+          const measure = measures[effect.id]
+          const over = measure !== undefined && (measure.ms === null || measure.ms > measure.capMs)
+          return (
+            <div
+              key={effect.id}
+              data-slot="lab-effect"
+              data-effect={effect.id}
+              className="flex flex-col gap-2 rounded-lg border p-3"
+            >
+              <div className="flex items-center gap-2">
+                <div className="mr-auto">
+                  <div className="text-sm font-medium">{effect.name}</div>
+                  <div className="font-mono text-xs text-muted-foreground">{effect.id}</div>
+                </div>
+                {effect.outcomes.map((outcome) => (
+                  <Button
+                    key={outcome}
+                    size="sm"
+                    variant={outcome === 'correct' ? 'secondary' : 'outline'}
+                    onClick={() => play(effect, outcome)}
+                  >
+                    {outcome === 'correct' ? 'Juste' : 'Faux'}
+                  </Button>
+                ))}
+              </div>
+              {measure && (
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span className="tabular-nums">
+                    {measure.ms === null ? 'en cours…' : `${Math.round(measure.ms)} ms`}
+                  </span>
+                  {over && (
+                    <span
+                      data-slot="lab-overrun"
+                      className="flex items-center gap-1 text-destructive"
+                    >
+                      <TriangleAlert className="size-3.5" aria-hidden />
+                      dépasse {measure.capMs} ms : coupé en jeu
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
-            {effect.outcomes.map((outcome) => (
-              <Button
-                key={outcome}
-                size="sm"
-                variant={outcome === 'correct' ? 'secondary' : 'outline'}
-                onClick={() => play(effect, outcome)}
-              >
-                {outcome === 'correct' ? 'Juste' : 'Faux'}
-              </Button>
-            ))}
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
 }
 
-function StageEffect({
-  id,
-  effect,
-  outcome,
-  label,
-  streak,
-  onDone,
+/** Manche simplifié (bois, sillet, frettes, repères, cordes) à l'échelle du format choisi. */
+function StageNeck({
+  layout,
+  size,
+  preset,
+  hideMarker,
 }: {
-  id: number
-  effect: RevealEffect
-  outcome: RevealOutcome
-  label: string
-  streak: number
-  onDone: () => void
+  layout: NeckLayout
+  size: { width: number; height: number }
+  preset: MarkerPreset
+  hideMarker: boolean
 }) {
-  const stage = useRef<HTMLDivElement>(null)
-  const [size, setSize] = useState<{ w: number; h: number } | null>(null)
-  useEffect(() => {
-    const parent = stage.current?.parentElement
-    if (parent) setSize({ w: parent.clientWidth, h: parent.clientHeight })
-  }, [])
-  const done = useRef(false)
-  const complete = useCallback(() => {
-    if (done.current) return
-    done.current = true
-    onDone()
-  }, [onDone])
-  const { Component } = effect
-  const success = outcome === 'correct'
+  const anchor = layout.position(STRING_INDEX, FRET)
+  const transform = [
+    `translate(${size.width / 2} ${size.height / 2})`,
+    `scale(${preset.pxPerMm})`,
+    ORIENTATION_TRANSFORM[preset.orientation] ?? '',
+    `translate(${-anchor.x} ${-anchor.y})`,
+  ].join(' ')
+  const { outline, nut, frets, inlays, strings, spec } = layout
   return (
-    <div ref={stage} className="pointer-events-none absolute inset-0">
-      {size && (
-        <Component
-          id={id}
-          outcome={outcome}
-          label={label}
-          x={size.w / 2}
-          y={size.h / 2}
-          markerSize={MARKER_SIZE}
-          pxPerMm={PX_PER_MM}
-          stringAngle={0}
-          intensity={success ? Math.min(1, streak / GAME_FEEL.maxStreakIntensity) : 0}
-          streak={streak}
-          seed={(id * 2654435761) >>> 0}
-          color={success ? 'var(--feedback-success)' : 'var(--feedback-error)'}
-          colorForeground={
-            success ? 'var(--feedback-success-foreground)' : 'var(--feedback-error-foreground)'
-          }
-          onComplete={complete}
+    <svg data-slot="lab-neck" className="absolute inset-0 size-full" aria-hidden>
+      <g transform={transform}>
+        <polygon
+          className="fill-fretboard"
+          points={outline.map((p) => `${p.x},${p.y}`).join(' ')}
         />
-      )}
-    </div>
+        <rect
+          className="fill-nut"
+          x={nut.x0}
+          y={-nut.halfWidth}
+          width={nut.x1 - nut.x0}
+          height={nut.halfWidth * 2}
+        />
+        {inlays.map((inlay) => (
+          <circle
+            key={`${inlay.fret}-${inlay.center.y}`}
+            className="fill-inlay"
+            cx={inlay.center.x}
+            cy={inlay.center.y}
+            r={inlay.r}
+          />
+        ))}
+        {frets.map((fret) => (
+          <line
+            key={fret.n}
+            className="stroke-fret-wire"
+            strokeWidth={spec.fretWireWidth}
+            x1={fret.x}
+            x2={fret.x}
+            y1={-fret.halfWidth}
+            y2={fret.halfWidth}
+          />
+        ))}
+        {strings.map((string) => (
+          <line
+            key={string.index}
+            className={string.wound ? 'stroke-string-wound' : 'stroke-string'}
+            strokeWidth={string.gauge}
+            x1={string.from.x}
+            y1={string.from.y}
+            x2={string.to.x}
+            y2={string.to.y}
+          />
+        ))}
+        {!hideMarker && (
+          <circle
+            data-slot="lab-marker"
+            className="fill-marker"
+            cx={anchor.x}
+            cy={anchor.y}
+            r={layout.markerRadius}
+          />
+        )}
+      </g>
+    </svg>
   )
+}
+
+function StageEffect({
+  run,
+  geometry,
+  onDone,
+  onOverrun,
+}: {
+  run: Run
+  geometry: RevealGeometry
+  onDone: (run: Run, ms: number, capMs: number) => void
+  onOverrun: (run: Run, capMs: number) => void
+}) {
+  const correct = run.outcome === 'correct'
+  const capMs = revealCapMs(run.effect, {
+    reducedMotion: run.reducedMotion,
+    budgetMs: revealBudgetMs(run.outcome, run.timedOut),
+  })
+  const complete = useCallback(
+    () => onDone(run, performance.now() - run.startedAt, capMs),
+    [onDone, run, capMs],
+  )
+
+  const reveal = useMemo(
+    () =>
+      buildRevealProps({
+        revealId: run.key,
+        pc: run.pc,
+        guess: correct ? run.pc : run.timedOut ? null : toPitchClass(run.pc + 1),
+        correct,
+        streak: run.streak,
+        stringIndex: STRING_INDEX,
+        fret: FRET,
+        // Même chemin qu'en jeu : la graine est tirée après le choix de l'effet.
+        seed: revealSeed(run.key, LAB_SALT),
+        geometry,
+        reducedMotion: run.reducedMotion,
+        label: run.label,
+        onComplete: complete,
+      }),
+    [run, correct, geometry, complete],
+  )
+
+  // Le lab ne coupe pas l'effet : il signale seulement qu'il dépasserait la limite du jeu.
+  useEffect(() => {
+    const timer = window.setTimeout(() => onOverrun(run, capMs), capMs)
+    return () => window.clearTimeout(timer)
+  }, [capMs, onOverrun, run])
+
+  return <RevealEffectHost effect={run.effect} reveal={reveal} />
 }

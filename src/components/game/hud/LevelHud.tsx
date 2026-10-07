@@ -24,6 +24,11 @@ function useRisePulse(value: number): number {
 /**
  * Bandeau du haut : niveau, notes trouvées, temps restant et progression.
  * Le parent le positionne ; seul `LevelTimer` se re-rend à chaque frame.
+ *
+ * Sur écran bas (≤ 420 px, téléphone à l'horizontale), tout tient sur une ligne
+ * d'environ 36 px — titre, barre de progression extensible, compteur, temps —
+ * pour laisser la hauteur au manche. L'ordre du DOM ne change pas : la ligne
+ * du haut s'efface (`display: contents`) et la barre se glisse au milieu (`order`).
  */
 export function LevelHud({ state, className }: LevelHudProps): ReactNode {
   const { level, correctCount, phase } = state
@@ -36,18 +41,25 @@ export function LevelHud({ state, className }: LevelHudProps): ReactNode {
       data-phase={phase}
       className={cn('relative w-full select-none', className)}
     >
-      <div data-slot="level-hud-content" className="flex flex-col gap-2 px-4 py-2.5 sm:px-6">
-        <div className="flex items-center gap-3 text-sm leading-none">
-          <span data-slot="level-title" className="truncate font-medium">
+      <div
+        data-slot="level-hud-content"
+        className="flex flex-col gap-2 px-4 py-2.5 sm:px-6 short:h-9 short:flex-row short:items-center short:gap-3 short:py-0"
+      >
+        <div
+          data-slot="level-hud-row"
+          className="flex items-center gap-3 text-sm leading-none short:contents"
+        >
+          <span data-slot="level-title" className="truncate font-medium short:shrink-0">
             {level.title}
           </span>
 
           <span
             data-slot="level-count"
-            className="ml-auto inline-flex items-baseline gap-1 tabular-nums whitespace-nowrap"
+            className="ml-auto inline-flex items-baseline gap-1 tabular-nums whitespace-nowrap short:order-2 short:ml-0"
           >
             <motion.span
               key={pulseId}
+              data-slot="level-count-value"
               className="inline-block font-medium"
               initial={pulseId > 0 && !reduceMotion ? { scale: 1.6 } : false}
               animate={{ scale: 1 }}
@@ -55,16 +67,29 @@ export function LevelHud({ state, className }: LevelHudProps): ReactNode {
             >
               {correctCount}
             </motion.span>
-            <span className="text-muted-foreground">/ {level.targetCount}</span>
-            <span className="text-xs text-muted-foreground">notes</span>
+            <span data-slot="level-count-target" className="text-muted-foreground">
+              / {level.targetCount}
+            </span>
+            <span data-slot="level-count-unit" className="text-xs text-muted-foreground">
+              notes
+            </span>
           </span>
 
-          <span aria-hidden className="h-3.5 w-px bg-border" />
+          <span
+            aria-hidden
+            data-slot="level-hud-separator"
+            className="h-3.5 w-px bg-border short:order-2"
+          />
 
-          <LevelTimer state={state} />
+          <LevelTimer state={state} className="short:order-2" />
         </div>
 
-        <LevelProgress value={correctCount} max={level.targetCount} pulseId={pulseId} />
+        <LevelProgress
+          value={correctCount}
+          max={level.targetCount}
+          pulseId={pulseId}
+          className="short:order-1 short:min-w-16 short:flex-1"
+        />
       </div>
     </div>
   )

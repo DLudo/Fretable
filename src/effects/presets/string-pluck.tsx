@@ -1,46 +1,40 @@
 import { useId, useMemo } from 'react'
-import { motion, useReducedMotion, type Easing, type Transition } from 'motion/react'
+import { motion } from 'motion/react'
 
+import { range, seededRandom } from '@/lib/random'
 import { cn } from '@/lib/utils'
 import { duration, ease } from '@/theme/motion'
 import {
-  COMBO_MIN_STREAK,
   REVEAL_CENTERED,
-  REVEAL_COMBO,
   REVEAL_PILL,
+  RevealCombo,
+  RevealRoot,
   comboScaleFor,
+  estimateLabelBox,
   labelFontSize,
+  revealExit,
+  revealPillStyle,
   useCompleteAfter,
 } from '../kit'
-import { range, seededRandom } from '@/lib/random'
 import type { RevealEffect, RevealEffectProps } from '../types'
 
 /**
  * « Corde pincée » : le point s'écrase sur la corde comme sous le doigt, puis
  * la corde est relâchée : deux traits de lumière filent le long de la corde
- * dans les deux sens, le segment autour du point vibre (oscillation amortie)
- * et l'étiquette s'élève en éclosant. Plus la série monte, plus les traits
- * vont loin et plus de « frettes » s'allument sur leur passage.
+ * dans les deux sens (jamais au-delà du sillet), le segment autour du point
+ * vibre (oscillation amortie) et l'étiquette s'élève un peu en éclosant. Plus
+ * la série monte, plus les traits vont loin et plus de vrais fils de frette
+ * (`fretOffsets`) s'allument sur leur passage.
  */
 
-/** Durée de vie (ms) : la traîne chevauche la note suivante (affichée ~420 ms après). */
-const LIFETIME_MS = 800
 /** Le doigt écrase la corde avant de la relâcher (s). */
 const PLUCK = 0.035
 /** Durée de la vibration (s). */
 const VIBRATION = 0.26
-/** Début et durée (s) du fondu de sortie global. */
-const FADE_AT = 0.46
-const FADE_FOR = 0.28
-const EXIT: Transition = {
-  duration: FADE_AT + FADE_FOR,
-  times: [0, FADE_AT / (FADE_AT + FADE_FOR), 1],
-  // Une courbe par segment : avec `times`, une courbe unique s'appliquerait à toute la timeline.
-  ease: ['linear', ease.outQuart],
-}
-
-/** Mouvement réduit : apparition, maintien, disparition. */
-const REDUCED_EASE: Easing[] = [ease.outQuart, 'linear', ease.inQuad]
+/** Élévation de l'étiquette, en diamètres de repère : elle reste sur sa corde. */
+const RISE = 0.5
+/** Un fil de frette ne s'allume que si la tête l'atteint avant cette fraction de sa course. */
+const FRET_REACH = 0.92
 
 /**
  * Origine du groupe qui vibre : milieu du bord haut de sa boîte (fill-box), soit
@@ -55,13 +49,13 @@ function reachTime(f: number): number {
 }
 
 interface FretFlash {
-  /** Distance au point, le long de la corde (px). */
+  /** Distance au point, le long de la corde (px) : celle d'un vrai fil de frette. */
   at: number
   delay: number
 }
 
 interface Side {
-  /** Course de la tête lumineuse (px). */
+  /** Course de la tête lumineuse (px), positive dans le sens du trait. */
   travel: number
   delay: number
   duration: number
@@ -95,24 +89,30 @@ function buildPluck(
   markerSize: number,
   pxPerMm: number,
   stringAngle: number,
+  fretOffsets: readonly number[],
   label: string,
 ): Pluck {
   const random = seededRandom(seed)
   const fontSize = labelFontSize(markerSize)
-  // Demi-axes estimés de l'étiquette (hauteur exacte : 1em + 2 × 0.38em).
-  const halfW = (fontSize * (0.62 * [...label].length + 1.4)) / 2
-  const halfH = (fontSize * 1.76) / 2
+  const { halfW, halfH } = estimateLabelBox(fontSize, label)
 
   const reach = pxPerMm * (40 + 50 * intensity)
   const fretsPerSide = Math.round(3 * intensity)
-  const side = (): Side => {
-    const travel = reach * range(random, 0.8, 1.15)
+  // Distance (px) du point au sillet (index 0), là où la corde s'arrête.
+  const nut = fretOffsets.length > 0 ? -fretOffsets[0] : Infinity
+  /** `dir` : +1 vers le chevalet, -1 vers le sillet. */
+  const side = (dir: 1 | -1): Side => {
+    const travel = Math.min(reach * range(random, 0.8, 1.15), dir < 0 ? nut : Infinity)
     const delay = PLUCK + range(random, 0, 0.02)
     const dur = range(random, 0.38, 0.48)
-    const frets = Array.from({ length: fretsPerSide }, (_, i): FretFlash => {
-      const f = (i + range(random, 0.55, 0.95)) / (fretsPerSide + 0.4)
-      return { at: travel * f, delay: delay + dur * reachTime(f) }
-    })
+    // Les vrais fils de frette de ce côté, du plus proche au plus lointain, allumés
+    // quand la tête passe dessus.
+    const frets = fretOffsets
+      .map((offset) => offset * dir)
+      .filter((at) => at > 0 && at <= travel * FRET_REACH)
+      .sort((a, b) => a - b)
+      .slice(0, fretsPerSide)
+      .map((at): FretFlash => ({ at, delay: delay + dur * reachTime(at / travel) }))
     return { travel, delay, duration: dur, frets }
   }
 
@@ -129,14 +129,14 @@ function buildPluck(
     fromX: (markerSize * 0.9) / (2 * halfW),
     fromY: (markerSize * 0.9) / (2 * halfH),
     angle: (stringAngle * 180) / Math.PI,
-    sides: [side(), side()],
+    sides: [side(1), side(-1)],
     thickness: 2.5 + 1.5 * intensity,
     headLength: markerSize * (1.3 + 0.9 * intensity),
     fretHeight: markerSize * range(random, 0.7, 0.95),
     halfLength: markerSize * (1.8 + 1 * intensity),
     amplitude: markerSize * (0.5 + 0.3 * intensity) * range(random, 0.9, 1.1),
     wobble,
-    rise: markerSize * 0.9,
+    rise: markerSize * RISE,
     tilt: -sign * range(random, 2, 6),
     glow: 18 + 18 * intensity,
     comboTilt: sign * range(random, 6, 14),
@@ -144,16 +144,17 @@ function buildPluck(
 }
 
 /** Un trait de lumière : la corde s'allume, une tête brillante file devant. */
-// oxlint-disable-next-line react/only-export-components -- sous-composant interne de l'effet
 function Streak({
   side,
   pluck,
   color,
+  highlight,
   className,
 }: {
   side: Side
   pluck: Pluck
   color: string
+  highlight: string
   className?: string
 }) {
   const { thickness, headLength, fretHeight } = pluck
@@ -183,13 +184,19 @@ function Streak({
           },
         }}
       />
-      {/* Des « frettes » s'allument au passage de la tête. */}
+      {/* Les fils de frette s'allument au passage de la tête. */}
       {side.frets.map((fret) => (
         <motion.div
           key={fret.at}
           data-slot="reveal-fret-flash"
-          className="absolute rounded-full bg-marker"
-          style={{ left: fret.at - 1, top: -fretHeight / 2, width: 2, height: fretHeight }}
+          className="absolute rounded-full"
+          style={{
+            left: fret.at - 1,
+            top: -fretHeight / 2,
+            width: 2,
+            height: fretHeight,
+            background: highlight,
+          }}
           initial={{ scaleY: 0, opacity: 0 }}
           animate={{ scaleY: [0, 1.15, 0.5], opacity: [0, 1, 0] }}
           transition={{
@@ -208,7 +215,7 @@ function Streak({
           height: thickness * 1.6,
           left: -headLength,
           top: (-thickness * 1.6) / 2,
-          background: `linear-gradient(to right, transparent, ${color} 45%, var(--marker))`,
+          background: `linear-gradient(to right, transparent, ${color} 45%, ${highlight})`,
           boxShadow: `6px 0 10px -2px ${color}`,
         }}
         initial={{ x: 0, opacity: 0 }}
@@ -229,7 +236,6 @@ function Streak({
   )
 }
 
-// oxlint-disable-next-line react/only-export-components -- exporté via son descripteur d'effet
 function StringPluck({
   label,
   x,
@@ -237,58 +243,34 @@ function StringPluck({
   markerSize,
   pxPerMm,
   stringAngle,
+  fretOffsets,
   intensity,
   streak,
   seed,
+  budgetMs,
   color,
   colorForeground,
+  highlight,
   onComplete,
 }: RevealEffectProps) {
-  const reduceMotion = useReducedMotion()
   const gradientId = useId()
-  useCompleteAfter(LIFETIME_MS, onComplete)
+  // Sortie calée sur la note suivante : l'étiquette s'efface juste avant son apparition.
+  const exit = useMemo(() => revealExit(budgetMs), [budgetMs])
+  useCompleteAfter(exit.lifetimeMs, onComplete)
   const pluck = useMemo(
-    () => buildPluck(seed, intensity, markerSize, pxPerMm, stringAngle, label),
-    [seed, intensity, markerSize, pxPerMm, stringAngle, label],
+    () => buildPluck(seed, intensity, markerSize, pxPerMm, stringAngle, fretOffsets, label),
+    [seed, intensity, markerSize, pxPerMm, stringAngle, fretOffsets, label],
   )
-  const { fontSize } = pluck
-  const pillStyle = {
-    background: color,
-    color: colorForeground,
-    boxShadow: `0 0 ${pluck.glow}px color-mix(in oklch, ${color} 55%, transparent)`,
-  }
-
-  if (reduceMotion) {
-    return (
-      <motion.div
-        data-slot="reveal-effect"
-        data-effect="string-pluck"
-        className="pointer-events-none absolute size-0 overflow-visible"
-        style={{ left: x, top: y }}
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: [0, 1, 1, 0], scale: [0.9, 1, 1, 1] }}
-        transition={{ duration: 0.75, times: [0, 0.2, 0.6, 1], ease: REDUCED_EASE }}
-      >
-        <div data-slot="reveal-label" className={cn(REVEAL_CENTERED, 'w-max')} style={{ fontSize }}>
-          <span data-slot="reveal-label-pill" className={REVEAL_PILL} style={pillStyle}>
-            {label}
-          </span>
-        </div>
-      </motion.div>
-    )
-  }
-
-  const { halfLength: s, amplitude: a, wobble } = pluck
+  const { fontSize, halfLength: s, amplitude: a, wobble } = pluck
   const comboScale = comboScaleFor(streak)
 
   return (
-    <motion.div
-      data-slot="reveal-effect"
-      data-effect="string-pluck"
-      className="pointer-events-none absolute size-0 overflow-visible"
-      style={{ left: x, top: y }}
+    <RevealRoot
+      x={x}
+      y={y}
+      effect="string-pluck"
       animate={{ opacity: [1, 1, 0] }}
-      transition={EXIT}
+      transition={exit.transition}
     >
       {/* Tout ce qui épouse la corde vit dans ce repère tourné ; la racine, elle, ne tourne pas. */}
       <div
@@ -303,7 +285,7 @@ function StringPluck({
           style={{
             width: markerSize * 4,
             height: markerSize * 1.5,
-            background: 'radial-gradient(closest-side, var(--marker), transparent)',
+            background: `radial-gradient(closest-side, ${highlight}, transparent)`,
           }}
           initial={{ scale: 0.4, opacity: 0 }}
           animate={{ scale: [0.4, 1.3], opacity: [0, 0.85, 0] }}
@@ -315,8 +297,14 @@ function StringPluck({
           }}
         />
 
-        <Streak side={pluck.sides[0]} pluck={pluck} color={color} />
-        <Streak side={pluck.sides[1]} pluck={pluck} color={color} className="rotate-180" />
+        <Streak side={pluck.sides[0]} pluck={pluck} color={color} highlight={highlight} />
+        <Streak
+          side={pluck.sides[1]}
+          pluck={pluck}
+          color={color}
+          highlight={highlight}
+          className="rotate-180"
+        />
 
         {/* Segment qui vibre : un arc dont l'échelle verticale oscille (mode fondamental). */}
         <svg
@@ -341,7 +329,7 @@ function StringPluck({
               {/* oklab : en oklch, la teinte nulle du blanc ferait virer le mélange au jaune. */}
               <stop
                 offset="0.5"
-                style={{ stopColor: `color-mix(in oklab, ${color} 55%, var(--marker))` }}
+                style={{ stopColor: `color-mix(in oklab, ${color} 55%, ${highlight})` }}
               />
               <stop offset="1" style={{ stopColor: color, stopOpacity: 0 }} />
             </linearGradient>
@@ -353,7 +341,7 @@ function StringPluck({
             transition={{
               delay: PLUCK,
               duration: VIBRATION,
-              ease: 'easeInOut',
+              ease: ease.inOut,
               opacity: {
                 delay: PLUCK,
                 duration: VIBRATION + 0.2,
@@ -381,7 +369,7 @@ function StringPluck({
         </svg>
       </div>
 
-      {/* Étiquette : éclot du point et s'élève au-dessus de la corde. */}
+      {/* Étiquette : éclot du point et s'élève un peu, sans quitter sa corde. */}
       <motion.div
         data-slot="reveal-label"
         className={cn(REVEAL_CENTERED, 'w-max')}
@@ -393,7 +381,7 @@ function StringPluck({
         <motion.span
           data-slot="reveal-label-pill"
           className={REVEAL_PILL}
-          style={pillStyle}
+          style={revealPillStyle(color, colorForeground, pluck.glow)}
           initial={{ scaleX: pluck.fromX, scaleY: pluck.fromY, rotate: pluck.tilt }}
           animate={{ scaleX: 1, scaleY: 1, rotate: 0 }}
           transition={{ delay: PLUCK * 0.5, duration: 0.24, ease: ease.outBack }}
@@ -408,38 +396,30 @@ function StringPluck({
           </motion.span>
         </motion.span>
 
-        {streak >= COMBO_MIN_STREAK && (
-          <motion.span
-            data-slot="reveal-combo"
-            className={cn(REVEAL_COMBO, '-translate-x-[35%] -translate-y-[62%]')}
-            // Ancré en bas à gauche : le badge grossit en s'éloignant de l'étiquette.
-            style={{
-              background: colorForeground,
-              color,
-              boxShadow: `0 0 0 1.5px ${color}`,
-              originX: 0.1,
-              originY: 0.9,
-            }}
-            initial={{ scale: 0, y: 8, rotate: 0, opacity: 0 }}
-            animate={{
-              scale: [0, comboScale * 1.25, comboScale],
-              y: 0,
-              rotate: pluck.comboTilt,
-              opacity: 1,
-            }}
-            transition={{
-              delay: PLUCK + 0.08,
-              duration: 0.24,
-              times: [0, 0.45, 1],
-              ease: [ease.outQuart, ease.outBack],
-              y: { delay: PLUCK + 0.08, duration: 0.24, ease: ease.outExpo },
-              rotate: { delay: PLUCK + 0.08, duration: 0.24, ease: ease.outBack },
-              opacity: { delay: PLUCK + 0.08, duration: 0.05, ease: 'linear' },
-            }}
-          >
-            ×{streak}
-          </motion.span>
-        )}
+        <RevealCombo
+          streak={streak}
+          color={color}
+          colorForeground={colorForeground}
+          className="-translate-x-[35%] -translate-y-[62%]"
+          // Ancré en bas à gauche : le badge grossit en s'éloignant de l'étiquette.
+          style={{ originX: 0.1, originY: 0.9 }}
+          initial={{ scale: 0, y: 8, rotate: 0, opacity: 0 }}
+          animate={{
+            scale: [0, comboScale * 1.25, comboScale],
+            y: 0,
+            rotate: pluck.comboTilt,
+            opacity: 1,
+          }}
+          transition={{
+            delay: PLUCK + 0.08,
+            duration: 0.24,
+            times: [0, 0.45, 1],
+            ease: [ease.outQuart, ease.outBack],
+            y: { delay: PLUCK + 0.08, duration: 0.24, ease: ease.outExpo },
+            rotate: { delay: PLUCK + 0.08, duration: 0.24, ease: ease.outBack },
+            opacity: { delay: PLUCK + 0.08, duration: 0.05, ease: 'linear' },
+          }}
+        />
       </motion.div>
 
       {/* Le point d'origine, au-dessus de tout : écrasé sur la corde par le doigt, puis absorbé. */}
@@ -457,7 +437,7 @@ function StringPluck({
           }}
         />
       </div>
-    </motion.div>
+    </RevealRoot>
   )
 }
 

@@ -2,15 +2,26 @@ import { useEffect, useState } from 'react'
 
 import type { GameState } from './types'
 
+export type CountdownState = Pick<GameState, 'phase' | 'startedAt' | 'endedAt' | 'level'>
+
+/**
+ * Temps restant (ms) à l'instant `now` — calcul pur.
+ * Plein avant le départ, figé à la fin de la partie, borné à [0, durée].
+ */
+export function remainingMs(state: CountdownState, now: number): number {
+  const { phase, startedAt, endedAt } = state
+  const duration = state.level.durationMs
+  if (startedAt === null) return duration
+  const end = endedAt ?? (phase === 'playing' ? Math.max(now, startedAt) : startedAt)
+  return Math.min(duration, Math.max(0, duration - (end - startedAt)))
+}
+
 /**
  * Temps restant (ms), rafraîchi à chaque frame pendant la partie.
  * À n'utiliser que dans le composant qui l'affiche : seul lui se re-rend à 60 i/s.
  */
-export function useCountdown(
-  state: Pick<GameState, 'phase' | 'startedAt' | 'endedAt' | 'level'>,
-): number {
-  const { phase, startedAt, endedAt } = state
-  const duration = state.level.durationMs
+export function useCountdown(state: CountdownState): number {
+  const { phase } = state
   const [now, setNow] = useState(() => performance.now())
 
   useEffect(() => {
@@ -22,7 +33,5 @@ export function useCountdown(
     return () => cancelAnimationFrame(frame)
   }, [phase])
 
-  if (startedAt === null) return duration
-  const end = endedAt ?? (phase === 'playing' ? Math.max(now, startedAt) : startedAt)
-  return Math.min(duration, Math.max(0, duration - (end - startedAt)))
+  return remainingMs(state, now)
 }

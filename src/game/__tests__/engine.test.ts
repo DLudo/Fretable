@@ -3,11 +3,14 @@ import { describe, expect, it } from 'vitest'
 import { createChallenge } from '@/game/engine/challenge'
 import { createInitialState, gameReducer } from '@/game/engine/reducer'
 import type { Challenge, GameState } from '@/game/engine/types'
-import { getLevel } from '@/game/levels/levels'
+import { getLevel, hasNextLevel, LEVELS } from '@/game/levels/levels'
 import type { PitchClass } from '@/game/music/notes'
 import { STANDARD_TUNING } from '@/game/music/tuning'
 
 const challenge = (id: number, pc: PitchClass): Challenge => ({ id, stringIndex: 0, fret: 1, pc })
+
+const startedGame = (): GameState =>
+  gameReducer(createInitialState(0), { type: 'start', now: 1000, challenge: challenge(1, 5) })
 
 function play(state: GameState, pc: PitchClass, now: number, next?: Challenge): GameState {
   const guessed = gameReducer(state, { type: 'guess', pc, now })
@@ -21,11 +24,7 @@ describe('niveau 1', () => {
 })
 
 describe('moteur de jeu', () => {
-  const started = gameReducer(createInitialState(0), {
-    type: 'start',
-    now: 1000,
-    challenge: challenge(1, 5),
-  })
+  const started = startedGame()
 
   it('démarre en état de jeu', () => {
     expect(started).toMatchObject({ phase: 'playing', locked: false, startedAt: 1000 })
@@ -58,14 +57,40 @@ describe('moteur de jeu', () => {
 
   it("perd quand le temps s'écoule", () => {
     const s = gameReducer(started, { type: 'timeUp', now: 31_000 })
-    expect(s).toMatchObject({ phase: 'lost', locked: true })
+    expect(s).toMatchObject({ phase: 'lost', locked: true, endedAt: 31_000 })
     expect(play(s, 5, 31_100)).toBe(s)
   })
 
-  it('refuse une réponse arrivée après l’échéance', () => {
-    const s = play(started, 5, 31_001)
-    expect(s.phase).toBe('lost')
-    expect(s.correctCount).toBe(0)
+  it('révèle la note restée sans réponse, sans la compter comme erreur', () => {
+    const s = gameReducer(play(started, 5, 2000, challenge(2, 7)), { type: 'timeUp', now: 31_000 })
+    const timeout = { id: 2, challenge: challenge(2, 7), guess: null, correct: false, streak: 0 }
+    expect(s.lastResult).toEqual({ ...timeout, at: 31_000 })
+    expect(s.results).toHaveLength(2)
+    expect(s.results[1]).toBe(s.lastResult)
+    expect(s).toMatchObject({ mistakes: 0, correctCount: 1, streak: 0, bestStreak: 1 })
+  })
+
+  it('ne révèle rien de plus si une révélation est déjà en cours', () => {
+    const missed = play(started, 0, 30_800)
+    const s = gameReducer(missed, { type: 'timeUp', now: 31_000 })
+    expect(s).toMatchObject({ phase: 'lost', endedAt: 31_000, mistakes: 1 })
+    expect(s.lastResult).toBe(missed.lastResult)
+    expect(s.results).toBe(missed.results)
+  })
+
+  it('accepte une réponse juste avant l’échéance', () => {
+    expect(play(started, 5, 30_999)).toMatchObject({ phase: 'playing', correctCount: 1 })
+  })
+
+  it('refuse une réponse arrivée pile à l’échéance', () => {
+    const s = play(started, 5, 31_000)
+    expect(s).toMatchObject({ phase: 'lost', correctCount: 0, endedAt: 31_000 })
+  })
+
+  it('refuse une réponse arrivée après l’échéance et révèle la note', () => {
+    const s = play(started, 5, 31_500)
+    expect(s).toMatchObject({ phase: 'lost', correctCount: 0, mistakes: 0, endedAt: 31_000 })
+    expect(s.lastResult).toMatchObject({ id: 1, guess: null, correct: false, at: 31_000 })
   })
 
   it('ignore « next » hors révélation', () => {
@@ -76,6 +101,24 @@ describe('moteur de jeu', () => {
     const s = play(started, 5, 2000)
     const restarted = gameReducer(s, { type: 'start', now: 5000, challenge: challenge(20, 2) })
     expect(restarted).toMatchObject({ phase: 'playing', correctCount: 0, streak: 0, results: [] })
+  })
+})
+
+describe('niveaux', () => {
+  it('charge un niveau en repartant de zéro', () => {
+    const won = { ...play(startedGame(), 5, 2000), phase: 'won' as const, endedAt: 2000 }
+    expect(gameReducer(won, { type: 'load', levelIndex: 0 })).toEqual(createInitialState(0))
+  })
+
+  it('refuse un niveau inexistant', () => {
+    expect(() =>
+      gameReducer(createInitialState(0), { type: 'load', levelIndex: LEVELS.length }),
+    ).toThrow(RangeError)
+  })
+
+  it('n’annonce un niveau suivant que s’il existe', () => {
+    LEVELS.forEach((_, i) => expect(hasNextLevel(i)).toBe(i < LEVELS.length - 1))
+    expect(hasNextLevel(LEVELS.length - 1)).toBe(false)
   })
 })
 
