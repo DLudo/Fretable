@@ -10,7 +10,7 @@ import { NOTES } from '@/game/music/notes'
 /**
  * Lab d'effets — banc d'essai isolé pour concevoir et régler les révélations.
  * Accès : `/?lab`. Paramètres facultatifs pour l'automatisation :
- *   `effect=<id>` `outcome=correct|wrong` `streak=<n>` `label=<texte>` `autoplay=1`
+ *   `effect=<id>` `outcome=correct|wrong` `streak=<n>` `label=<texte>` `autoplay=1` `delay=<ms>`
  */
 const MARKER_SIZE = 26
 const PX_PER_MM = 3.7
@@ -41,7 +41,7 @@ export default function EffectsLab() {
     const outcome = (params.get('outcome') as RevealOutcome | null) ?? 'correct'
     const effect = effects.find((e) => e.id === id) ?? effects.find((e) => e.outcomes.includes(outcome))
     if (!effect) return
-    const timer = window.setTimeout(() => play(effect, outcome), 300)
+    const timer = window.setTimeout(() => play(effect, outcome), Number(params.get('delay') ?? 300))
     return () => window.clearTimeout(timer)
   }, [effects, play])
 
