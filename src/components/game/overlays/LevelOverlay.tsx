@@ -170,7 +170,7 @@ function Panel({
       role="dialog"
       aria-labelledby={`${id}-title`}
       aria-describedby={describedBy}
-      className="shadow-lg"
+      className="shadow-lg short:gap-4 short:py-4"
     >
       <CardHeader>
         <CardTitle id={`${id}-title`} className="text-xl">
