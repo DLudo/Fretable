@@ -1,5 +1,7 @@
 import { Suspense, lazy } from 'react'
 
+import { GameScreen } from '@/components/game/GameScreen'
+
 const EffectsLab = lazy(() => import('@/lab/EffectsLab'))
 
 const isLab = new URLSearchParams(window.location.search).has('lab')
@@ -12,5 +14,5 @@ export default function App() {
       </Suspense>
     )
   }
-  return null
+  return <GameScreen />
 }

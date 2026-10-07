@@ -1,0 +1,361 @@
+import { useEffect, useMemo, useRef } from 'react'
+import { motion, useReducedMotion, type Easing, type Transition } from 'motion/react'
+
+import { cn } from '@/lib/utils'
+import { ease } from '@/theme/motion'
+import { range, seededRandom } from '../random'
+import type { RevealEffect, RevealEffectProps } from '../types'
+
+/**
+ * « Glitch » (erreur) : le point s'écrase en trait comme un écran cathodique,
+ * puis l'étiquette rouge de la bonne note s'allume en signal parasité : copies
+ * fantômes décalées (séparation des couleurs), bandes horizontales qui
+ * sautent de côté, lignes de bruit. Le signal se stabilise, une réplique
+ * parasite parfois l'étiquette, puis l'écran « s'éteint ». Sec, jamais festif.
+ */
+
+/** Durée de vie (ms). La note suivante n'apparaît que ~950 ms après une erreur. */
+const LIFETIME_MS = 1100
+/** Le point s'écrase en trait, puis disparaît (s). */
+const SQUASH_AT = 0.022
+const LABEL_AT = 0.042
+/** Allumage de l'étiquette : trait → étirement → repos (s). */
+const SNAP_FOR = 0.075
+/** Parasitage principal (s). */
+const GLITCH_AT = LABEL_AT + SNAP_FOR / 2
+const GLITCH_FOR = 0.25
+/** Fin du maintien (s) : la bonne note reste lisible jusque-là, puis l'écran s'éteint. */
+const HOLD_UNTIL = 0.9
+const EXIT_FOR = 0.12
+
+const EXIT_TOTAL = HOLD_UNTIL + EXIT_FOR
+const EXIT_TIMES = [0, HOLD_UNTIL / EXIT_TOTAL, 1]
+
+/** Mouvement réduit : apparition, maintien, disparition. */
+const REDUCED_EASE: Easing[] = [ease.outQuart, 'linear', ease.outQuart]
+const REDUCED_TIMES = [0, 0.12 / EXIT_TOTAL, HOLD_UNTIL / EXIT_TOTAL, 1]
+
+/** Courbe « en créneau » : la valeur tient jusqu'au keyframe suivant, puis saute (signal numérique). */
+const hold = (t: number) => (t < 1 ? 0 : 1)
+/**
+ * Une courbe par segment : avec `times`, une courbe unique s'appliquerait à toute la
+ * timeline quand Motion délègue l'opacité à WAAPI.
+ */
+const holdEach = (keyframes: number): Easing[] => Array.from({ length: keyframes - 1 }, () => hold)
+
+const CENTERED = 'absolute top-0 left-0 -translate-1/2'
+const PILL =
+  'block rounded-full px-[0.7em] py-[0.38em] leading-none font-semibold whitespace-nowrap'
+const COPY = cn(PILL, 'absolute inset-0')
+
+interface Slice {
+  clipPath: string
+  x: number[]
+}
+
+interface Ghost {
+  x: number[]
+  y: number[]
+  opacity: number[]
+}
+
+interface NoiseBar {
+  /** Position et largeur en % de l'étiquette. */
+  top: number
+  left: number
+  width: number
+  x: number[]
+  opacity: number[]
+  hot: boolean
+}
+
+interface Glitch {
+  fontSize: number
+  /** Horodatage partagé (0 → 1) de tous les sauts, à partir de `GLITCH_AT`. */
+  times: number[]
+  duration: number
+  slices: Slice[]
+  ghosts: [Ghost, Ghost]
+  bars: NoiseBar[]
+  /** Opacité de l'étiquette « propre » (ombre comprise) sous les bandes. */
+  settled: number[]
+}
+
+function buildGlitch(seed: number, markerSize: number): Glitch {
+  const random = seededRandom(seed)
+  const fontSize = Math.min(22, Math.max(12, markerSize * 0.62))
+  const sign = () => (random() < 0.5 ? -1 : 1)
+
+  // Sauts du parasitage principal : 6 à 8 « images » de durées inégales.
+  const steps = 6 + Math.floor(random() * 3)
+  const weights = Array.from({ length: steps }, () => range(random, 0.6, 1.4))
+  const total = weights.reduce((a, b) => a + b, 0)
+  const at: number[] = [0]
+  weights.forEach((w) => at.push(at[at.length - 1] + (w / total) * GLITCH_FOR))
+  // Index du keyframe « stable » (fin du parasitage).
+  const stable = steps
+  // Réplique (7 fois sur 10) : bref sursaut d'une bande et des fantômes pendant le maintien.
+  const aftershock = random() < 0.7
+  let end = at[stable] + 0.05
+  if (aftershock) {
+    const shock = range(random, 0.48, 0.62) - GLITCH_AT
+    at.push(shock, shock + range(random, 0.03, 0.045), shock + range(random, 0.07, 0.085))
+    end = at[at.length - 1]
+  }
+  at.push(end)
+  const times = at.map((t) => t / end)
+  const frames = at.length
+  const isGlitch = (j: number) => j < stable
+  const shockIndex = (j: number) => (aftershock && j > stable && j < frames - 2 ? j - stable : 0)
+
+  // 3 ou 4 bandes ; toutes sautent sauf une (2 à 3 bandes parasitées).
+  const bandCount = 3 + Math.floor(random() * 2)
+  const cuts = [0]
+  for (let k = 1; k < bandCount; k++) cuts.push((k / bandCount) * 100 + range(random, -8, 8))
+  cuts.push(100)
+  const still = Math.floor(random() * bandCount)
+  const shaken = (still + 1 + Math.floor(random() * (bandCount - 1))) % bandCount
+  const amplitude = markerSize * range(random, 0.32, 0.5)
+  const slices = Array.from({ length: bandCount }, (_, k): Slice => {
+    // Léger recouvrement (0,6 px) entre bandes voisines : aucune couture une fois alignées.
+    const top = k === 0 ? '0' : `calc(${cuts[k].toFixed(2)}% - 0.6px)`
+    const bottom = k === bandCount - 1 ? '0' : `calc(${(100 - cuts[k + 1]).toFixed(2)}% - 0.6px)`
+    const x = Array.from({ length: frames }, (_, j) => {
+      if (isGlitch(j)) {
+        if (k === still) return 0
+        // Gros sauts d'abord, puis le signal se recale vite : l'étiquette est lisible dès ~120 ms.
+        const decay = Math.exp(-j * 0.6)
+        if (j > 0 && random() < 0.25) return 0
+        return sign() * amplitude * decay * range(random, j === 0 ? 0.65 : 0.3, 1)
+      }
+      const s = shockIndex(j)
+      if (k !== shaken || s === 0) return 0
+      return s === 1 ? sign() * amplitude * range(random, 0.5, 0.8) : sign() * amplitude * 0.3
+    })
+    return { clipPath: `inset(${top} 0 ${bottom} 0)`, x }
+  })
+
+  // Deux fantômes décalés de ±3 px en sens opposés, qui frémissent puis se recalent.
+  const ghost = (side: number): Ghost => {
+    const baseX = side * range(random, 2.6, 3.4)
+    const baseY = range(random, -1.2, 1.2)
+    return {
+      x: Array.from({ length: frames }, (_, j) =>
+        isGlitch(j) || shockIndex(j) === 1 ? baseX + range(random, -1.6, 1.6) : 0,
+      ),
+      y: Array.from({ length: frames }, (_, j) =>
+        isGlitch(j) || shockIndex(j) === 1 ? baseY + range(random, -0.8, 0.8) : 0,
+      ),
+      opacity: Array.from({ length: frames }, (_, j) =>
+        isGlitch(j) ? (random() < 0.2 ? 0.45 : 1) : shockIndex(j) === 1 ? 0.8 : 0,
+      ),
+    }
+  }
+  const first = sign()
+
+  // 2 ou 3 lignes de bruit qui clignotent pendant le parasitage.
+  const barCount = 2 + Math.floor(random() * 2)
+  const bars = Array.from({ length: barCount }, (): NoiseBar => ({
+    // Au-dessus ou au-dessous de l'étiquette, jamais en travers du texte.
+    top: random() < 0.5 ? range(random, -45, -14) : range(random, 114, 145),
+    left: range(random, -35, 35),
+    width: range(random, 45, 110),
+    x: Array.from({ length: frames }, () => markerSize * range(random, -0.5, 0.5)),
+    opacity: Array.from({ length: frames }, (_, j) =>
+      isGlitch(j) && random() < 0.45 ? range(random, 0.5, 0.9) : 0,
+    ),
+    hot: random() < 0.5,
+  }))
+
+  return {
+    fontSize,
+    times,
+    duration: end,
+    slices,
+    ghosts: [ghost(first), ghost(-first)],
+    bars,
+    settled: Array.from({ length: frames }, (_, j) => (isGlitch(j) ? 0 : 1)),
+  }
+}
+
+/** Appelle `onComplete` une seule fois après `ms`, robuste au double montage de StrictMode. */
+function useCompleteAfter(ms: number, onComplete: () => void) {
+  const callback = useRef(onComplete)
+  const done = useRef(false)
+  useEffect(() => {
+    callback.current = onComplete
+  })
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (done.current) return
+      done.current = true
+      callback.current()
+    }, ms)
+    return () => window.clearTimeout(timer)
+  }, [ms])
+}
+
+// oxlint-disable-next-line react/only-export-components -- exporté via son descripteur d'effet
+function GlitchSlice({
+  label,
+  x,
+  y,
+  markerSize,
+  seed,
+  color,
+  colorForeground,
+  onComplete,
+}: RevealEffectProps) {
+  const reduceMotion = useReducedMotion()
+  useCompleteAfter(LIFETIME_MS, onComplete)
+  const glitch = useMemo(() => buildGlitch(seed, markerSize), [seed, markerSize])
+  const { fontSize } = glitch
+  const pillStyle = { background: color, color: colorForeground }
+  // Ombre serrée : détache l'étiquette du manche sans halo de célébration.
+  const settledStyle = {
+    ...pillStyle,
+    boxShadow: `0 0 10px color-mix(in oklch, ${color} 35%, transparent)`,
+  }
+
+  if (reduceMotion) {
+    return (
+      <motion.div
+        data-slot="reveal-effect"
+        data-effect="glitch-slice"
+        className="pointer-events-none absolute size-0 overflow-visible"
+        style={{ left: x, top: y }}
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: [0, 1, 1, 0], scale: [0.9, 1, 1, 1] }}
+        transition={{ duration: EXIT_TOTAL, times: REDUCED_TIMES, ease: REDUCED_EASE }}
+      >
+        <div data-slot="reveal-label" className={cn(CENTERED, 'w-max')} style={{ fontSize }}>
+          <span data-slot="reveal-label-pill" className={PILL} style={settledStyle}>
+            {label}
+          </span>
+        </div>
+      </motion.div>
+    )
+  }
+
+  /**
+   * Tous les sauts partagent la même horloge, en créneaux. Le premier tient pendant
+   * l'allumage : la première image pleine taille est déjà parasitée.
+   */
+  const jumps: Transition = {
+    delay: GLITCH_AT,
+    duration: glitch.duration,
+    times: glitch.times,
+    ease: holdEach(glitch.times.length),
+  }
+  const ghostBackgrounds = [
+    `color-mix(in oklch, ${color} 55%, transparent)`,
+    'color-mix(in oklch, var(--marker) 40%, transparent)',
+  ]
+
+  return (
+    <motion.div
+      data-slot="reveal-effect"
+      data-effect="glitch-slice"
+      className="pointer-events-none absolute size-0 overflow-visible"
+      style={{ left: x, top: y }}
+      // Extinction cathodique : l'image s'écrase en trait puis disparaît.
+      animate={{ opacity: [1, 1, 0], scaleY: [1, 1, 0.08], scaleX: [1, 1, 1.2] }}
+      transition={{
+        duration: EXIT_TOTAL,
+        times: EXIT_TIMES,
+        ease: ['linear', ease.outExpo],
+        opacity: { duration: EXIT_TOTAL, times: EXIT_TIMES, ease: ['linear', ease.inQuad] },
+      }}
+    >
+      {/* Le point d'origine s'écrase en trait horizontal, puis s'éteint. */}
+      <motion.div
+        data-slot="reveal-origin"
+        className={cn(CENTERED, 'rounded-full bg-marker')}
+        style={{ width: markerSize, height: markerSize }}
+        initial={{ scaleX: 1, scaleY: 1, opacity: 1 }}
+        animate={{ scaleX: [1, 2.2, 2.2], scaleY: [1, 0.16, 0.16], opacity: [1, 1, 0] }}
+        transition={{ duration: LABEL_AT, times: [0, SQUASH_AT / LABEL_AT, 1], ease: holdEach(3) }}
+      />
+
+      {/* L'étiquette s'allume : trait → étirement → repos, en sauts secs. */}
+      <motion.div
+        data-slot="reveal-label"
+        className={cn(CENTERED, 'w-max')}
+        style={{ fontSize }}
+        initial={{ opacity: 0, scaleX: 1.3, scaleY: 0.12 }}
+        animate={{ opacity: 1, scaleX: [1.3, 0.94, 1.03, 1], scaleY: [0.12, 1.18, 0.97, 1] }}
+        transition={{
+          opacity: { delay: LABEL_AT, duration: 0.001 },
+          default: { delay: LABEL_AT, duration: SNAP_FOR, ease: holdEach(4) },
+        }}
+      >
+        {glitch.ghosts.map((ghost, i) => (
+          <motion.span
+            key={i}
+            data-slot="reveal-glitch-ghost"
+            aria-hidden
+            className={COPY}
+            style={{ background: ghostBackgrounds[i], color: 'transparent' }}
+            initial={{ x: ghost.x[0], y: ghost.y[0], opacity: ghost.opacity[0] }}
+            animate={{ x: ghost.x, y: ghost.y, opacity: ghost.opacity }}
+            transition={jumps}
+          >
+            {label}
+          </motion.span>
+        ))}
+
+        {/* Étiquette stabilisée : donne sa taille au groupe, n'apparaît (avec son ombre)
+            qu'une fois le signal recalé. */}
+        <motion.span
+          data-slot="reveal-label-pill"
+          className={cn(PILL, 'relative')}
+          style={settledStyle}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: glitch.settled }}
+          transition={jumps}
+        >
+          {label}
+        </motion.span>
+
+        {glitch.slices.map((slice) => (
+          <motion.span
+            key={slice.clipPath}
+            data-slot="reveal-glitch-slice"
+            aria-hidden
+            className={COPY}
+            style={{ ...pillStyle, clipPath: slice.clipPath }}
+            initial={{ x: slice.x[0] }}
+            animate={{ x: slice.x }}
+            transition={jumps}
+          >
+            {label}
+          </motion.span>
+        ))}
+
+        {glitch.bars.map((bar) => (
+          <motion.span
+            key={`${bar.top}:${bar.left}`}
+            data-slot="reveal-glitch-noise"
+            className="absolute h-[0.12em] min-h-0.5"
+            style={{
+              top: `${bar.top}%`,
+              left: `${bar.left}%`,
+              width: `${bar.width}%`,
+              background: bar.hot ? 'var(--marker)' : color,
+            }}
+            initial={{ x: bar.x[0], opacity: 0 }}
+            animate={{ x: bar.x, opacity: bar.opacity }}
+            transition={jumps}
+          />
+        ))}
+      </motion.div>
+    </motion.div>
+  )
+}
+
+export const glitchSliceEffect: RevealEffect = {
+  id: 'glitch-slice',
+  name: 'Glitch',
+  outcomes: ['wrong'],
+  Component: GlitchSlice,
+}
