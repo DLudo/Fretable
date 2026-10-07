@@ -19,7 +19,7 @@ import {
   labelFontSize,
   useCompleteAfter,
 } from '../kit'
-import { range, seededRandom } from '../random'
+import { range, seededRandom } from '@/lib/random'
 import type { RevealEffect, RevealEffectProps } from '../types'
 
 /**

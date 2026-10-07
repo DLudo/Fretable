@@ -4,7 +4,7 @@ import { motion, useReducedMotion, type Easing, type Transition } from 'motion/r
 import { cn } from '@/lib/utils'
 import { ease } from '@/theme/motion'
 import { REVEAL_CENTERED, REVEAL_PILL, labelFontSize, useCompleteAfter } from '../kit'
-import { range, seededRandom } from '../random'
+import { range, seededRandom } from '@/lib/random'
 import type { RevealEffect, RevealEffectProps } from '../types'
 
 /**
@@ -153,20 +153,17 @@ function buildGlitch(seed: number, markerSize: number): Glitch {
 
   // 2 ou 3 lignes de bruit qui clignotent pendant le parasitage.
   const barCount = 2 + Math.floor(random() * 2)
-  const bars = Array.from(
-    { length: barCount },
-    (): NoiseBar => ({
-      // Au-dessus ou au-dessous de l'étiquette, jamais en travers du texte.
-      top: random() < 0.5 ? range(random, -45, -14) : range(random, 114, 145),
-      left: range(random, -35, 35),
-      width: range(random, 45, 110),
-      x: Array.from({ length: frames }, () => markerSize * range(random, -0.5, 0.5)),
-      opacity: Array.from({ length: frames }, (_, j) =>
-        isGlitch(j) && random() < 0.45 ? range(random, 0.5, 0.9) : 0,
-      ),
-      hot: random() < 0.5,
-    }),
-  )
+  const bars = Array.from({ length: barCount }, (): NoiseBar => ({
+    // Au-dessus ou au-dessous de l'étiquette, jamais en travers du texte.
+    top: random() < 0.5 ? range(random, -45, -14) : range(random, 114, 145),
+    left: range(random, -35, 35),
+    width: range(random, 45, 110),
+    x: Array.from({ length: frames }, () => markerSize * range(random, -0.5, 0.5)),
+    opacity: Array.from({ length: frames }, (_, j) =>
+      isGlitch(j) && random() < 0.45 ? range(random, 0.5, 0.9) : 0,
+    ),
+    hot: random() < 0.5,
+  }))
 
   return {
     fontSize,

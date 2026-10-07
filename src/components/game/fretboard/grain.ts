@@ -1,4 +1,4 @@
-import { range, seededRandom } from '@/effects/random'
+import { range, seededRandom } from '@/lib/random'
 import type { NeckLayout } from '@/game/fretboard/geometry'
 
 /** Une fibre du bois : tracé (mm) et réglages de rendu. */

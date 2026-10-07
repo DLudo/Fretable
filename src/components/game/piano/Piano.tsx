@@ -9,7 +9,7 @@ import { PianoKey, type PianoKeyFeedback } from './PianoKey'
 
 export interface PianoFeedback {
   id: number
-  guess: PitchClass
+  guess: PitchClass | null
   answer: PitchClass
   correct: boolean
 }
@@ -35,7 +35,8 @@ const NO_KEYS: ReadonlySet<PitchClass> = new Set()
 
 function feedbackFor(pc: PitchClass, feedback: PianoFeedback | null): PianoKeyFeedback | null {
   if (!feedback) return null
-  if (pc === feedback.guess) return feedback.correct ? 'correct' : 'wrong'
+  if (feedback.guess !== null && pc === feedback.guess)
+    return feedback.correct ? 'correct' : 'wrong'
   if (!feedback.correct && pc === feedback.answer) return 'answer'
   return null
 }

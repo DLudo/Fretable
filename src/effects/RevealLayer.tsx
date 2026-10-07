@@ -5,7 +5,7 @@ import type { GuessResult } from '@/game/engine/types'
 import type { NeckLayout } from '@/game/fretboard/geometry'
 import type { BoardProjection } from '@/game/fretboard/projection'
 import { noteName } from '@/game/music/notes'
-import { seededRandom } from './random'
+import { seededRandom } from '@/lib/random'
 import { pickEffect } from './registry'
 import type { RevealEffect, RevealOutcome } from './types'
 

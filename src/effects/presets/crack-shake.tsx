@@ -4,7 +4,7 @@ import { motion, useReducedMotion, type Easing, type Transition } from 'motion/r
 import { cn } from '@/lib/utils'
 import { ease } from '@/theme/motion'
 import { REVEAL_CENTERED, REVEAL_PILL, labelFontSize, useCompleteAfter } from '../kit'
-import { range, seededRandom } from '../random'
+import { range, seededRandom } from '@/lib/random'
 import type { RevealEffect, RevealEffectProps } from '../types'
 
 /**

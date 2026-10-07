@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { DEFAULT_NECK, createNeckLayout, fretDistance } from '@/game/fretboard/geometry'
-import { createProjection } from '@/game/fretboard/projection'
+import { createProjection, orientViewBox } from '@/game/fretboard/projection'
 
 describe('géométrie du manche', () => {
   const layout = createNeckLayout()
@@ -62,5 +62,20 @@ describe('géométrie du manche', () => {
     const proj = createProjection(viewBox, viewBox.width * 2, viewBox.height * 2 + 100)
     expect(proj.pxPerMm).toBeCloseTo(2, 6)
     expect(proj.toPx({ x: viewBox.x, y: viewBox.y })).toEqual({ x: 0, y: 50 })
+  })
+
+  it('fait pivoter le manche en portrait : sillet en haut, corde grave à gauche', () => {
+    const { viewBox } = layout
+    const vertical = orientViewBox(viewBox, 'vertical')
+    expect(vertical.width).toBeCloseTo(viewBox.height, 6)
+    expect(vertical.height).toBeCloseTo(viewBox.width, 6)
+    const proj = createProjection(viewBox, vertical.width * 2, vertical.height * 2, 'vertical')
+    const nut = proj.toPx({ x: 0, y: 0 })
+    const twelfth = proj.toPx({ x: layout.fretX(12), y: 0 })
+    expect(twelfth.y).toBeGreaterThan(nut.y)
+    expect(twelfth.x).toBeCloseTo(nut.x, 6)
+    const x = layout.fretCenterX(5)
+    expect(proj.toPx(layout.position(0, 5)).x).toBeLessThan(proj.toPx(layout.position(5, 5)).x)
+    expect(proj.toPx({ x, y: viewBox.y }).x).toBeCloseTo(vertical.width * 2, 6)
   })
 })

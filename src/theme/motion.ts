@@ -14,6 +14,8 @@ export const ease = {
   outBack: [0.34, 1.56, 0.64, 1],
   /** Sortie rapide (disparitions). */
   inQuad: [0.11, 0, 0.5, 0],
+  /** Aller-retour doux (respirations, boucles). */
+  inOut: [0.65, 0, 0.35, 1],
 } as const satisfies Record<string, readonly [number, number, number, number]>
 
 /** Durées en secondes (unité de Motion). */
@@ -23,6 +25,8 @@ export const duration = {
   base: 0.3,
   reveal: 0.42,
   slow: 0.6,
+  /** Respiration d'un élément en attente (halo du repère). */
+  pulse: 1.6,
 } as const
 
 /** Ressorts prêts à l'emploi. */
@@ -30,4 +34,6 @@ export const spring = {
   snappy: { type: 'spring', stiffness: 520, damping: 32, mass: 0.7 },
   bouncy: { type: 'spring', stiffness: 420, damping: 18, mass: 0.8 },
   soft: { type: 'spring', stiffness: 180, damping: 24 },
+  /** Apparition « pop » très raide (~15 % de dépassement, posée en < 250 ms). */
+  pop: { type: 'spring', stiffness: 800, damping: 22, mass: 0.6 },
 } as const

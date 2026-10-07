@@ -17,7 +17,8 @@ export interface GuessResult {
   /** = `challenge.id` (une seule tentative par note). */
   id: number
   challenge: Challenge
-  guess: PitchClass
+  /** Note jouée, ou `null` si le temps s'est écoulé avant toute réponse. */
+  guess: PitchClass | null
   correct: boolean
   /** Série de bonnes réponses consécutives, tentative incluse (0 après une erreur). */
   streak: number

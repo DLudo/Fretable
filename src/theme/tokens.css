@@ -19,7 +19,7 @@
   --inlay: oklch(0.5 0 0);
   --string: oklch(0.82 0 0);
   --string-wound: oklch(0.68 0 0);
-  --fret-number: oklch(0.5 0 0);
+  --fret-number: oklch(0.68 0 0);
 
   /* — Repère (le point à deviner) — */
   --marker: oklch(0.985 0 0);
@@ -38,18 +38,41 @@
   --feedback-success: oklch(0.78 0.2 150);
   --feedback-success-foreground: oklch(0.18 0.05 150);
   --feedback-error: oklch(0.66 0.23 25);
-  --feedback-error-foreground: oklch(0.98 0.01 25);
+  --feedback-error-foreground: oklch(0.18 0.05 25);
 
-  /* — HUD — */
-  --hud-track: oklch(1 0 0 / 10%);
-  --hud-fill: oklch(0.985 0 0);
-  --hud-time: oklch(1 0 0 / 35%);
+  /* — HUD — (dérivé du texte de la page : suit automatiquement un thème clair) */
+  --hud-track: color-mix(in oklab, var(--foreground) 10%, transparent);
+  --hud-fill: var(--foreground);
+  --hud-time: color-mix(in oklab, var(--foreground) 35%, transparent);
   --hud-time-critical: var(--feedback-error);
+  --hud-tick: var(--background);
+
+  /* — Révélations — blanc « chauffé » des étincelles, éclats et flashs */
+  --reveal-highlight: oklch(0.985 0 0);
 }
 
 /*
- * Préréglage « touche en érable » — décommentez ou appliquez
- * `data-fretboard="maple"` sur un ancêtre pour l'activer.
+ * Alias sémantiques : chacun pointe par défaut vers un jeton ci-dessus, mais
+ * peut être redéfini seul. Déclarés aussi sur `[data-fretboard]` pour suivre
+ * les préréglages appliqués plus bas dans l'arbre.
+ */
+:root,
+[data-fretboard] {
+  --fretboard-shadow: var(--fretboard-edge);
+  --string-highlight: var(--fret-wire-highlight);
+  --nut-highlight: var(--fret-wire-highlight);
+  --marker-halo: var(--marker-ring);
+  --marker-outline: var(--fretboard-edge);
+  --piano-case: var(--key-black);
+  --piano-keybed: var(--key-border);
+  --key-white-hover: color-mix(in oklab, var(--key-white) 70%, var(--key-white-pressed));
+  --key-black-hover: color-mix(in oklab, var(--key-black) 75%, var(--key-black-pressed));
+  --key-black-sharp: color-mix(in oklab, var(--key-black) 68%, var(--key-black-foreground));
+}
+
+/*
+ * Préréglage « touche en érable » — appliquez `data-fretboard="maple"` sur un
+ * ancêtre du manche (ou sur <html>) pour l'activer.
  */
 [data-fretboard='maple'] {
   --fretboard: oklch(0.86 0.06 80);
@@ -57,7 +80,12 @@
   --fretboard-grain: oklch(0.82 0.07 78);
   --fret-wire: oklch(0.72 0.01 90);
   --inlay: oklch(0.25 0.01 60);
-  --fret-number: oklch(0.6 0.03 80);
+  --fret-number: oklch(0.72 0.04 80);
+  /* Sur bois clair, le repère passe au sombre pour rester lisible. */
+  --marker: oklch(0.24 0 0);
+  --marker-ring: oklch(0.24 0 0 / 35%);
+  --marker-outline: oklch(0.15 0 0);
+  --fretboard-shadow: oklch(0.55 0.05 70);
 }
 
 @theme inline {
@@ -88,4 +116,16 @@
   --color-hud-fill: var(--hud-fill);
   --color-hud-time: var(--hud-time);
   --color-hud-time-critical: var(--hud-time-critical);
+  --color-hud-tick: var(--hud-tick);
+  --color-reveal-highlight: var(--reveal-highlight);
+  --color-fretboard-shadow: var(--fretboard-shadow);
+  --color-string-highlight: var(--string-highlight);
+  --color-nut-highlight: var(--nut-highlight);
+  --color-marker-halo: var(--marker-halo);
+  --color-marker-outline: var(--marker-outline);
+  --color-piano-case: var(--piano-case);
+  --color-piano-keybed: var(--piano-keybed);
+  --color-key-white-hover: var(--key-white-hover);
+  --color-key-black-hover: var(--key-black-hover);
+  --color-key-black-sharp: var(--key-black-sharp);
 }
