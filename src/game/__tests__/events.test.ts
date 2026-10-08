@@ -42,6 +42,7 @@ describe('ordre des événements', () => {
         challenge: state.challenge,
         lastResult: state.lastResult,
         combo: state.combo,
+        assist: state.assist,
       }
       for (const event of diffGameEvents(emitted, snapshot)) log.push(label(event))
       emitted = snapshot
@@ -65,6 +66,8 @@ describe('ordre des événements', () => {
         return `guess:${event.payload.guess === null ? 'timeout' : event.payload.correct}`
       case 'combo':
         return `combo:${event.payload ? 'on' : 'off'}`
+      case 'assist':
+        return `assist:${event.payload ? event.payload.remaining : 'off'}`
     }
   }
 
@@ -111,6 +114,7 @@ describe('ordre des événements', () => {
       challenge: challenge(1, 0),
       lastResult: null,
       combo: null,
+      assist: null,
     }
     expect(diffGameEvents(snapshot, { ...snapshot })).toEqual([])
   })

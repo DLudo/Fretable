@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 
-import { GAME_FEEL } from '@/game/config'
+import { ASSIST_RULES, GAME_FEEL } from '@/game/config'
 import { hasNextLevel } from '@/game/levels/levels'
 import type { PitchClass } from '@/game/music/notes'
 import { STANDARD_TUNING, type Tuning } from '@/game/music/tuning'
-import { createChallenge, type Random } from './challenge'
+import { createAssistChallenge, createChallenge, type Random } from './challenge'
 import {
   createGameEventBus,
   diffGameEvents,
@@ -14,7 +14,7 @@ import {
   type GameEventSnapshot,
 } from './events'
 import { createInitialState, gameReducer } from './reducer'
-import type { Challenge, GameState } from './types'
+import type { AssistState, Challenge, GameState } from './types'
 
 export interface UseGameOptions {
   tuning?: Tuning
@@ -25,7 +25,7 @@ export interface UseGameOptions {
 export interface GameController {
   state: GameState
   tuning: Tuning
-  /** Bus d'événements ; pour un même changement d'état : `guess` → `combo` → `phase` → `challenge`. */
+  /** Bus d'événements ; pour un même changement d'état : `guess` → `combo` → `assist` → `phase` → `challenge`. */
   events: GameEventBus
   /** Démarre (ou redémarre) le niveau courant. */
   start(): void
@@ -47,8 +47,18 @@ export function useGame(options: UseGameOptions = {}): GameController {
   // Identifiants uniques sur toute la session : deux révélations ne partagent jamais une clé.
   const nextId = useRef(0)
   const makeChallenge = useCallback(
-    (previous: Challenge | null) =>
-      createChallenge(++nextId.current, state.level, tuning, random, previous),
+    (previous: Challenge | null, assist: AssistState | null = null) =>
+      assist
+        ? createAssistChallenge(
+            ++nextId.current,
+            state.level,
+            tuning,
+            random,
+            assist.pc,
+            previous,
+            ASSIST_RULES.samePosition,
+          )
+        : createChallenge(++nextId.current, state.level, tuning, random, previous),
     [state.level, tuning, random],
   )
 
@@ -56,23 +66,32 @@ export function useGame(options: UseGameOptions = {}): GameController {
     dispatch({ type: 'start', now: now(), challenge: makeChallenge(null) })
   }, [makeChallenge])
 
-  const guess = useCallback((pc: PitchClass) => dispatch({ type: 'guess', pc, now: now() }), [])
+  const guess = useCallback(
+    (pc: PitchClass) => dispatch({ type: 'guess', pc, now: now(), roll: random() }),
+    [random],
+  )
 
   const nextLevel = useCallback(() => {
     if (hasNextLevel(state.levelIndex)) dispatch({ type: 'load', levelIndex: state.levelIndex + 1 })
   }, [state.levelIndex])
 
-  // Après une tentative : on laisse vivre la révélation, puis nouvelle note.
-  const { phase, locked, lastResult, challenge, startedAt } = state
+  // Après une tentative : on laisse vivre la révélation, puis nouvelle note
+  // (imposée par le coup de pouce s'il est en cours).
+  const { phase, locked, lastResult, challenge, startedAt, assist } = state
   useEffect(() => {
     if (phase !== 'playing' || !locked || !lastResult) return
     const hold = lastResult.correct ? GAME_FEEL.holdAfterCorrectMs : GAME_FEEL.holdAfterWrongMs
     const timer = window.setTimeout(
-      () => dispatch({ type: 'next', challenge: makeChallenge(lastResult.challenge), now: now() }),
+      () =>
+        dispatch({
+          type: 'next',
+          challenge: makeChallenge(lastResult.challenge, assist),
+          now: now(),
+        }),
       hold,
     )
     return () => window.clearTimeout(timer)
-  }, [phase, locked, lastResult, makeChallenge])
+  }, [phase, locked, lastResult, assist, makeChallenge])
 
   // Expiration du temps imparti.
   const durationMs = state.level.durationMs
@@ -103,11 +122,11 @@ export function useGame(options: UseGameOptions = {}): GameController {
   const emitted = useRef<GameEventSnapshot>(EMPTY_EVENT_SNAPSHOT)
   const { combo } = state
   useEffect(() => {
-    const snapshot: GameEventSnapshot = { phase, challenge, lastResult, combo }
+    const snapshot: GameEventSnapshot = { phase, challenge, lastResult, combo, assist }
     const pending = diffGameEvents(emitted.current, snapshot)
     emitted.current = snapshot
     for (const event of pending) emitGameEvent(events, event)
-  }, [phase, challenge, lastResult, combo, events])
+  }, [phase, challenge, lastResult, combo, assist, events])
 
   return {
     state,

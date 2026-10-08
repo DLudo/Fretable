@@ -1,4 +1,4 @@
-import type { Challenge, ComboState, GamePhase, GuessResult } from './types'
+import type { AssistState, Challenge, ComboState, GamePhase, GuessResult } from './types'
 
 /**
  * Bus d'événements du jeu : point d'accroche pour tout ce qui réagit au jeu
@@ -10,6 +10,8 @@ export interface GameEventMap {
   phase: GamePhase
   /** Combo déclenché, rechargé (nouvel `endsAt`) ou éteint (`null`). */
   combo: ComboState | null
+  /** Coup de pouce offert, entamé (`remaining` décroît) ou terminé (`null`). */
+  assist: AssistState | null
 }
 
 type Handler<T> = (payload: T) => void
@@ -45,6 +47,7 @@ export interface GameEventSnapshot {
   challenge: Challenge | null
   lastResult: GuessResult | null
   combo: ComboState | null
+  assist: AssistState | null
 }
 
 export const EMPTY_EVENT_SNAPSHOT: GameEventSnapshot = {
@@ -52,19 +55,22 @@ export const EMPTY_EVENT_SNAPSHOT: GameEventSnapshot = {
   challenge: null,
   lastResult: null,
   combo: null,
+  assist: null,
 }
 
 /**
  * Événements à diffuser pour passer de `prev` à `next`, dans un ordre fixe :
- * tentative → combo → phase → note. D'où, au démarrage : phase puis première
- * note ; sur la dernière réponse ou à la fin du temps : révélation, extinction
- * du combo, puis phase. Une valeur inchangée n'est jamais rediffusée.
+ * tentative → combo → coup de pouce → phase → note. D'où, au démarrage :
+ * phase puis première note ; sur la dernière réponse ou à la fin du temps :
+ * révélation, extinction du combo, puis phase. Une valeur inchangée n'est
+ * jamais rediffusée.
  */
 export function diffGameEvents(prev: GameEventSnapshot, next: GameEventSnapshot): GameEvent[] {
   const list: GameEvent[] = []
   if (next.lastResult && next.lastResult !== prev.lastResult)
     list.push({ type: 'guess', payload: next.lastResult })
   if (next.combo !== prev.combo) list.push({ type: 'combo', payload: next.combo })
+  if (next.assist !== prev.assist) list.push({ type: 'assist', payload: next.assist })
   if (next.phase && next.phase !== prev.phase) list.push({ type: 'phase', payload: next.phase })
   if (next.challenge && next.challenge !== prev.challenge)
     list.push({ type: 'challenge', payload: next.challenge })

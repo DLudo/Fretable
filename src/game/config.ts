@@ -59,5 +59,25 @@ export const COMBO_RULES = {
   multiplier: 2,
 } as const
 
+/**
+ * Coup de pouce : un joueur en difficulté (temps de réaction moyen trop long)
+ * peut se voir offrir, une fois par partie, la même note plusieurs fois de suite.
+ */
+export const ASSIST_RULES = {
+  /** Temps de réaction moyen au-delà duquel le coup de pouce peut être offert (ms). */
+  averageAboveMs: 5000,
+  /** Réponses nécessaires avant de juger la moyenne. */
+  minAnswers: 2,
+  /** Chance d'être offert, tirée après chaque réponse tant que la moyenne dépasse le seuil. */
+  chance: 0.3,
+  /** Nombre de fois où la même note est proposée. */
+  repeats: 3,
+  /**
+   * `false` : la même note à des endroits différents du manche (on apprend ses positions) ;
+   * `true` : exactement le même point, trois fois.
+   */
+  samePosition: false,
+} as const
+
 /** Notation affichée partout (piano, révélations). */
 export const NOTATION = 'solfege' as const

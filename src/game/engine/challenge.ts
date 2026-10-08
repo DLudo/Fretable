@@ -1,4 +1,5 @@
 import type { LevelConfig } from '@/game/levels/levels'
+import type { PitchClass } from '@/game/music/notes'
 import { pitchClassAt, type Tuning } from '@/game/music/tuning'
 import type { Challenge } from './types'
 
@@ -32,4 +33,36 @@ export function createChallenge(
     if (!previous || candidate.pc !== previous.pc) return candidate
   }
   return candidate!
+}
+
+/**
+ * Note imposée par le coup de pouce : même classe de hauteur que `pc`, à un
+ * autre endroit du manche que la note précédente quand c'est possible (ou au
+ * même endroit si `samePosition`).
+ */
+export function createAssistChallenge(
+  id: number,
+  level: LevelConfig,
+  tuning: Tuning,
+  random: Random,
+  pc: PitchClass,
+  previous: Challenge | null,
+  samePosition = false,
+): Challenge {
+  if (samePosition && previous && previous.pc === pc) {
+    return { id, stringIndex: previous.stringIndex, fret: previous.fret, pc, assist: true }
+  }
+  const positions: Array<{ stringIndex: number; fret: number }> = []
+  for (const stringIndex of level.strings) {
+    for (let fret = level.frets.min; fret <= level.frets.max; fret++) {
+      if (pitchClassAt(tuning, stringIndex, fret) !== pc) continue
+      if (previous && previous.stringIndex === stringIndex && previous.fret === fret) continue
+      positions.push({ stringIndex, fret })
+    }
+  }
+  const spot =
+    positions.length > 0
+      ? pick(positions, random)
+      : (previous ?? { stringIndex: level.strings[0], fret: level.frets.min })
+  return { id, stringIndex: spot.stringIndex, fret: spot.fret, pc, assist: true }
 }

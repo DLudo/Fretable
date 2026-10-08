@@ -18,6 +18,7 @@ import { useElementSize } from '@/hooks/useElementSize'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { cn } from '@/lib/utils'
 import { duration, ease } from '@/theme/motion'
+import { AssistBanner } from './AssistBanner'
 import { Fretboard } from './fretboard'
 import { LevelHud } from './hud'
 import { LevelOverlay } from './overlays'
@@ -99,6 +100,7 @@ export function GameScreen({ className }: GameScreenProps) {
           id: state.challenge.id,
           stringIndex: state.challenge.stringIndex,
           fret: state.challenge.fret,
+          variant: state.challenge.assist ? ('assist' as const) : ('default' as const),
         }
       : null
 
@@ -147,6 +149,7 @@ export function GameScreen({ className }: GameScreenProps) {
             disabled={!playing}
           />
         </div>
+        <AssistBanner assist={playing ? state.assist : null} />
         <LevelOverlay
           state={state}
           visible={overlayVisible}

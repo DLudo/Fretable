@@ -1,5 +1,7 @@
+import { ASSIST_RULES } from '@/game/config'
 import { getLevel } from '@/game/levels/levels'
-import { basePoints, stepCombo } from './scoring'
+import { shouldOfferAssist } from './assist'
+import { basePoints, stepCombo, type ComboStep } from './scoring'
 import type { GameAction, GameState, GuessResult } from './types'
 
 export function createInitialState(levelIndex = 0): GameState {
@@ -17,6 +19,8 @@ export function createInitialState(levelIndex = 0): GameState {
     score: 0,
     fastStreak: 0,
     combo: null,
+    assist: null,
+    assistUsed: false,
     startedAt: null,
     endedAt: null,
     lastResult: null,
@@ -38,6 +42,9 @@ function isExpired(state: GameState, now: number): boolean {
  *
  * `load` ramène à `ready` sur un autre niveau ; `start` relance depuis n'importe quelle phase.
  * Le combo (voir `stepCombo`) vit à côté : déclenché par les réponses, épuisé par `comboExpire`.
+ * Le coup de pouce (voir `shouldOfferAssist`) aussi : offert après une réponse,
+ * il impose la même note pendant `ASSIST_RULES.repeats` notes. Combo et coup de
+ * pouce ne se cumulent jamais.
  */
 export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
@@ -64,11 +71,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const streak = correct ? state.streak + 1 : 0
       const correctCount = state.correctCount + (correct ? 1 : 0)
       const reactionMs = Math.max(0, action.now - (state.challengeShownAt ?? action.now))
-      const step = stepCombo(state.combo, state.fastStreak, {
-        now: action.now,
-        correct,
-        reactionMs,
-      })
+      // Note du coup de pouce : ni multipliée, ni comptée pour le combo.
+      const assisted = state.challenge.assist === true && state.assist !== null
+      const step: ComboStep = assisted
+        ? { combo: null, fastStreak: 0, multiplier: 1, triggered: false }
+        : stepCombo(state.combo, state.fastStreak, { now: action.now, correct, reactionMs })
       const base = correct ? basePoints(reactionMs) : 0
       const result: GuessResult = {
         id: state.challenge.id,
@@ -82,8 +89,28 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         multiplier: step.multiplier,
         points: base * step.multiplier,
         comboTriggered: step.triggered,
+        assisted,
       }
+      const results = [...state.results, result]
       const won = correctCount >= state.level.targetCount
+
+      let { combo, fastStreak } = step
+      let assist = state.assist
+      let assistUsed = state.assistUsed
+      if (assisted && assist) {
+        assist = assist.remaining > 1 ? { ...assist, remaining: assist.remaining - 1 } : null
+      } else if (!won && !assistUsed && shouldOfferAssist(results, action.roll ?? 1)) {
+        // Coup de pouce offert : la note qui vient d'être révélée revient plusieurs fois.
+        assist = {
+          pc: state.challenge.pc,
+          total: ASSIST_RULES.repeats,
+          remaining: ASSIST_RULES.repeats,
+        }
+        assistUsed = true
+        combo = null
+        fastStreak = 0
+      }
+
       return {
         ...state,
         phase: won ? 'won' : 'playing',
@@ -94,11 +121,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         streak,
         bestStreak: Math.max(state.bestStreak, streak),
         score: state.score + result.points,
-        // La partie gagnée, le combo s'éteint avec elle.
-        combo: won ? null : step.combo,
-        fastStreak: step.fastStreak,
+        // La partie gagnée, combo et coup de pouce s'éteignent avec elle.
+        combo: won ? null : combo,
+        fastStreak,
+        assist: won ? null : assist,
+        assistUsed,
         lastResult: result,
-        results: [...state.results, result],
+        results,
       }
     }
 
@@ -128,7 +157,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
  * déjà en cours (`locked`), elle suffit.
  */
 function timeUp(state: GameState, now: number): GameState {
-  const ended: GameState = { ...state, phase: 'lost', locked: true, endedAt: now, combo: null }
+  const ended: GameState = {
+    ...state,
+    phase: 'lost',
+    locked: true,
+    endedAt: now,
+    combo: null,
+    assist: null,
+  }
   if (state.locked || !state.challenge) return ended
   const result: GuessResult = {
     id: state.challenge.id,
@@ -142,6 +178,7 @@ function timeUp(state: GameState, now: number): GameState {
     multiplier: 1,
     points: 0,
     comboTriggered: false,
+    assisted: state.challenge.assist === true,
   }
   return { ...ended, streak: 0, lastResult: result, results: [...state.results, result] }
 }

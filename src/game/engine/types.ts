@@ -10,6 +10,8 @@ export interface Challenge {
   stringIndex: number
   fret: number
   pc: PitchClass
+  /** Note proposée par le coup de pouce (voir `AssistState`). */
+  assist?: boolean
 }
 
 /** Résultat d'une tentative — c'est ce que consomment les effets de révélation. */
@@ -34,6 +36,17 @@ export interface GuessResult {
   points: number
   /** Cette réponse a déclenché le combo (elle-même n'est pas multipliée). */
   comboTriggered: boolean
+  /** Réponse à une note du coup de pouce (jamais multipliée, sans effet sur le combo). */
+  assisted: boolean
+}
+
+/** Coup de pouce en cours : la même note, proposée `total` fois de suite. */
+export interface AssistState {
+  /** Note répétée : celle qui vient d'être révélée quand le coup de pouce a été offert. */
+  pc: PitchClass
+  /** Notes proposées au total, et notes encore à venir. */
+  total: number
+  remaining: number
 }
 
 /** Combo en cours : actif tant que `performance.now() < endsAt`. */
@@ -63,6 +76,10 @@ export interface GameState {
   fastStreak: number
   /** Combo en cours, ou `null`. */
   combo: ComboState | null
+  /** Coup de pouce en cours, ou `null`. */
+  assist: AssistState | null
+  /** Le coup de pouce a déjà été offert dans cette partie (une seule fois). */
+  assistUsed: boolean
   /** `performance.now()` au lancement du niveau. */
   startedAt: number | null
   /** `performance.now()` à la victoire ou à l'expiration du temps. */
@@ -74,7 +91,11 @@ export interface GameState {
 export type GameAction =
   | { type: 'load'; levelIndex: number }
   | { type: 'start'; now: number; challenge: Challenge }
-  | { type: 'guess'; pc: PitchClass; now: number }
+  /**
+   * `roll` : tirage dans [0, 1) pour le coup de pouce (injecté pour garder le
+   * réducteur pur) ; absent, aucun coup de pouce n'est offert.
+   */
+  | { type: 'guess'; pc: PitchClass; now: number; roll?: number }
   | { type: 'next'; challenge: Challenge; now: number }
   | { type: 'timeUp'; now: number }
   | { type: 'comboExpire'; now: number }

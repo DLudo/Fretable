@@ -4,6 +4,7 @@ import { motion, useReducedMotion } from 'motion/react'
 import type { GameState } from '@/game/engine/types'
 import { cn } from '@/lib/utils'
 import { spring } from '@/theme/motion'
+import { AssistChip } from './AssistChip'
 import { ComboMeter } from './ComboMeter'
 import { LevelProgress } from './LevelProgress'
 import { LevelTimer } from './LevelTimer'
@@ -35,7 +36,7 @@ function useRisePulse(value: number): number {
  * du haut s'efface (`display: contents`) et la barre se glisse au milieu (`order`).
  */
 export function LevelHud({ state, className }: LevelHudProps): ReactNode {
-  const { level, correctCount, phase, score, combo } = state
+  const { level, correctCount, phase, score, combo, assist } = state
   const pulseId = useRisePulse(correctCount)
   const reduceMotion = useReducedMotion()
 
@@ -51,13 +52,14 @@ export function LevelHud({ state, className }: LevelHudProps): ReactNode {
       >
         <div
           data-slot="level-hud-row"
-          className="flex items-center gap-3 text-sm leading-none short:contents"
+          className="flex items-center gap-2 text-sm leading-none sm:gap-3 short:contents"
         >
           <span data-slot="level-title" className="truncate font-medium short:shrink-0">
             {level.title}
           </span>
 
           <ScoreCounter score={score} comboActive={combo !== null} className="short:shrink-0" />
+          <AssistChip assist={assist} className="short:shrink-0" />
 
           <span
             data-slot="level-count"

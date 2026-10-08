@@ -70,6 +70,7 @@ describe('moteur de jeu', () => {
       multiplier: 1,
       points: 0,
       comboTriggered: false,
+      assisted: false,
     }
     expect(s.lastResult).toEqual({ ...timeout, ...unscored, at: 31_000 })
     expect(s.results).toHaveLength(2)

@@ -19,14 +19,24 @@ interface MarkerDotProps {
   r: number
   /** Identifiant du dégradé de halo (défini une fois par le parent, couleur `--marker-halo`). */
   haloId: string
+  /** `assist` : note du coup de pouce, cerclée d'un anneau ambré (`--assist`). */
+  variant?: 'default' | 'assist'
   reduceMotion: boolean
 }
 
 /** Le point à deviner. À monter dans `AnimatePresence`, clé = identifiant de la note. */
-export function MarkerDot({ cx, cy, r, haloId, reduceMotion }: MarkerDotProps) {
+export function MarkerDot({
+  cx,
+  cy,
+  r,
+  haloId,
+  variant = 'default',
+  reduceMotion,
+}: MarkerDotProps) {
   return (
     <motion.g
       data-slot="fretboard-marker"
+      data-variant={variant}
       style={CENTERED}
       initial={reduceMotion ? { opacity: 0 } : { scale: 0 }}
       animate={{
@@ -69,6 +79,17 @@ export function MarkerDot({ cx, cy, r, haloId, reduceMotion }: MarkerDotProps) {
         className="fill-fretboard-shadow"
         fillOpacity={0.8}
       />
+      {variant === 'assist' && (
+        <circle
+          data-slot="fretboard-marker-assist"
+          cx={cx}
+          cy={cy}
+          r={r * 1.45}
+          fill="none"
+          className="stroke-assist"
+          strokeWidth={r * 0.3}
+        />
+      )}
       <circle
         data-slot="fretboard-marker-dot"
         cx={cx}

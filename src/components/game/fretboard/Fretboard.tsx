@@ -25,6 +25,8 @@ export interface FretboardMarker {
   stringIndex: number
   /** Case (1 à 12). */
   fret: number
+  /** `assist` : note du coup de pouce, cerclée d'ambre. */
+  variant?: 'default' | 'assist'
 }
 
 export interface FretboardProps {
@@ -140,6 +142,7 @@ export function Fretboard({
                 cy={position.y}
                 r={layout.markerRadius}
                 haloId={haloId}
+                variant={marker.variant}
                 reduceMotion={reduceMotion}
               />
             )}
