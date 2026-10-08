@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { GAME_FEEL } from '@/game/config'
-import { endScreenAt } from '@/game/engine/selectors'
+import { deadlineAt, endScreenAt, totalDurationMs } from '@/game/engine/selectors'
 import type { GameState, GuessResult } from '@/game/engine/types'
 import { remainingMs, type CountdownState } from '@/game/engine/useCountdown'
 import { getLevel } from '@/game/levels/levels'
@@ -12,6 +12,7 @@ const clock = (patch: Partial<CountdownState>): CountdownState => ({
   startedAt: 1000,
   endedAt: null,
   level,
+  bonusTimeMs: 0,
   ...patch,
 })
 
@@ -29,6 +30,17 @@ describe('temps restant', () => {
     expect(remainingMs(clock({}), 500)).toBe(30_000)
     expect(remainingMs(clock({}), 31_000)).toBe(0)
     expect(remainingMs(clock({}), 90_000)).toBe(0)
+  })
+
+  it('inclut le temps accordé en cours de partie', () => {
+    const extended = clock({ bonusTimeMs: 10_000 })
+    expect(remainingMs(extended, 11_000)).toBe(30_000)
+    expect(remainingMs(extended, 35_000)).toBe(6_000)
+    expect(remainingMs(extended, 500)).toBe(40_000)
+    expect(remainingMs(extended, 41_000)).toBe(0)
+    expect(totalDurationMs(extended)).toBe(40_000)
+    expect(deadlineAt(extended)).toBe(41_000)
+    expect(deadlineAt(clock({ startedAt: null }))).toBeNull()
   })
 
   it('se fige à la fin de la partie', () => {

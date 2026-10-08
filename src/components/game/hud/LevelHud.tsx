@@ -26,7 +26,8 @@ function useRisePulse(value: number): number {
 
 /**
  * Bandeau du haut : niveau, score, notes trouvées, temps restant, progression
- * et, pendant un combo, la jauge bleue sous la progression.
+ * et, pendant un combo, la jauge bleue sous la progression. Pendant un coup de
+ * pouce, le cran suivant se remplit en ambre, une bonne réponse à la fois.
  * Le parent le positionne ; seul `LevelTimer` se re-rend à chaque frame
  * (`ComboMeter` écrit directement dans le DOM).
  *
@@ -94,7 +95,12 @@ export function LevelHud({ state, className }: LevelHudProps): ReactNode {
 
         {/* La jauge de combo se pose sous la progression, sans décaler la mise en page. */}
         <div data-slot="level-bars" className="relative short:order-1 short:min-w-16 short:flex-1">
-          <LevelProgress value={correctCount} max={level.targetCount} pulseId={pulseId} />
+          <LevelProgress
+            value={correctCount}
+            max={level.targetCount}
+            pulseId={pulseId}
+            pending={assist && { done: assist.total - assist.remaining, total: assist.total }}
+          />
           <ComboMeter combo={combo} />
         </div>
       </div>

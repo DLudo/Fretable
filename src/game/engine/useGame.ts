@@ -14,6 +14,7 @@ import {
   type GameEventSnapshot,
 } from './events'
 import { createInitialState, gameReducer } from './reducer'
+import { deadlineAt } from './selectors'
 import type { AssistState, Challenge, GameState } from './types'
 
 export interface UseGameOptions {
@@ -77,7 +78,7 @@ export function useGame(options: UseGameOptions = {}): GameController {
 
   // Après une tentative : on laisse vivre la révélation, puis nouvelle note
   // (imposée par le coup de pouce s'il est en cours).
-  const { phase, locked, lastResult, challenge, startedAt, assist } = state
+  const { phase, locked, lastResult, challenge, assist } = state
   useEffect(() => {
     if (phase !== 'playing' || !locked || !lastResult) return
     const hold = lastResult.correct ? GAME_FEEL.holdAfterCorrectMs : GAME_FEEL.holdAfterWrongMs
@@ -93,16 +94,16 @@ export function useGame(options: UseGameOptions = {}): GameController {
     return () => window.clearTimeout(timer)
   }, [phase, locked, lastResult, assist, makeChallenge])
 
-  // Expiration du temps imparti.
-  const durationMs = state.level.durationMs
+  // Expiration du temps imparti (reprogrammée quand du temps est accordé).
+  const deadline = deadlineAt(state)
   useEffect(() => {
-    if (phase !== 'playing' || startedAt === null) return
+    if (phase !== 'playing' || deadline === null) return
     const timer = window.setTimeout(
-      () => dispatch({ type: 'timeUp', now: startedAt + durationMs }),
-      Math.max(0, startedAt + durationMs - now()),
+      () => dispatch({ type: 'timeUp', now: deadline }),
+      Math.max(0, deadline - now()),
     )
     return () => window.clearTimeout(timer)
-  }, [phase, startedAt, durationMs])
+  }, [phase, deadline])
 
   // Épuisement du combo. Le minuteur peut sonner une poignée de ms trop tôt :
   // l'instant transmis ne précède jamais l'échéance, sans quoi le combo resterait allumé.

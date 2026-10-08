@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { HandHelping } from 'lucide-react'
 
-import { NOTATION } from '@/game/config'
+import { ASSIST_RULES, NOTATION } from '@/game/config'
 import type { AssistState } from '@/game/engine/types'
 import { noteName } from '@/game/music/notes'
 import { cn } from '@/lib/utils'
@@ -18,8 +18,8 @@ export interface AssistBannerProps {
 }
 
 /**
- * Annonce du coup de pouce, en haut de la scène : brève, bien visible, sans
- * capter les clics. Ne s'affiche qu'à l'arrivée du coup de pouce (pas à
+ * Annonce du coup de pouce, en haut de la scène — la note répétée et le temps
+ * accordé : brève, bien visible, sans capter les clics. Ne s'affiche qu'à l'arrivée du coup de pouce (pas à
  * chaque note répétée).
  */
 export function AssistBanner({ assist, className }: AssistBannerProps): ReactNode {
@@ -60,6 +60,11 @@ export function AssistBanner({ assist, className }: AssistBannerProps): ReactNod
           <span>
             {noteName(shown.pc, NOTATION)}, {shown.total} fois de suite
           </span>
+          {ASSIST_RULES.bonusTimeMs > 0 && (
+            <span data-slot="assist-banner-bonus" className="font-semibold tabular-nums">
+              +{Math.round(ASSIST_RULES.bonusTimeMs / 1000)} s
+            </span>
+          )}
         </motion.div>
       )}
     </AnimatePresence>

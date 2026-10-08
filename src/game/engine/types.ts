@@ -40,11 +40,14 @@ export interface GuessResult {
   assisted: boolean
 }
 
-/** Coup de pouce en cours : la même note, proposée `total` fois de suite. */
+/**
+ * Coup de pouce en cours : la même note revient jusqu'à être trouvée `total`
+ * fois ; ces bonnes réponses valent ensemble un seul cran de progression.
+ */
 export interface AssistState {
   /** Note répétée : celle qui vient d'être révélée quand le coup de pouce a été offert. */
   pc: PitchClass
-  /** Notes proposées au total, et notes encore à venir. */
+  /** Bonnes réponses attendues au total, et celles qui manquent encore. */
   total: number
   remaining: number
 }
@@ -80,6 +83,8 @@ export interface GameState {
   assist: AssistState | null
   /** Le coup de pouce a déjà été offert dans cette partie (une seule fois). */
   assistUsed: boolean
+  /** Temps accordé en plus de `level.durationMs` (coup de pouce), en ms. */
+  bonusTimeMs: number
   /** `performance.now()` au lancement du niveau. */
   startedAt: number | null
   /** `performance.now()` à la victoire ou à l'expiration du temps. */

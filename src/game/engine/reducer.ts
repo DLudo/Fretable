@@ -2,6 +2,7 @@ import { ASSIST_RULES } from '@/game/config'
 import { getLevel } from '@/game/levels/levels'
 import { shouldOfferAssist } from './assist'
 import { basePoints, stepCombo, type ComboStep } from './scoring'
+import { deadlineAt } from './selectors'
 import type { GameAction, GameState, GuessResult } from './types'
 
 export function createInitialState(levelIndex = 0): GameState {
@@ -21,6 +22,7 @@ export function createInitialState(levelIndex = 0): GameState {
     combo: null,
     assist: null,
     assistUsed: false,
+    bonusTimeMs: 0,
     startedAt: null,
     endedAt: null,
     lastResult: null,
@@ -29,7 +31,8 @@ export function createInitialState(levelIndex = 0): GameState {
 }
 
 function isExpired(state: GameState, now: number): boolean {
-  return state.startedAt !== null && now - state.startedAt >= state.level.durationMs
+  const deadline = deadlineAt(state)
+  return deadline !== null && now >= deadline
 }
 
 /**
@@ -43,8 +46,9 @@ function isExpired(state: GameState, now: number): boolean {
  * `load` ramène à `ready` sur un autre niveau ; `start` relance depuis n'importe quelle phase.
  * Le combo (voir `stepCombo`) vit à côté : déclenché par les réponses, épuisé par `comboExpire`.
  * Le coup de pouce (voir `shouldOfferAssist`) aussi : offert après une réponse,
- * il impose la même note pendant `ASSIST_RULES.repeats` notes. Combo et coup de
- * pouce ne se cumulent jamais.
+ * il ajoute du temps et impose la même note jusqu'à `ASSIST_RULES.repeats`
+ * bonnes réponses, qui ne valent ensemble qu'un cran. Combo et coup de pouce
+ * ne se cumulent jamais.
  */
 export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
@@ -65,14 +69,16 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (state.phase !== 'playing' || state.locked || !state.challenge) return state
       // Réponse arrivée après l'échéance : refusée, comme si le minuteur avait sonné à temps.
       if (isExpired(state, action.now)) {
-        return timeUp(state, state.startedAt! + state.level.durationMs)
+        return timeUp(state, deadlineAt(state)!)
       }
       const correct = action.pc === state.challenge.pc
       const streak = correct ? state.streak + 1 : 0
-      const correctCount = state.correctCount + (correct ? 1 : 0)
       const reactionMs = Math.max(0, action.now - (state.challengeShownAt ?? action.now))
-      // Note du coup de pouce : ni multipliée, ni comptée pour le combo.
+      // Note du coup de pouce : ni multipliée, ni comptée pour le combo, et
+      // seule la dernière bonne réponse attendue fait avancer la progression.
       const assisted = state.challenge.assist === true && state.assist !== null
+      const completesAssist = assisted && correct && state.assist!.remaining <= 1
+      const correctCount = state.correctCount + (correct && (!assisted || completesAssist) ? 1 : 0)
       const step: ComboStep = assisted
         ? { combo: null, fastStreak: 0, multiplier: 1, triggered: false }
         : stepCombo(state.combo, state.fastStreak, { now: action.now, correct, reactionMs })
@@ -97,16 +103,21 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       let { combo, fastStreak } = step
       let assist = state.assist
       let assistUsed = state.assistUsed
+      let bonusTimeMs = state.bonusTimeMs
       if (assisted && assist) {
-        assist = assist.remaining > 1 ? { ...assist, remaining: assist.remaining - 1 } : null
+        // Une erreur ne consomme rien : la note revient jusqu'à être trouvée.
+        if (completesAssist) assist = null
+        else if (correct) assist = { ...assist, remaining: assist.remaining - 1 }
       } else if (!won && !assistUsed && shouldOfferAssist(results, action.roll ?? 1)) {
-        // Coup de pouce offert : la note qui vient d'être révélée revient plusieurs fois.
+        // Coup de pouce offert : du temps en plus, et la note qui vient d'être
+        // révélée revient plusieurs fois.
         assist = {
           pc: state.challenge.pc,
           total: ASSIST_RULES.repeats,
           remaining: ASSIST_RULES.repeats,
         }
         assistUsed = true
+        bonusTimeMs += ASSIST_RULES.bonusTimeMs
         combo = null
         fastStreak = 0
       }
@@ -126,6 +137,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         fastStreak,
         assist: won ? null : assist,
         assistUsed,
+        bonusTimeMs,
         lastResult: result,
         results,
       }

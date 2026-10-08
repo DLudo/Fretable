@@ -62,6 +62,8 @@ export const COMBO_RULES = {
 /**
  * Coup de pouce : un joueur en difficulté (temps de réaction moyen trop long)
  * peut se voir offrir, une fois par partie, la même note plusieurs fois de suite.
+ * Les répétitions ne valent ensemble qu'un cran de progression, mais l'aide
+ * accorde du temps supplémentaire.
  */
 export const ASSIST_RULES = {
   /** Temps de réaction moyen au-delà duquel le coup de pouce peut être offert (ms). */
@@ -70,8 +72,14 @@ export const ASSIST_RULES = {
   minAnswers: 2,
   /** Chance d'être offert, tirée après chaque réponse tant que la moyenne dépasse le seuil. */
   chance: 0.3,
-  /** Nombre de fois où la même note est proposée. */
+  /**
+   * Bonnes réponses attendues sur la note répétée ; ensemble, elles valent un
+   * seul cran de progression. Une erreur ne consomme pas de répétition : la
+   * note revient jusqu'à être trouvée autant de fois.
+   */
   repeats: 3,
+  /** Temps ajouté à la partie quand le coup de pouce est offert (ms). */
+  bonusTimeMs: 10_000,
   /**
    * `false` : la même note à des endroits différents du manche (on apprend ses positions) ;
    * `true` : exactement le même point, trois fois.

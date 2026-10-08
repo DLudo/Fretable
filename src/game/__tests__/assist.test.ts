@@ -101,6 +101,39 @@ describe('coup de pouce en partie', () => {
     expect(s.assistUsed).toBe(true)
   })
 
+  it('accorde du temps en plus, et repousse d’autant l’échéance', () => {
+    const offered = run(started, [
+      { reaction: 7000, roll: 0.1, next: note(2, 4) },
+      { reaction: 7000, roll: 0.1, next: note(3, 4, true) },
+    ])
+    expect(offered.bonusTimeMs).toBe(ASSIST_RULES.bonusTimeMs)
+    const deadline = 30_000 + ASSIST_RULES.bonusTimeMs
+    // Au-delà des 30 s du niveau, la réponse est encore acceptée…
+    const late = gameReducer(offered, { type: 'guess', pc: 4, now: 30_500 })
+    expect(late).toMatchObject({ phase: 'playing', locked: true })
+    expect(late.lastResult).toMatchObject({ correct: true, assisted: true })
+    // … jusqu’à la nouvelle échéance, où la note est révélée comme à l’ordinaire.
+    const expired = gameReducer(offered, { type: 'guess', pc: 4, now: deadline })
+    expect(expired).toMatchObject({ phase: 'lost', endedAt: deadline, correctCount: 2 })
+  })
+
+  it('n’accorde le temps qu’une fois, et pas sans coup de pouce', () => {
+    const unlucky = run(started, [
+      { reaction: 7000, roll: 0.9, next: note(2, 4) },
+      { reaction: 7000, roll: 0.9 },
+    ])
+    expect(unlucky.bonusTimeMs).toBe(0)
+    const used: GameState = {
+      ...started,
+      assistUsed: true,
+      bonusTimeMs: ASSIST_RULES.bonusTimeMs,
+      results: [answer(9000), answer(9000)],
+    }
+    expect(run(used, [{ reaction: 9000, roll: 0 }]).bonusTimeMs).toBe(ASSIST_RULES.bonusTimeMs)
+    const restarted = gameReducer(used, { type: 'start', now: 0, challenge: note(9, 2) })
+    expect(restarted.bonusTimeMs).toBe(0)
+  })
+
   it('n’est pas offert si le tirage est défavorable ou les réponses rapides', () => {
     const unlucky = run(started, [
       { reaction: 7000, roll: 0.9, next: note(2, 4) },
@@ -119,11 +152,15 @@ describe('coup de pouce en partie', () => {
       { reaction: 7000, roll: 0.1, next: note(2, 4) },
       { reaction: 7000, roll: 0.1, next: note(3, 4, true) },
     ])
-    const after = run(offered, [
-      { reaction: 300, roll: 0, next: note(4, 4, true) },
-      { reaction: 300, roll: 0, next: note(5, 4, true) },
-      { reaction: 300, roll: 0 },
-    ])
+    expect(offered.correctCount).toBe(2)
+    const once = run(offered, [{ reaction: 300, roll: 0, next: note(4, 4, true) }])
+    const twice = run(once, [{ reaction: 300, roll: 0, next: note(5, 4, true) }])
+    // Les deux premières bonnes réponses n’avancent pas la progression…
+    expect(once).toMatchObject({ correctCount: 2, assist: { remaining: 2 } })
+    expect(twice).toMatchObject({ correctCount: 2, assist: { remaining: 1 } })
+    // … la troisième achève le cran : trois réponses, une seule note de plus.
+    const after = run(twice, [{ reaction: 300, roll: 0 }])
+    expect(after.correctCount).toBe(3)
     expect(after.results.slice(-3).every((r) => r.assisted && r.multiplier === 1)).toBe(true)
     expect(after.results.slice(-3).every((r) => r.points === 1000)).toBe(true)
     // Trois réponses éclair, mais pas de combo : coup de pouce et combo ne se cumulent pas.
@@ -131,6 +168,39 @@ describe('coup de pouce en partie', () => {
     expect(after.fastStreak).toBe(0)
     expect(after.assist).toBeNull()
     expect(after.assistUsed).toBe(true)
+  })
+
+  it('ne consomme pas de répétition sur une erreur : la note revient', () => {
+    const offered = run(started, [
+      { reaction: 7000, roll: 0.1, next: note(2, 4) },
+      { reaction: 7000, roll: 0.1, next: note(3, 4, true) },
+    ])
+    const missed = gameReducer(offered, { type: 'guess', pc: 9, now: 20_000 })
+    expect(missed).toMatchObject({ correctCount: 2, mistakes: 1, streak: 0 })
+    expect(missed.assist).toBe(offered.assist)
+    expect(missed.lastResult).toMatchObject({ correct: false, assisted: true, points: 0 })
+  })
+
+  it('gagne le niveau quand la dernière répétition achève le dernier cran', () => {
+    const last: GameState = {
+      ...started,
+      correctCount: 5,
+      challenge: note(7, 4, true),
+      assist: { pc: 4, total: 3, remaining: 1 },
+      assistUsed: true,
+    }
+    const s = gameReducer(last, { type: 'guess', pc: 4, now: 1000 })
+    expect(s).toMatchObject({ phase: 'won', correctCount: 6, assist: null, endedAt: 1000 })
+    // Une répétition intermédiaire, elle, ne fait pas gagner.
+    const early = gameReducer(
+      { ...last, assist: { pc: 4, total: 3, remaining: 2 } },
+      {
+        type: 'guess',
+        pc: 4,
+        now: 1000,
+      },
+    )
+    expect(early).toMatchObject({ phase: 'playing', correctCount: 5 })
   })
 
   it('ne revient pas une seconde fois dans la même partie', () => {

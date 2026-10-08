@@ -1,16 +1,21 @@
 import { useEffect, useState } from 'react'
 
+import { totalDurationMs } from './selectors'
 import type { GameState } from './types'
 
-export type CountdownState = Pick<GameState, 'phase' | 'startedAt' | 'endedAt' | 'level'>
+export type CountdownState = Pick<
+  GameState,
+  'phase' | 'startedAt' | 'endedAt' | 'level' | 'bonusTimeMs'
+>
 
 /**
  * Temps restant (ms) à l'instant `now` — calcul pur.
  * Plein avant le départ, figé à la fin de la partie, borné à [0, durée].
+ * La durée inclut le temps accordé en cours de partie (`bonusTimeMs`).
  */
 export function remainingMs(state: CountdownState, now: number): number {
   const { phase, startedAt, endedAt } = state
-  const duration = state.level.durationMs
+  const duration = totalDurationMs(state)
   if (startedAt === null) return duration
   const end = endedAt ?? (phase === 'playing' ? Math.max(now, startedAt) : startedAt)
   return Math.min(duration, Math.max(0, duration - (end - startedAt)))
