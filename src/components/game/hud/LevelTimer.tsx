@@ -19,7 +19,7 @@ export interface LevelTimerProps {
 /** Pulsation discrète de chaque seconde critique. */
 const BEAT_TRANSITION: Transition = { duration: 0.45, ease: ease.outExpo }
 
-/** Temps accordé (« +10 s ») : surgit sous le minuteur, s'y attarde, puis s'efface. */
+/** Temps accordé (« +10 s ») : surgit sous le minuteur, par-dessus la barre, s'y attarde, puis s'efface. */
 const BONUS_POP_TRANSITION: Transition = {
   duration: 1.6,
   times: [0, 0.14, 0.78, 1],
@@ -95,7 +95,7 @@ export function LevelTimer({ state, className, barClassName }: LevelTimerProps):
               key={bonusPop.id}
               aria-hidden
               data-slot="level-timer-bonus"
-              className="pointer-events-none absolute top-full right-0 mt-1.5 rounded-full bg-assist px-1.5 py-0.5 text-[0.7rem] leading-none font-semibold text-assist-foreground"
+              className="pointer-events-none absolute top-full right-0 z-10 mt-1.5 rounded-full bg-assist px-1.5 py-0.5 text-[0.7rem] leading-none font-semibold text-assist-foreground"
               initial={{ opacity: 0, y: reduceMotion ? 0 : -6, scale: reduceMotion ? 1 : 0.6 }}
               animate={{
                 opacity: [0, 1, 1, 0],

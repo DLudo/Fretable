@@ -75,7 +75,8 @@ export function LevelProgress({
         data-slot="level-progress-clip"
         className="absolute inset-0 overflow-hidden rounded-[inherit]"
       >
-        {/* Sous l'indicateur : une fois le cran acquis, le blanc la recouvre en glissant. */}
+        {/* Sous l'indicateur (positionné, donc peint après elle, même sans transformation) :
+            une fois le cran acquis, le blanc la recouvre en glissant. */}
         <AnimatePresence>
           {steps > 0 && (
             <motion.div
@@ -110,7 +111,7 @@ export function LevelProgress({
         <ProgressPrimitive.Indicator asChild>
           <motion.div
             data-slot="level-progress-indicator"
-            className="size-full rounded-[inherit] bg-hud-fill"
+            className="relative size-full rounded-[inherit] bg-hud-fill"
             initial={false}
             animate={{ x: offset }}
             transition={transition}
