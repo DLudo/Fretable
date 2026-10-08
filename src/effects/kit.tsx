@@ -1,5 +1,5 @@
 /* oxlint-disable react/only-export-components -- le kit regroupe à dessein composants, classes et utilitaires partagés */
-import { useEffect, useRef, type CSSProperties } from 'react'
+import { createContext, useContext, useEffect, useRef, type CSSProperties } from 'react'
 import { motion, type HTMLMotionProps, type MotionStyle, type Transition } from 'motion/react'
 
 import { cn } from '@/lib/utils'
@@ -19,9 +19,10 @@ import { EXIT_FADE_MS, EXIT_LEAD_MS } from './reveal-props'
  * 2. Étiquette : taille `labelFontSize(markerSize)`, classes `REVEAL_PILL`,
  *    couleurs `revealPillStyle(color, colorForeground, halo)`. `estimateLabelBox`
  *    donne ses demi-axes pour faire partir des éléments de son bord.
- * 3. Série : `<RevealCombo streak={streak} color={color} colorForeground={…}
- *    className="…décalage…" />` ne rend rien sous `COMBO_MIN_STREAK` ; ses props
- *    Motion règlent son entrée (`comboScaleFor(streak)` pour l'échelle).
+ * 3. Combo : `<RevealCombo streak={streak} color={color} colorForeground={…}
+ *    className="…décalage…" />` affiche le multiplicateur de points (« ×2 »)
+ *    pendant un combo et ne rend rien sinon ; ses props Motion règlent son
+ *    entrée (`comboScaleFor(streak)` pour l'échelle).
  * 4. Temps : `revealExit(budgetMs)` cale le fondu de sortie sur l'arrivée de la
  *    note suivante ; `useCompleteAfter(exit.lifetimeMs, onComplete)` démonte l'effet.
  * 5. Couleurs : `color`, `colorForeground`, `highlight` sont des expressions CSS.
@@ -51,10 +52,16 @@ export const REVEAL_COMBO =
 /** Série à partir de laquelle la pastille de combo apparaît. */
 export const COMBO_MIN_STREAK = 3
 
-/** La pastille de combo grossit avec la série, jusqu'à +40 %. */
+/** La pastille de combo grossit avec la série, jusqu'à +40 % (jamais en dessous de sa taille). */
 export function comboScaleFor(streak: number): number {
-  return 1 + 0.08 * Math.min(streak - COMBO_MIN_STREAK, 5)
+  return 1 + 0.08 * Math.min(Math.max(streak - COMBO_MIN_STREAK, 0), 5)
 }
+
+/**
+ * Multiplicateur de points de la révélation en cours, fourni par l'hôte des
+ * effets (`RevealEffectHost`). `RevealCombo` le lit : les presets n'ont rien à transmettre.
+ */
+export const RevealMultiplierContext = createContext(1)
 
 /** Taille de police de l'étiquette (px), proportionnelle au repère et bornée. */
 export function labelFontSize(markerSize: number): number {
@@ -187,8 +194,9 @@ export type RevealComboProps = Omit<HTMLMotionProps<'span'>, 'children' | 'color
 }
 
 /**
- * Pastille de combo « ×N » (rien sous `COMBO_MIN_STREAK`). À placer dans le
- * conteneur de l'étiquette ; `className` règle son décalage, les props Motion son entrée.
+ * Pastille du multiplicateur de points (« ×2 » pendant un combo), rien hors
+ * combo. À placer dans le conteneur de l'étiquette ; `className` règle son
+ * décalage, les props Motion son entrée. `streak` n'agit que sur l'échelle.
  */
 export function RevealCombo({
   streak,
@@ -198,15 +206,17 @@ export function RevealCombo({
   style,
   ...motionProps
 }: RevealComboProps) {
-  if (streak < COMBO_MIN_STREAK) return null
+  const multiplier = useContext(RevealMultiplierContext)
+  if (multiplier <= 1) return null
   return (
     <motion.span
       data-slot="reveal-combo"
+      data-streak={streak}
       className={cn(REVEAL_COMBO, className)}
       style={{ background: colorForeground, color, boxShadow: `0 0 0 1.5px ${color}`, ...style }}
       {...motionProps}
     >
-      ×{streak}
+      ×{multiplier}
     </motion.span>
   )
 }

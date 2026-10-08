@@ -137,6 +137,12 @@ export interface RevealInput {
   guess: PitchClass | null
   correct: boolean
   streak: number
+  /** Temps de réaction (ms) ; `null` = temps écoulé (défaut). */
+  reactionMs?: number | null
+  /** Points marqués (défaut 0). */
+  points?: number
+  /** Multiplicateur appliqué (défaut 1). */
+  multiplier?: number
   stringIndex: number
   fret: number
   /** Graine de l'effet (`drawSeed` / `revealSeed`). */
@@ -165,6 +171,9 @@ export function buildRevealProps(input: RevealInput): RevealEffectProps {
     ...input.geometry,
     intensity: revealIntensity(input.correct, input.streak),
     streak: input.streak,
+    reactionMs: input.reactionMs ?? null,
+    points: input.points ?? 0,
+    multiplier: input.multiplier ?? 1,
     seed: input.seed,
     budgetMs: revealBudgetMs(outcome, timedOut),
     color: colors.color,

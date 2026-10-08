@@ -20,5 +20,44 @@ export const GAME_FEEL = {
   maxStreakIntensity: 6,
 } as const
 
+/**
+ * Barème des points selon le temps de réaction (ms) : temps écoulé entre
+ * l'apparition du point et la réponse. Seules les bonnes réponses marquent.
+ */
+export const SCORING = {
+  /** Coup critique : 0,5 s ou moins. */
+  criticalMs: 500,
+  criticalPoints: 1000,
+  /** Paliers suivants, du plus rapide au plus lent : temps strictement inférieur à `belowMs`. */
+  tiers: [
+    { belowMs: 1000, points: 600 },
+    { belowMs: 2000, points: 400 },
+    { belowMs: 3000, points: 300 },
+    { belowMs: 5000, points: 200 },
+    { belowMs: 10_000, points: 100 },
+  ],
+  /** 10 s et plus. */
+  slowPoints: 50,
+} as const
+
+/**
+ * Combo : trois bonnes réponses rapides d'affilée allument le manche et
+ * doublent les points des notes suivantes, tant que la jauge n'est pas vide.
+ */
+export const COMBO_RULES = {
+  /** Bonnes réponses rapides consécutives nécessaires pour déclencher le combo. */
+  triggerCount: 3,
+  /** Réponse « rapide » : temps de réaction strictement inférieur (ms). */
+  fastReactionMs: 3000,
+  /** Durée du combo à son déclenchement (ms). Les amplis l'allongeront. */
+  durationMs: 6000,
+  /** Recharge apportée par chaque bonne réponse rapide pendant le combo (ms). */
+  rechargeMs: 2000,
+  /** Plafond de la jauge (ms) : une recharge ne la fait jamais dépasser. */
+  maxMs: 6000,
+  /** Multiplicateur des points pendant le combo. */
+  multiplier: 2,
+} as const
+
 /** Notation affichée partout (piano, révélations). */
 export const NOTATION = 'solfege' as const

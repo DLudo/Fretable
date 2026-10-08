@@ -14,7 +14,7 @@ const startedGame = (): GameState =>
 
 function play(state: GameState, pc: PitchClass, now: number, next?: Challenge): GameState {
   const guessed = gameReducer(state, { type: 'guess', pc, now })
-  return next ? gameReducer(guessed, { type: 'next', challenge: next }) : guessed
+  return next ? gameReducer(guessed, { type: 'next', challenge: next, now }) : guessed
 }
 
 describe('niveau 1', () => {
@@ -64,7 +64,14 @@ describe('moteur de jeu', () => {
   it('révèle la note restée sans réponse, sans la compter comme erreur', () => {
     const s = gameReducer(play(started, 5, 2000, challenge(2, 7)), { type: 'timeUp', now: 31_000 })
     const timeout = { id: 2, challenge: challenge(2, 7), guess: null, correct: false, streak: 0 }
-    expect(s.lastResult).toEqual({ ...timeout, at: 31_000 })
+    const unscored = {
+      reactionMs: null,
+      basePoints: 0,
+      multiplier: 1,
+      points: 0,
+      comboTriggered: false,
+    }
+    expect(s.lastResult).toEqual({ ...timeout, ...unscored, at: 31_000 })
     expect(s.results).toHaveLength(2)
     expect(s.results[1]).toBe(s.lastResult)
     expect(s).toMatchObject({ mistakes: 0, correctCount: 1, streak: 0, bestStreak: 1 })
@@ -94,7 +101,9 @@ describe('moteur de jeu', () => {
   })
 
   it('ignore « next » hors révélation', () => {
-    expect(gameReducer(started, { type: 'next', challenge: challenge(9, 1) })).toBe(started)
+    expect(gameReducer(started, { type: 'next', challenge: challenge(9, 1), now: 2000 })).toBe(
+      started,
+    )
   })
 
   it('repart à zéro au redémarrage', () => {

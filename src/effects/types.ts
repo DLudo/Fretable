@@ -57,6 +57,12 @@ export interface RevealEffectProps {
   intensity: number
   /** Série en cours (tentative incluse). */
   streak: number
+  /** Temps de réaction (ms) ; `null` si le temps s'est écoulé. */
+  reactionMs: number | null
+  /** Points marqués par cette réponse, multiplicateur compris (0 sur une erreur). */
+  points: number
+  /** Multiplicateur appliqué : 2 pendant un combo, sinon 1. La pastille `RevealCombo` l'affiche. */
+  multiplier: number
   /** Graine déterministe propre à la révélation, pour varier les détails (`seededRandom`). */
   seed: number
   /**

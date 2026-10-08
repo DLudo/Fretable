@@ -1,4 +1,6 @@
 export { LevelHud, type LevelHudProps } from './LevelHud'
 export { LevelProgress, type LevelProgressProps } from './LevelProgress'
 export { LevelTimer, type LevelTimerProps } from './LevelTimer'
-export { formatSeconds, type SecondsRounding } from './format'
+export { ComboMeter, type ComboMeterProps } from './ComboMeter'
+export { ScoreCounter, type ScoreCounterProps } from './ScoreCounter'
+export { formatScore, formatSeconds, type SecondsRounding } from './format'

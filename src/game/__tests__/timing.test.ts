@@ -47,6 +47,11 @@ describe('écran de fin', () => {
     correct: false,
     streak: 0,
     at,
+    reactionMs: null,
+    basePoints: 0,
+    multiplier: 1,
+    points: 0,
+    comboTriggered: false,
   })
   const end = (patch: Partial<GameState>) =>
     endScreenAt({ phase: 'lost', endedAt: 31_000, lastResult: null, ...patch })

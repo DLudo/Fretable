@@ -15,7 +15,7 @@ import {
   type RevealGeometry,
 } from '@/effects'
 import type { RevealEffect, RevealOutcome } from '@/effects/types'
-import { GAME_FEEL } from '@/game/config'
+import { COMBO_RULES, GAME_FEEL } from '@/game/config'
 import { createNeckLayout, type NeckLayout, type Point } from '@/game/fretboard/geometry'
 import {
   ORIENTATION_TRANSFORM,
@@ -106,6 +106,8 @@ interface Run {
   pc: PitchClass
   reducedMotion: boolean
   timedOut: boolean
+  /** Multiplicateur de points : 2 pour simuler un combo. */
+  multiplier: number
   startedAt: number
 }
 
@@ -126,6 +128,7 @@ export default function EffectsLab() {
     params.has('reduced') ? params.get('reduced') === '1' : prefersReducedMotion(),
   )
   const [timedOut, setTimedOut] = useState(() => params.get('timeout') === '1')
+  const [combo, setCombo] = useState(() => params.get('combo') === '1')
   const [runs, setRuns] = useState<Run[]>([])
   const [measures, setMeasures] = useState<Record<string, Measure>>({})
   const counter = useRef(0)
@@ -152,11 +155,12 @@ export default function EffectsLab() {
         pc,
         reducedMotion,
         timedOut: outcome === 'wrong' && timedOut,
+        multiplier: combo ? COMBO_RULES.multiplier : 1,
         startedAt: performance.now(),
       }
       setRuns((list) => [...list, run])
     },
-    [label, streak, reducedMotion, timedOut],
+    [label, streak, reducedMotion, timedOut, combo],
   )
 
   // Un effet peut appeler `onComplete` plusieurs fois : seul le premier appel compte.
@@ -275,6 +279,15 @@ export default function EffectsLab() {
             onChange={(e) => setTimedOut(e.target.checked)}
           />
           Temps écoulé (faux)
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            className="accent-foreground"
+            checked={combo}
+            onChange={(e) => setCombo(e.target.checked)}
+          />
+          Combo (×{COMBO_RULES.multiplier})
         </label>
       </div>
 
@@ -475,6 +488,7 @@ function StageEffect({
         guess: correct ? run.pc : run.timedOut ? null : toPitchClass(run.pc + 1),
         correct,
         streak: run.streak,
+        multiplier: run.multiplier,
         stringIndex: STRING_INDEX,
         fret: FRET,
         // Même chemin qu'en jeu : la graine est tirée après le choix de l'effet.

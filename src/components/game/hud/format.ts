@@ -21,3 +21,10 @@ export function formatSeconds(ms: number, rounding: SecondsRounding = 'round'): 
   const tenths = Math[rounding](ms / 100)
   return SECONDS.format(Math.max(0, tenths) / 10) + ' s'
 }
+
+const POINTS = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 })
+
+/** Score à la française, milliers séparés : `12400` → « 12 400 ». */
+export function formatScore(points: number): string {
+  return POINTS.format(Math.max(0, Math.round(points)))
+}

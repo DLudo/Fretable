@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useAnimate, useReducedMotion, type Transition } from 'motion/react'
 
 import { RevealLayer } from '@/effects'
+import { ComboAura } from '@/effects/ambient'
 import type { GameEventBus } from '@/game/engine/events'
 import { endScreenAt } from '@/game/engine/selectors'
 import { useGame } from '@/game/engine/useGame'
@@ -105,11 +106,16 @@ export function GameScreen({ className }: GameScreenProps) {
   const box = orientViewBox(layout.viewBox, orientation)
   const { mainRef, pianoRef, maxWidth: boardMaxWidth } = useBoardFit(box.width / box.height)
 
+  // L'aura du combo passe sous les révélations.
+  const comboActive = playing && state.combo !== null
   const overlay = useCallback(
     (projection: BoardProjection) => (
-      <RevealLayer result={state.lastResult} layout={layout} projection={projection} />
+      <>
+        <ComboAura active={comboActive} layout={layout} projection={projection} />
+        <RevealLayer result={state.lastResult} layout={layout} projection={projection} />
+      </>
     ),
-    [state.lastResult, layout],
+    [comboActive, state.lastResult, layout],
   )
 
   return (
@@ -124,6 +130,7 @@ export function GameScreen({ className }: GameScreenProps) {
         <div
           ref={boardRef}
           data-slot="game-board"
+          data-combo={comboActive || undefined}
           className="w-full"
           style={{ maxWidth: boardMaxWidth }}
         >

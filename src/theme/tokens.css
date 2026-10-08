@@ -49,6 +49,13 @@
 
   /* — Révélations — blanc « chauffé » des étincelles, éclats et flashs */
   --reveal-highlight: oklch(0.985 0 0);
+
+  /* — Combo — seul bleu de l'interface : jauge, pastille ×2, halo et particules du manche */
+  --combo: oklch(0.72 0.16 245);
+  --combo-glow: oklch(0.68 0.2 250);
+  --combo-spark: oklch(0.9 0.08 235);
+  --combo-foreground: oklch(0.16 0.04 250);
+  --combo-track: color-mix(in oklab, var(--combo) 18%, transparent);
 }
 
 /*
@@ -118,6 +125,11 @@
   --color-hud-time-critical: var(--hud-time-critical);
   --color-hud-tick: var(--hud-tick);
   --color-reveal-highlight: var(--reveal-highlight);
+  --color-combo: var(--combo);
+  --color-combo-glow: var(--combo-glow);
+  --color-combo-spark: var(--combo-spark);
+  --color-combo-foreground: var(--combo-foreground);
+  --color-combo-track: var(--combo-track);
   --color-fretboard-shadow: var(--fretboard-shadow);
   --color-string-highlight: var(--string-highlight);
   --color-nut-highlight: var(--nut-highlight);

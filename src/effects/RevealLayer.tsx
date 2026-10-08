@@ -13,7 +13,7 @@ import { useReducedMotion } from 'motion/react'
 import type { GuessResult } from '@/game/engine/types'
 import type { NeckLayout } from '@/game/fretboard/geometry'
 import type { BoardProjection } from '@/game/fretboard/projection'
-import { ReducedMotionReveal, StaticReveal } from './kit'
+import { ReducedMotionReveal, RevealMultiplierContext, StaticReveal } from './kit'
 import { pickEffect } from './registry'
 import {
   buildRevealProps,
@@ -89,7 +89,9 @@ export function RevealEffectHost({ effect, reveal, onError }: RevealEffectHostPr
       onError={onError}
       fallback={<StaticReveal {...reveal} effectId={effect.id} durationMs={FALLBACK_REVEAL_MS} />}
     >
-      <Effect {...reveal} />
+      <RevealMultiplierContext value={reveal.multiplier}>
+        <Effect {...reveal} />
+      </RevealMultiplierContext>
     </EffectBoundary>
   )
 }
@@ -223,6 +225,9 @@ function ActiveEffect({
         guess: result.guess,
         correct: result.correct,
         streak: result.streak,
+        reactionMs: result.reactionMs,
+        points: result.points,
+        multiplier: result.multiplier,
         stringIndex: challenge.stringIndex,
         fret: challenge.fret,
         seed,

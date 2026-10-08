@@ -41,6 +41,7 @@ describe('ordre des événements', () => {
         phase: state.phase,
         challenge: state.challenge,
         lastResult: state.lastResult,
+        combo: state.combo,
       }
       for (const event of diffGameEvents(emitted, snapshot)) log.push(label(event))
       emitted = snapshot
@@ -62,6 +63,8 @@ describe('ordre des événements', () => {
         return `challenge:${event.payload.id}`
       case 'guess':
         return `guess:${event.payload.guess === null ? 'timeout' : event.payload.correct}`
+      case 'combo':
+        return `combo:${event.payload ? 'on' : 'off'}`
     }
   }
 
@@ -69,12 +72,20 @@ describe('ordre des événements', () => {
     const actions: GameAction[] = [{ type: 'start', now: 0, challenge: challenge(1, 0) }]
     for (let i = 1; i <= 6; i++) {
       actions.push({ type: 'guess', pc: (i - 1) as PitchClass, now: i * 1000 })
-      if (i < 6) actions.push({ type: 'next', challenge: challenge(i + 1, i as PitchClass) })
+      if (i < 6)
+        actions.push({
+          type: 'next',
+          challenge: challenge(i + 1, i as PitchClass),
+          now: i * 1000 + 500,
+        })
     }
     const log = record(actions)
     expect(log.slice(0, 3)).toEqual(['phase:ready', 'phase:playing', 'challenge:1'])
     expect(log.slice(3, 5)).toEqual(['guess:true', 'challenge:2'])
-    expect(log.slice(-2)).toEqual(['guess:true', 'phase:won'])
+    // Troisième réponse rapide : le combo s'allume, avant la note suivante.
+    expect(log.slice(7, 10)).toEqual(['guess:true', 'combo:on', 'challenge:4'])
+    // Victoire : la révélation, puis l'extinction du combo, puis la phase.
+    expect(log.slice(-3)).toEqual(['guess:true', 'combo:off', 'phase:won'])
   })
 
   it('révèle la note en attente avant d’annoncer la défaite', () => {
@@ -99,6 +110,7 @@ describe('ordre des événements', () => {
       phase: 'playing',
       challenge: challenge(1, 0),
       lastResult: null,
+      combo: null,
     }
     expect(diffGameEvents(snapshot, { ...snapshot })).toEqual([])
   })

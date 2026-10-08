@@ -25,7 +25,7 @@ export interface UseGameOptions {
 export interface GameController {
   state: GameState
   tuning: Tuning
-  /** Bus d'événements ; pour un même changement d'état : `guess` → `phase` → `challenge`. */
+  /** Bus d'événements ; pour un même changement d'état : `guess` → `combo` → `phase` → `challenge`. */
   events: GameEventBus
   /** Démarre (ou redémarre) le niveau courant. */
   start(): void
@@ -68,7 +68,7 @@ export function useGame(options: UseGameOptions = {}): GameController {
     if (phase !== 'playing' || !locked || !lastResult) return
     const hold = lastResult.correct ? GAME_FEEL.holdAfterCorrectMs : GAME_FEEL.holdAfterWrongMs
     const timer = window.setTimeout(
-      () => dispatch({ type: 'next', challenge: makeChallenge(lastResult.challenge) }),
+      () => dispatch({ type: 'next', challenge: makeChallenge(lastResult.challenge), now: now() }),
       hold,
     )
     return () => window.clearTimeout(timer)
@@ -85,16 +85,29 @@ export function useGame(options: UseGameOptions = {}): GameController {
     return () => window.clearTimeout(timer)
   }, [phase, startedAt, durationMs])
 
+  // Épuisement du combo. Le minuteur peut sonner une poignée de ms trop tôt :
+  // l'instant transmis ne précède jamais l'échéance, sans quoi le combo resterait allumé.
+  const comboEndsAt = state.combo?.endsAt ?? null
+  useEffect(() => {
+    if (phase !== 'playing' || comboEndsAt === null) return
+    const timer = window.setTimeout(
+      () => dispatch({ type: 'comboExpire', now: Math.max(now(), comboEndsAt) }),
+      Math.max(0, comboEndsAt - now()),
+    )
+    return () => window.clearTimeout(timer)
+  }, [phase, comboEndsAt])
+
   // Diffusion des événements, dans un ordre défini (voir `diffGameEvents`).
   // Le ref mémorise ce qui a déjà été publié : rien n'est émis deux fois,
   // même quand StrictMode rejoue les effets au montage.
   const emitted = useRef<GameEventSnapshot>(EMPTY_EVENT_SNAPSHOT)
+  const { combo } = state
   useEffect(() => {
-    const snapshot: GameEventSnapshot = { phase, challenge, lastResult }
+    const snapshot: GameEventSnapshot = { phase, challenge, lastResult, combo }
     const pending = diffGameEvents(emitted.current, snapshot)
     emitted.current = snapshot
     for (const event of pending) emitGameEvent(events, event)
-  }, [phase, challenge, lastResult, events])
+  }, [phase, challenge, lastResult, combo, events])
 
   return {
     state,

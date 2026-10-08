@@ -4,8 +4,10 @@ import { motion, useReducedMotion } from 'motion/react'
 import type { GameState } from '@/game/engine/types'
 import { cn } from '@/lib/utils'
 import { spring } from '@/theme/motion'
+import { ComboMeter } from './ComboMeter'
 import { LevelProgress } from './LevelProgress'
 import { LevelTimer } from './LevelTimer'
+import { ScoreCounter } from './ScoreCounter'
 
 export interface LevelHudProps {
   state: GameState
@@ -22,8 +24,10 @@ function useRisePulse(value: number): number {
 }
 
 /**
- * Bandeau du haut : niveau, notes trouvées, temps restant et progression.
- * Le parent le positionne ; seul `LevelTimer` se re-rend à chaque frame.
+ * Bandeau du haut : niveau, score, notes trouvées, temps restant, progression
+ * et, pendant un combo, la jauge bleue sous la progression.
+ * Le parent le positionne ; seul `LevelTimer` se re-rend à chaque frame
+ * (`ComboMeter` écrit directement dans le DOM).
  *
  * Sur écran bas (≤ 420 px, téléphone à l'horizontale), tout tient sur une ligne
  * d'environ 36 px — titre, barre de progression extensible, compteur, temps —
@@ -31,7 +35,7 @@ function useRisePulse(value: number): number {
  * du haut s'efface (`display: contents`) et la barre se glisse au milieu (`order`).
  */
 export function LevelHud({ state, className }: LevelHudProps): ReactNode {
-  const { level, correctCount, phase } = state
+  const { level, correctCount, phase, score, combo } = state
   const pulseId = useRisePulse(correctCount)
   const reduceMotion = useReducedMotion()
 
@@ -43,7 +47,7 @@ export function LevelHud({ state, className }: LevelHudProps): ReactNode {
     >
       <div
         data-slot="level-hud-content"
-        className="flex flex-col gap-2 px-4 py-2.5 sm:px-6 short:h-9 short:flex-row short:items-center short:gap-3 short:py-0"
+        className="flex flex-col gap-2 px-4 pt-2.5 pb-4 sm:px-6 short:h-9 short:flex-row short:items-center short:gap-3 short:py-0"
       >
         <div
           data-slot="level-hud-row"
@@ -52,6 +56,8 @@ export function LevelHud({ state, className }: LevelHudProps): ReactNode {
           <span data-slot="level-title" className="truncate font-medium short:shrink-0">
             {level.title}
           </span>
+
+          <ScoreCounter score={score} comboActive={combo !== null} className="short:shrink-0" />
 
           <span
             data-slot="level-count"
@@ -84,12 +90,11 @@ export function LevelHud({ state, className }: LevelHudProps): ReactNode {
           <LevelTimer state={state} className="short:order-2" />
         </div>
 
-        <LevelProgress
-          value={correctCount}
-          max={level.targetCount}
-          pulseId={pulseId}
-          className="short:order-1 short:min-w-16 short:flex-1"
-        />
+        {/* La jauge de combo se pose sous la progression, sans décaler la mise en page. */}
+        <div data-slot="level-bars" className="relative short:order-1 short:min-w-16 short:flex-1">
+          <LevelProgress value={correctCount} max={level.targetCount} pulseId={pulseId} />
+          <ComboMeter combo={combo} />
+        </div>
       </div>
     </div>
   )

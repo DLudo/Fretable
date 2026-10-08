@@ -15,7 +15,7 @@ import {
 } from 'motion/react'
 import { ArrowBigUp, ArrowRight, Play, RotateCcw } from 'lucide-react'
 
-import { formatSeconds } from '@/components/game/hud'
+import { formatScore, formatSeconds } from '@/components/game/hud'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -274,6 +274,7 @@ function WonPanel({
         )
       }
     >
+      <ScoreLine score={state.score} className="mb-4" />
       <dl data-slot="level-overlay-stats" className="grid grid-cols-3 divide-x rounded-lg border">
         {/* Tronqué : avec le minuteur du HUD (arrondi au-dessus), le total fait la durée du niveau. */}
         <Stat label="Temps" value={formatSeconds(elapsed, 'floor')} />
@@ -281,6 +282,19 @@ function WonPanel({
         <Stat label="Meilleure série" value={state.bestStreak} />
       </dl>
     </Panel>
+  )
+}
+
+/** Score de la partie, mis en avant dans les écrans de fin. */
+function ScoreLine({ score, className }: { score: number; className?: string }) {
+  return (
+    <p
+      data-slot="level-overlay-score"
+      className={cn('flex items-baseline gap-1.5 tabular-nums', className)}
+    >
+      <span className="text-3xl font-semibold tracking-tight">{formatScore(score)}</span>
+      <span className="text-sm text-muted-foreground">points</span>
+    </p>
   )
 }
 
@@ -311,6 +325,7 @@ function LostPanel({ state, onStart }: PanelProps) {
         </Button>
       }
     >
+      <ScoreLine score={state.score} className={missed ? 'mb-2' : undefined} />
       {missed && (
         <p data-slot="level-overlay-missed" className="text-sm text-muted-foreground">
           La note était{' '}
