@@ -207,9 +207,15 @@ export function GameScreen({ className }: GameScreenProps) {
             disabled={!playing}
           />
         </div>
-        <AssistBanner assist={playing ? state.assist : null} />
-        <TriadBanner outcome={playing ? state.lastTriad : null} />
-        <ScaleBanner outcome={playing ? state.lastScaleRun : null} />
+        {/* Annonces empilées au-dessus du manche : deux peuvent se croiser sans se masquer. */}
+        <div
+          data-slot="stage-banners"
+          className="pointer-events-none absolute top-2 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-1.5 short:top-0.5 short:gap-1"
+        >
+          <AssistBanner assist={playing ? state.assist : null} />
+          <TriadBanner outcome={playing ? state.lastTriad : null} />
+          <ScaleBanner outcome={playing ? state.lastScaleRun : null} />
+        </div>
         <LevelOverlay
           state={state}
           visible={overlayVisible}

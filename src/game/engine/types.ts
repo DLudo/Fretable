@@ -75,6 +75,8 @@ export interface TriadPlan extends TriadVoicing {
 
 /** Triade en cours : ses trois notes sont demandées l'une après l'autre. */
 export interface TriadState extends TriadPlan {
+  /** Notes déjà trouvées quand la triade s'est ouverte : sa place dans la partie. */
+  slot: number
   /** Index de la note demandée (0 : fondamentale, 1 : tierce, 2 : quinte). */
   step: number
   /** Toutes les réponses jusqu'ici justes, et chacune assez rapide. */
@@ -87,6 +89,8 @@ export interface TriadOutcome {
   id: number
   root: PitchClass
   quality: TriadQuality
+  /** Notes déjà trouvées quand la triade s'est ouverte (voir `TriadState.slot`). */
+  slot: number
   /** Trois bonnes réponses, chacune en moins de `TRIAD_RULES.fastReactionMs`. */
   success: boolean
   /** Gamme dont le parcours s'ouvre à la suite (triade réussie et forme disponible). */

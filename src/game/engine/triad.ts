@@ -1,10 +1,10 @@
-import { TRIAD_RULES } from '@/game/config'
+import { SCALE_RULES, TRIAD_RULES } from '@/game/config'
 import type { LevelConfig } from '@/game/levels/levels'
 import { triadVoicings, type TriadVoicing } from '@/game/music/chords'
 import { toPitchClass } from '@/game/music/notes'
 import type { Tuning } from '@/game/music/tuning'
 import type { Random } from './challenge'
-import { shapeAroundTriad } from '@/game/music/scales'
+import { shapeAroundTriad, type ScaleKind } from '@/game/music/scales'
 import type { Challenge, GameState, ScaleRunState, TriadPlan, TriadState } from './types'
 
 /**
@@ -71,7 +71,12 @@ export function triadChallenge(
  */
 export function planTriad(voicing: TriadVoicing, level: LevelConfig, tuning: Tuning): TriadPlan {
   const allStrings = level.strings.length === tuning.strings.length
-  return { ...voicing, scale: allStrings ? shapeAroundTriad(tuning, voicing, level.frets) : null }
+  // Seule la pentatonique existe pour l'instant : la retirer de `kinds` coupe le parcours.
+  const enabled = (SCALE_RULES.kinds as readonly ScaleKind[]).includes('pentatonic')
+  return {
+    ...voicing,
+    scale: allStrings && enabled ? shapeAroundTriad(tuning, voicing, level.frets) : null,
+  }
 }
 
 /** Note `step` du parcours de gamme, prête à être demandée. */

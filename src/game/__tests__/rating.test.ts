@@ -103,6 +103,49 @@ describe('étoiles', () => {
   })
 })
 
+describe('triade', () => {
+  it('ne coûte pas d’étoile à performance égale', () => {
+    // Même allure (1,5 s par note, sans erreur), avec une triade ouverte après la première note.
+    const voicing = {
+      root: 9 as const,
+      quality: 'minor' as const,
+      notes: [
+        { stringIndex: 0, fret: 5, pc: 9 as const },
+        { stringIndex: 1, fret: 3, pc: 0 as const },
+        { stringIndex: 2, fret: 2, pc: 4 as const },
+      ] as const,
+      scale: null,
+    }
+    let s = gameReducer(createInitialState(0), { type: 'start', now: 0, challenge: note(0) })
+    let t = 0
+    for (let i = 0; i < 6; i++) {
+      t += 1500
+      s = gameReducer(s, { type: 'guess', pc: s.challenge!.pc, now: t, roll: 1 })
+      if (s.phase !== 'playing') break
+      t += 420
+      const step = i === 0 ? 0 : s.triad?.step
+      const challenge =
+        step !== undefined && i < 3
+          ? { ...voicing.notes[step], id: 10 + i, triad: true }
+          : note(20 + i)
+      s = gameReducer(s, {
+        type: 'next',
+        challenge,
+        now: t,
+        ...(i === 0 ? { triad: voicing } : {}),
+      })
+    }
+    expect(s.lastTriad).toMatchObject({ success: true, slot: 1 })
+    const withTriad = rateGame({ ...s, level })
+    const without = rateGame(play(pace(1500)))
+    // Moins de points (le combo s'éteint), mais la même note : la référence vit la triade aussi.
+    expect(s.score).toBeLessThan(play(pace(1500)).score)
+    expect(withTriad.stars).toBe(without.stars)
+    expect(withTriad.scoreRatio).toBe(1)
+    expect(referenceScore(level, 1500, 1)).toBe(s.score)
+  })
+})
+
 describe('coup de pouce', () => {
   const hit = (points: number, assisted: boolean): GuessResult => ({
     id: 0,

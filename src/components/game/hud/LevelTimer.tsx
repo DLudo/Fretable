@@ -7,7 +7,7 @@ import { totalDurationMs } from '@/game/engine/selectors'
 import { useCountdown, type CountdownState } from '@/game/engine/useCountdown'
 import { cn } from '@/lib/utils'
 import { ease } from '@/theme/motion'
-import { formatClock } from './format'
+import { formatClock, formatClockSpoken } from './format'
 
 export interface LevelTimerProps {
   state: CountdownState
@@ -91,10 +91,13 @@ export function LevelTimer({ state, className, barClassName }: LevelTimerProps):
         ) : (
           <Timer aria-hidden className={cn('size-3.5', !critical && 'text-muted-foreground')} />
         )}
-        <span className="sr-only">{paused ? 'Temps suspendu :' : 'Temps restant :'}</span>
+        <span className="sr-only">
+          {paused ? 'Temps suspendu :' : 'Temps restant :'} {formatClockSpoken(remaining, 'ceil')}
+        </span>
         <motion.span
           key={beat}
           data-slot="level-timer-value"
+          aria-hidden
           className="inline-block min-w-[4.25ch] text-right"
           initial={pulse ? { scale: 1.16, opacity: 0.6 } : false}
           animate={{ scale: 1, opacity: 1 }}

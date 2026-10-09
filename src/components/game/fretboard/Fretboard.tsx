@@ -157,7 +157,8 @@ export function Fretboard({
         aria-label="Manche de guitare, cases 1 à 12"
         viewBox={`${box.x} ${box.y} ${box.width} ${box.height}`}
         preserveAspectRatio="xMidYMid meet"
-        className="block h-auto w-full"
+        // Les halos des notes du bord (Mi aigu, Mi grave) débordent du manche sans être rognés.
+        className="block h-auto w-full overflow-visible"
         style={{ aspectRatio: box.width / box.height }}
       >
         {/* Hors du groupe orienté : les chiffres restent droits dans les deux sens. */}
@@ -180,27 +181,13 @@ export function Fretboard({
           </defs>
           <AnimatePresence>
             {guide && (
-              <motion.path
+              <GuidePath
                 key={guide.key}
-                data-slot="fretboard-guide"
-                d={guide.points
-                  .map((p, i) => {
-                    const at = layout.position(p.stringIndex, p.fret)
-                    return `${i === 0 ? 'M' : 'L'}${at.x} ${at.y}`
-                  })
-                  .join(' ')}
-                fill="none"
-                className="stroke-triad"
-                strokeOpacity={0.5}
-                strokeWidth={layout.markerRadius * 0.2}
-                // Pointillé : le tracé se distingue des cordes qu'il longe.
-                strokeDasharray={`${layout.markerRadius * 0.45} ${layout.markerRadius * 0.4}`}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                initial={reduceMotion ? { opacity: 0 } : { pathLength: 0, opacity: 1 }}
-                animate={{ pathLength: 1, opacity: 1 }}
-                exit={{ opacity: 0, transition: { duration: duration.fast } }}
-                transition={reduceMotion ? { duration: duration.fast } : GUIDE_DRAW}
+                d={guidePath(layout, guide)}
+                width={layout.markerRadius}
+                maskId={`${uid}-guide-mask`}
+                region={vb}
+                reduceMotion={reduceMotion}
               />
             )}
           </AnimatePresence>
@@ -255,5 +242,71 @@ export function Fretboard({
           : ''}
       </p>
     </div>
+  )
+}
+
+function guidePath(layout: NeckLayout, guide: FretboardGuide): string {
+  return guide.points
+    .map((p, i) => {
+      const at = layout.position(p.stringIndex, p.fret)
+      return `${i === 0 ? 'M' : 'L'}${at.x} ${at.y}`
+    })
+    .join(' ')
+}
+
+/**
+ * Tracé d'une forme de gamme : pointillé fixe, révélé du grave à l'aigu par un
+ * masque qui se dessine (animer `pathLength` sur le tracé lui-même écraserait
+ * son pointillé).
+ */
+function GuidePath({
+  d,
+  width,
+  maskId,
+  region,
+  reduceMotion,
+}: {
+  d: string
+  /** Rayon d'une note (mm) : épaisseur et pointillé s'y proportionnent. */
+  width: number
+  maskId: string
+  region: { x: number; y: number; width: number; height: number }
+  reduceMotion: boolean
+}) {
+  return (
+    <motion.g
+      data-slot="fretboard-guide"
+      initial={{ opacity: reduceMotion ? 0 : 1 }}
+      animate={{ opacity: 1, transition: { duration: duration.fast } }}
+      exit={{ opacity: 0, transition: { duration: duration.fast } }}
+    >
+      {!reduceMotion && (
+        <mask id={maskId} maskUnits="userSpaceOnUse" {...region}>
+          <motion.path
+            d={d}
+            fill="none"
+            stroke="white"
+            strokeWidth={width * 1.4}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            initial={{ pathLength: 0 }}
+            animate={{ pathLength: 1 }}
+            transition={GUIDE_DRAW}
+          />
+        </mask>
+      )}
+      <path
+        d={d}
+        fill="none"
+        className="stroke-triad"
+        strokeOpacity={0.5}
+        strokeWidth={width * 0.2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        // Pointillé : le tracé se distingue des cordes qu'il longe.
+        strokeDasharray={`${width * 0.45} ${width * 0.4}`}
+        mask={reduceMotion ? undefined : `url(#${maskId})`}
+      />
+    </motion.g>
   )
 }

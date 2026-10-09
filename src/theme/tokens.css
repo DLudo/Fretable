@@ -65,8 +65,6 @@
   --triad: #b6f43d;
   --triad-foreground: oklch(0.24 0.07 128);
   --triad-glow: color-mix(in oklab, var(--triad) 70%, transparent);
-  /* Notes à venir (triade, forme de gamme) : en gris, en filigrane */
-  --marker-ghost: color-mix(in oklab, var(--marker) 38%, transparent);
 
   /* — Notation — étoiles de l'écran de victoire (gagnées, puis manquées) */
   --rating-star: oklch(0.86 0.16 88);
@@ -85,6 +83,8 @@
   --nut-highlight: var(--fret-wire-highlight);
   --marker-halo: var(--marker-ring);
   --marker-outline: var(--fretboard-edge);
+  /* Notes à venir (triade, forme de gamme) : en gris, en filigrane */
+  --marker-ghost: color-mix(in oklab, var(--marker) 38%, transparent);
   --piano-case: var(--key-black);
   --piano-keybed: var(--key-border);
   --key-white-hover: color-mix(in oklab, var(--key-white) 70%, var(--key-white-pressed));

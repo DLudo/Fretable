@@ -18,6 +18,18 @@ export function deadlineAt(
   return state.startedAt + totalDurationMs(state) + state.pausedMs
 }
 
+/**
+ * Temps de jeu effectif d'une partie terminée (ms) : de la première note à la
+ * fin, sans les pauses (parcours de gamme). 0 avant la fin.
+ */
+export function playedMs(
+  state: Pick<GameState, 'startedAt' | 'endedAt'> & Partial<Pick<GameState, 'pausedMs'>>,
+): number {
+  const { startedAt, endedAt, pausedMs = 0 } = state
+  if (startedAt === null || endedAt === null) return 0
+  return Math.max(0, endedAt - startedAt - pausedMs)
+}
+
 /** Durée du décompte 3, 2, 1 avant la première note (ms). */
 export function startCountdownMs(): number {
   return Math.max(0, GAME_FEEL.startCountdownFrom) * Math.max(0, GAME_FEEL.startCountdownStepMs)

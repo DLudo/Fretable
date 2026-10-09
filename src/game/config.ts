@@ -129,8 +129,11 @@ export const TRIAD_RULES = {
  * compte pas pour la progression.
  */
 export const SCALE_RULES = {
-  /** Gammes accessibles. Sans le palier 1 débloqué, le bonus s'en tient à la pentatonique. */
-  kinds: ['pentatonic'],
+  /**
+   * Gammes accessibles. Sans le palier 1 débloqué, le bonus s'en tient à la
+   * pentatonique ; une liste vide coupe le parcours (la triade reste).
+   */
+  kinds: ['pentatonic'] as readonly 'pentatonic'[],
   /** Points par note juste du parcours. */
   pointsPerNote: 150,
   /** Supplément pour un parcours sans faute. */

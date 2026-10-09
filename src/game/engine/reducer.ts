@@ -218,7 +218,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       // Triade engagée : combo éteint (un bonus ne se cumule pas avec lui).
       return {
         ...shown,
-        triad: { ...action.triad, step: 0, clean: true },
+        triad: { ...action.triad, step: 0, clean: true, slot: state.correctCount },
         triadsStarted: state.triadsStarted + 1,
         combo: null,
         fastStreak: 0,
@@ -288,7 +288,13 @@ function advanceTriad(
   }
   return {
     triad: null,
-    lastTriad: { id: answer.id, root: triad.root, quality: triad.quality, success: clean },
+    lastTriad: {
+      id: answer.id,
+      root: triad.root,
+      quality: triad.quality,
+      slot: triad.slot,
+      success: clean,
+    },
   }
 }
 

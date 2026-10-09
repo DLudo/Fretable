@@ -15,7 +15,12 @@ import {
 } from 'motion/react'
 import { ArrowBigUp, ArrowRight, Play, RotateCcw } from 'lucide-react'
 
-import { formatClock, formatDurationWords, formatScore } from '@/components/game/hud'
+import {
+  clockResolutionOf,
+  formatClock,
+  formatDurationWords,
+  formatScore,
+} from '@/components/game/hud'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -28,6 +33,8 @@ import {
 import { Kbd } from '@/components/ui/kbd'
 import { NOTATION } from '@/game/config'
 import { rateGame } from '@/game/engine/rating'
+import { playedMs } from '@/game/engine/selectors'
+import { remainingMs } from '@/game/engine/useCountdown'
 import type { GameState } from '@/game/engine/types'
 import { keyHint } from '@/game/input/keymap'
 import { NATURAL_PCS, noteName } from '@/game/music/notes'
@@ -247,8 +254,11 @@ function WonPanel({
   onStart,
   onNextLevel,
 }: PanelProps & { hasNextLevel: boolean; onNextLevel: () => void }) {
-  const { level, startedAt, endedAt } = state
-  const elapsed = startedAt !== null && endedAt !== null ? endedAt - startedAt : 0
+  const { level, endedAt } = state
+  // Temps de jeu, pauses déduites, à la précision du minuteur figé du HUD :
+  // les deux totalisent la durée du niveau (temps accordé en plus).
+  const elapsed = playedMs(state)
+  const resolution = clockResolutionOf(remainingMs(state, endedAt ?? 0), 'ceil')
   return (
     <Panel
       title={'Niveau réussi\u00a0!'}
@@ -286,7 +296,7 @@ function WonPanel({
       </div>
       <dl data-slot="level-overlay-stats" className="grid grid-cols-3 divide-x rounded-lg border">
         {/* Tronqué : avec le minuteur du HUD (arrondi au-dessus), le total fait la durée du niveau. */}
-        <Stat label="Temps" value={formatClock(elapsed, 'floor')} />
+        <Stat label="Temps" value={formatClock(elapsed, 'floor', resolution)} />
         <Stat label="Erreurs" value={state.mistakes} />
         <Stat label="Meilleure série" value={state.bestStreak} />
       </dl>

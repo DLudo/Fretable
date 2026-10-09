@@ -5,6 +5,7 @@ import {
   countdownDigit,
   deadlineAt,
   endScreenAt,
+  playedMs,
   playStartsAt,
   startCountdownMs,
   totalDurationMs,
@@ -126,5 +127,13 @@ describe('décompte 3, 2, 1', () => {
 
   it('laisse le temps plein tant que la partie n’a pas commencé', () => {
     expect(remainingMs(clock({ phase: 'starting', startedAt: null }), 50_000)).toBe(30_000)
+  })
+})
+
+describe('temps de jeu', () => {
+  it('déduit les pauses', () => {
+    expect(playedMs({ startedAt: 1000, endedAt: 61_000, pausedMs: 20_000 })).toBe(40_000)
+    expect(playedMs({ startedAt: 1000, endedAt: 61_000 })).toBe(60_000)
+    expect(playedMs({ startedAt: 1000, endedAt: null })).toBe(0)
   })
 })

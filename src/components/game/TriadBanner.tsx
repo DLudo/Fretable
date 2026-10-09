@@ -48,8 +48,7 @@ export function TriadBanner({ outcome, className }: TriadBannerProps): ReactNode
           data-success={shown.success || undefined}
           role="status"
           className={cn(
-            // Sur écran bas, l'annonce s'affine pour tenir entre le HUD et le manche.
-            'pointer-events-none absolute top-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-full py-1.5 pr-4 pl-3 text-sm whitespace-nowrap short:top-0.5 short:py-1 short:text-xs max-sm:text-xs',
+            'flex items-center gap-2 rounded-full py-1.5 pr-4 pl-3 text-sm whitespace-nowrap short:py-1 short:text-xs max-sm:text-xs',
             shown.success
               ? 'bg-triad text-triad-foreground shadow-[0_6px_24px_-6px_var(--triad)]'
               : 'bg-secondary text-secondary-foreground',
@@ -67,7 +66,8 @@ export function TriadBanner({ outcome, className }: TriadBannerProps): ReactNode
           <span>{chordName(shown.root, shown.quality, NOTATION)}</span>
           {shown.scale && (
             <span data-slot="triad-banner-scale" className="font-semibold">
-              → suis la {scaleKindName(shown.quality, shown.scale)}
+              → <span className="max-sm:hidden">suis la </span>
+              {scaleKindName(shown.quality, shown.scale)}
             </span>
           )}
         </motion.div>

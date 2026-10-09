@@ -47,7 +47,7 @@ export function ScaleBanner({ outcome, className }: ScaleBannerProps): ReactNode
           data-perfect={shown.perfect || undefined}
           role="status"
           className={cn(
-            'pointer-events-none absolute top-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-full bg-triad py-1.5 pr-4 pl-3 text-sm whitespace-nowrap text-triad-foreground short:top-0.5 short:py-1 short:text-xs max-sm:text-xs',
+            'flex items-center gap-2 rounded-full bg-triad py-1.5 pr-4 pl-3 text-sm whitespace-nowrap text-triad-foreground short:py-1 short:text-xs max-sm:text-xs',
             shown.perfect && 'shadow-[0_6px_28px_-4px_var(--triad)]',
             className,
           )}
