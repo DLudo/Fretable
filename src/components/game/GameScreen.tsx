@@ -7,6 +7,7 @@ import { TRIAD_RULES } from '@/game/config'
 import type { GameEventBus } from '@/game/engine/events'
 import { endScreenAt } from '@/game/engine/selectors'
 import { useGame } from '@/game/engine/useGame'
+import { useTriadRing } from '@/game/engine/useTriadRing'
 import { createNeckLayout } from '@/game/fretboard/geometry'
 import {
   orientViewBox,
@@ -20,7 +21,7 @@ import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { cn } from '@/lib/utils'
 import { duration, ease } from '@/theme/motion'
 import { AssistBanner } from './AssistBanner'
-import { Fretboard, type FretboardGhost, type FretboardGuide } from './fretboard'
+import { Fretboard, type FretboardGhost } from './fretboard'
 import { LevelHud } from './hud'
 import { LevelOverlay } from './overlays'
 import { Piano, type PianoFeedback } from './piano'
@@ -100,6 +101,8 @@ export function GameScreen({ className }: GameScreenProps) {
     }
   }, [state.lastResult])
 
+  // Anneau de la note de triade en cours : il pilote l'anneau du manche et la pastille « ×2 ».
+  const ringRunning = useTriadRing(state)
   const marker =
     playing && !state.locked && state.challenge
       ? {
@@ -112,9 +115,10 @@ export function GameScreen({ className }: GameScreenProps) {
             : state.challenge.triad || state.challenge.scale
               ? ('triad' as const)
               : ('default' as const),
-          // Chaque note de la triade, à son tour, égrène son délai autour du point.
+          // Chaque note de la triade, à son tour, égrène son délai autour du point ;
+          // l'anneau vide passe au gris : le « ×2 » est perdu pour cette note.
           ...(state.challenge.triad && state.triad
-            ? { countdownMs: TRIAD_RULES.fastReactionMs }
+            ? { countdownMs: TRIAD_RULES.fastReactionMs, countdownSpent: !ringRunning }
             : {}),
         }
       : null
@@ -151,13 +155,6 @@ export function GameScreen({ className }: GameScreenProps) {
       tone: 'triad' as const,
     }))
   }, [run, triad, locked])
-  // La forme garde la même référence tout au long du parcours : le tracé ne se redessine pas.
-  const runNotes = run?.notes ?? null
-  const guide = useMemo<FretboardGuide | null>(
-    () =>
-      runNotes ? { key: `${runNotes[0].stringIndex}:${runNotes[0].fret}`, points: runNotes } : null,
-    [runNotes],
-  )
 
   const boardRef = useBoardImpact(game.events)
   const box = orientViewBox(layout.viewBox, orientation)
@@ -177,7 +174,7 @@ export function GameScreen({ className }: GameScreenProps) {
 
   return (
     <div data-slot="game-screen" className={cn('flex h-dvh flex-col overflow-hidden', className)}>
-      <LevelHud state={state} className="shrink-0" />
+      <LevelHud state={state} triadBoost={ringRunning} className="shrink-0" />
       <main
         ref={mainRef}
         data-slot="game-stage"
@@ -195,7 +192,6 @@ export function GameScreen({ className }: GameScreenProps) {
             layout={layout}
             marker={marker}
             ghosts={ghosts}
-            guide={guide}
             overlay={overlay}
             orientation={orientation}
           />

@@ -3,7 +3,7 @@ import { getLevel } from '@/game/levels/levels'
 import { shouldOfferAssist } from './assist'
 import { basePoints, stepCombo, type ComboStep } from './scoring'
 import { deadlineAt } from './selectors'
-import { canStartTriad } from './triad'
+import { canStartTriad, triadMultiplier } from './triad'
 import type {
   GameAction,
   GameState,
@@ -114,12 +114,18 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       // seule la dernière bonne réponse attendue fait avancer la progression.
       const assisted = state.challenge.assist === true && state.assist !== null
       const completesAssist = assisted && correct && state.assist!.remaining <= 1
-      // Note de la triade : comptée normalement, mais hors combo et hors coup de pouce.
+      // Note de la triade : comptée normalement, hors combo et hors coup de pouce,
+      // mais doublée si elle est trouvée avant la fin de son anneau.
       const triadNote = state.challenge.triad === true && state.triad !== null
       const correctCount = state.correctCount + (correct && (!assisted || completesAssist) ? 1 : 0)
       const step: ComboStep =
         assisted || triadNote
-          ? { combo: null, fastStreak: 0, multiplier: 1, triggered: false }
+          ? {
+              combo: null,
+              fastStreak: 0,
+              multiplier: triadNote && correct ? triadMultiplier(reactionMs) : 1,
+              triggered: false,
+            }
           : stepCombo(state.combo, state.fastStreak, { now: action.now, correct, reactionMs })
       const base = correct ? basePoints(reactionMs) : 0
       const result: GuessResult = {

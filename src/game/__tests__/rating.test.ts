@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { RATING_RULES } from '@/game/config'
+import { RATING_RULES, TRIAD_RULES } from '@/game/config'
 import {
   rateGame,
   ratingRulesFor,
@@ -139,8 +139,8 @@ describe('triade', () => {
     expect(s.lastTriad).toMatchObject({ success: true, slot: 1 })
     const withTriad = rateGame({ ...s, level })
     const without = rateGame(play(pace(1500)))
-    // Moins de points (le combo s'éteint), mais la même note : la référence vit la triade aussi.
-    expect(s.score).toBeLessThan(play(pace(1500)).score)
+    // Combo éteint, notes de la triade doublées : la référence vit la triade
+    // exactement comme le joueur, d'où la même note.
     expect(withTriad.stars).toBe(without.stars)
     expect(withTriad.scoreRatio).toBe(1)
     expect(referenceScore(level, 1500, [1])).toBe(s.score)
@@ -148,14 +148,17 @@ describe('triade', () => {
 })
 
 describe('triades', () => {
-  it('neutralise chacune dans la référence', () => {
+  it('les joue toutes dans la référence, anneaux compris', () => {
     const long = { ...level, targetCount: 12 }
-    const single = referenceScore({ ...level, targetCount: 1 }, 800)
-    // Quatre triades couvrent les douze notes : plus aucun multiplicateur.
-    expect(referenceScore(long, 800, [0, 3, 6, 9])).toBe(12 * single)
-    // Chaque triade de plus retire du combo à la référence, comme au joueur.
-    expect(referenceScore(long, 800)).toBeGreaterThan(referenceScore(long, 800, [0]))
-    expect(referenceScore(long, 800, [0])).toBeGreaterThan(referenceScore(long, 800, [0, 6]))
+    const single = (pace: number) => referenceScore({ ...level, targetCount: 1 }, pace)
+    // Quatre triades couvrent les douze notes : à 0,8 s, chaque anneau est battu.
+    expect(referenceScore(long, 800, [0, 3, 6, 9])).toBe(12 * 2 * single(800))
+    // Au-delà du délai de l'anneau, plus rien n'est doublé.
+    const slow = TRIAD_RULES.fastReactionMs
+    expect(referenceScore(long, slow, [0, 3, 6, 9])).toBe(12 * single(slow))
+    // Chaque triade éteint le combo de la référence, comme celui du joueur :
+    // trois notes doublées, puis trois à reconstruire le combo.
+    expect(referenceScore(long, 800, [0, 6])).toBe((3 * 2 + 3 + 3 * 2 + 3) * single(800))
   })
 })
 

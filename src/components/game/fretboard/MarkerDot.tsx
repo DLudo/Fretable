@@ -1,6 +1,7 @@
 import { motion, type Transition } from 'motion/react'
 
 import type { BoardOrientation } from '@/game/fretboard/projection'
+import { cn } from '@/lib/utils'
 import { duration, ease, spring } from '@/theme/motion'
 
 /** Apparition « note suivante ! » : pop très raide, posé en moins de 250 ms. */
@@ -36,6 +37,8 @@ interface MarkerDotProps {
    * donc il s'écoule aussi quand les animations sont réduites.
    */
   countdownMs?: number
+  /** Délai écoulé : l'anneau, vide, passe au gris (le « ×2 » est perdu). */
+  countdownSpent?: boolean
   /**
    * Sens du manche : le dessin est tourné d'un quart de tour en vertical ;
    * l'anneau en tient compte pour partir de midi à l'écran.
@@ -80,6 +83,7 @@ export function MarkerDot({
   triadGlowId,
   variant = 'default',
   countdownMs,
+  countdownSpent = false,
   orientation = 'horizontal',
   reduceMotion,
 }: MarkerDotProps) {
@@ -161,13 +165,19 @@ export function MarkerDot({
       )}
       {countdownMs !== undefined && (
         <g data-slot="fretboard-marker-countdown">
-          {/* Gorge sombre : l'arc restant tranche sur la lueur verte, la part écoulée aussi. */}
+          {/* Gorge sombre : l'arc restant tranche sur la lueur verte, la part écoulée
+              aussi. Le délai écoulé, elle passe au gris : l'anneau est perdu. */}
           <circle
+            data-slot="fretboard-marker-countdown-track"
+            data-spent={countdownSpent || undefined}
             cx={cx}
             cy={cy}
             r={ring}
             fill="none"
-            className="stroke-triad-foreground"
+            className={cn(
+              'transition-[stroke] duration-300',
+              countdownSpent ? 'stroke-muted-foreground' : 'stroke-triad-foreground',
+            )}
             strokeWidth={r * 0.4}
           />
           <motion.path

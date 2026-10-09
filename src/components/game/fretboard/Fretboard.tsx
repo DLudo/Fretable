@@ -1,4 +1,4 @@
-import { AnimatePresence, motion, useReducedMotion, type Transition } from 'motion/react'
+import { AnimatePresence, useReducedMotion } from 'motion/react'
 import { useId, useMemo, type ReactNode } from 'react'
 
 import { inlaysUnder, type NeckLayout } from '@/game/fretboard/geometry'
@@ -12,7 +12,6 @@ import {
 import { stringNumber } from '@/game/music/tuning'
 import { useElementSize } from '@/hooks/useElementSize'
 import { cn } from '@/lib/utils'
-import { duration, ease } from '@/theme/motion'
 import { FretNumbers } from './FretNumbers'
 import { GhostDot, type GhostTone } from './GhostDot'
 import { CoveredInlaysContext } from './inlay-context'
@@ -31,6 +30,8 @@ export interface FretboardMarker {
   variant?: 'default' | 'assist' | 'triad'
   /** Temps imparti pour répondre (ms) : un anneau se vide autour du point. */
   countdownMs?: number
+  /** Délai écoulé : l'anneau, vide, passe au gris. */
+  countdownSpent?: boolean
 }
 
 /** Note à venir, montrée en filigrane (gris) : suite d'une triade, forme de gamme. */
@@ -45,17 +46,7 @@ export interface FretboardGhost {
   delay?: number
 }
 
-/** Tracé reliant des notes dans l'ordre (forme de gamme, du grave à l'aigu). */
-export interface FretboardGuide {
-  /** Clé du tracé : une nouvelle clé le redessine. */
-  key: string
-  points: readonly { stringIndex: number; fret: number }[]
-}
-
 const NO_GHOSTS: readonly FretboardGhost[] = []
-
-/** Le tracé se dessine du grave à l'aigu, au rythme des notes qui apparaissent. */
-const GUIDE_DRAW: Transition = { duration: 1.1, ease: ease.outQuart }
 
 export interface FretboardProps {
   layout: NeckLayout
@@ -63,8 +54,6 @@ export interface FretboardProps {
   marker: FretboardMarker | null
   /** Notes à venir, en filigrane, sous la note à deviner. */
   ghosts?: readonly FretboardGhost[]
-  /** Tracé reliant les notes d'une forme, sous les notes en filigrane. */
-  guide?: FretboardGuide | null
   /** Calque HTML posé au-dessus du manche, en px ; reçoit la projection mm → px. */
   overlay?: (projection: BoardProjection) => ReactNode
   /** Numéros de cases le long du manche (défaut : `true`). */
@@ -94,7 +83,6 @@ export function Fretboard({
   layout,
   marker,
   ghosts = NO_GHOSTS,
-  guide = null,
   overlay,
   showFretNumbers = true,
   orientation = 'horizontal',
@@ -129,22 +117,18 @@ export function Fretboard({
   const haloId = `${uid}-marker-halo`
   const triadGlowId = `${uid}-triad-glow`
 
-  // Repères recouverts par le point ou par les notes en filigrane : estompés,
-  // puis rétablis quand ils repartent. La clé ne change qu'avec les positions.
-  const spots = [
-    ...(marker ? [`${marker.stringIndex}:${marker.fret}`] : []),
-    ...ghosts.map((ghost) => `${ghost.stringIndex}:${ghost.fret}`),
-  ].join(' ')
+  // Repère recouvert par le point à deviner : estompé, puis rétabli quand il
+  // repart. Les notes en filigrane, petits cercles posés sur les cordes, n'en
+  // recouvrent aucun. La clé ne change qu'avec la position.
+  const spot = marker ? `${marker.stringIndex}:${marker.fret}` : null
   const covered = useMemo(() => {
-    if (!spots) return NO_INLAY
-    const ids = new Set<string>()
-    for (const spot of spots.split(' ')) {
-      const [s, f] = spot.split(':').map(Number)
-      const point = layout.position(s, f)
-      for (const inlay of inlaysUnder(layout.inlays, point, layout.markerRadius)) ids.add(inlay.id)
-    }
-    return ids.size > 0 ? [...ids] : NO_INLAY
-  }, [layout, spots])
+    if (!spot) return NO_INLAY
+    const [s, f] = spot.split(':').map(Number)
+    const ids = inlaysUnder(layout.inlays, layout.position(s, f), layout.markerRadius).map(
+      (inlay) => inlay.id,
+    )
+    return ids.length > 0 ? ids : NO_INLAY
+  }, [layout, spot])
 
   return (
     <div
@@ -181,18 +165,6 @@ export function Fretboard({
               <stop offset={1} style={{ stopColor: 'var(--triad-glow)', stopOpacity: 0 }} />
             </radialGradient>
           </defs>
-          <AnimatePresence>
-            {guide && (
-              <GuidePath
-                key={guide.key}
-                d={guidePath(layout, guide)}
-                width={layout.markerRadius}
-                maskId={`${uid}-guide-mask`}
-                region={vb}
-                reduceMotion={reduceMotion}
-              />
-            )}
-          </AnimatePresence>
           <g data-slot="fretboard-ghosts">
             <AnimatePresence>
               {ghosts.map((ghost) => {
@@ -223,6 +195,7 @@ export function Fretboard({
                 triadGlowId={triadGlowId}
                 variant={marker.variant}
                 countdownMs={marker.countdownMs}
+                countdownSpent={marker.countdownSpent}
                 orientation={orientation}
                 reduceMotion={reduceMotion}
               />
@@ -246,71 +219,5 @@ export function Fretboard({
           : ''}
       </p>
     </div>
-  )
-}
-
-function guidePath(layout: NeckLayout, guide: FretboardGuide): string {
-  return guide.points
-    .map((p, i) => {
-      const at = layout.position(p.stringIndex, p.fret)
-      return `${i === 0 ? 'M' : 'L'}${at.x} ${at.y}`
-    })
-    .join(' ')
-}
-
-/**
- * Tracé d'une forme de gamme : pointillé fixe, révélé du grave à l'aigu par un
- * masque qui se dessine (animer `pathLength` sur le tracé lui-même écraserait
- * son pointillé).
- */
-function GuidePath({
-  d,
-  width,
-  maskId,
-  region,
-  reduceMotion,
-}: {
-  d: string
-  /** Rayon d'une note (mm) : épaisseur et pointillé s'y proportionnent. */
-  width: number
-  maskId: string
-  region: { x: number; y: number; width: number; height: number }
-  reduceMotion: boolean
-}) {
-  return (
-    <motion.g
-      data-slot="fretboard-guide"
-      initial={{ opacity: reduceMotion ? 0 : 1 }}
-      animate={{ opacity: 1, transition: { duration: duration.fast } }}
-      exit={{ opacity: 0, transition: { duration: duration.fast } }}
-    >
-      {!reduceMotion && (
-        <mask id={maskId} maskUnits="userSpaceOnUse" {...region}>
-          <motion.path
-            d={d}
-            fill="none"
-            stroke="white"
-            strokeWidth={width * 1.4}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-            transition={GUIDE_DRAW}
-          />
-        </mask>
-      )}
-      <path
-        d={d}
-        fill="none"
-        className="stroke-triad"
-        strokeOpacity={0.5}
-        strokeWidth={width * 0.2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        // Pointillé : le tracé se distingue des cordes qu'il longe.
-        strokeDasharray={`${width * 0.45} ${width * 0.4}`}
-        mask={reduceMotion ? undefined : `url(#${maskId})`}
-      />
-    </motion.g>
   )
 }

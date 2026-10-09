@@ -13,6 +13,8 @@ import { ScoreCounter } from './ScoreCounter'
 
 export interface LevelHudProps {
   state: GameState
+  /** Anneau d'une note de triade en cours : pastille « ×2 » en vert acide. */
+  triadBoost?: boolean
   className?: string
 }
 
@@ -37,7 +39,7 @@ function useRisePulse(value: number): number {
  * pour laisser la hauteur au manche. L'ordre du DOM ne change pas : la ligne
  * du haut s'efface (`display: contents`) et la barre se glisse au milieu (`order`).
  */
-export function LevelHud({ state, className }: LevelHudProps): ReactNode {
+export function LevelHud({ state, triadBoost = false, className }: LevelHudProps): ReactNode {
   const { level, correctCount, phase, score, combo, assist, scaleRun } = state
   const pulseId = useRisePulse(correctCount)
   const reduceMotion = useReducedMotion()
@@ -60,7 +62,12 @@ export function LevelHud({ state, className }: LevelHudProps): ReactNode {
             {level.title}
           </span>
 
-          <ScoreCounter score={score} comboActive={combo !== null} className="short:shrink-0" />
+          <ScoreCounter
+            score={score}
+            comboActive={combo !== null}
+            triadBoost={triadBoost}
+            className="short:shrink-0"
+          />
           <AssistChip assist={assist} className="short:shrink-0" />
           <ScaleChip run={scaleRun} className="short:shrink-0" />
 

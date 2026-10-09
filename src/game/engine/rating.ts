@@ -2,6 +2,7 @@ import { GAME_FEEL, RATING_RULES, type RatingRules } from '@/game/config'
 import type { LevelConfig } from '@/game/levels/levels'
 import { basePoints, stepCombo, type ComboStep } from './scoring'
 import { playedMs } from './selectors'
+import { triadMultiplier } from './triad'
 import type { GameState, GuessResult } from './types'
 
 export type StarCount = 0 | 1 | 2 | 3
@@ -35,8 +36,9 @@ export function ratingRulesFor(level: LevelConfig): RatingRules {
  *
  * `triadSlots` : la partie a connu des triades, ouvertes après autant de notes
  * trouvées. Le joueur de référence les vit comme le moteur l'impose : combo
- * éteint à leur ouverture, trois notes sans multiplicateur ni série. Sans quoi
- * un bonus tiré au sort coûterait des étoiles à performance égale.
+ * éteint à leur ouverture, trois notes hors série, doublées quand il bat leur
+ * anneau. Sans quoi un bonus tiré au sort ferait gagner ou perdre des étoiles
+ * à performance égale.
  */
 export function referenceScore(
   level: LevelConfig,
@@ -51,7 +53,7 @@ export function referenceScore(
     const inTriad = triadSlots.some((slot) => i >= slot && i < slot + 3)
     if (inTriad) {
       step = { combo: null, fastStreak: 0 }
-      score += basePoints(paceMs)
+      score += basePoints(paceMs) * triadMultiplier(paceMs)
     } else {
       const next = stepCombo(step.combo, step.fastStreak, {
         now,

@@ -132,13 +132,28 @@ describe('triade en partie', () => {
       slowestMs: LIMIT - 1,
     })
     expect(s.lastTriad?.reason).toBeUndefined()
-    // Les trois notes comptent pour la progression, sans multiplicateur ni combo.
+    // Les trois notes comptent pour la progression, doublées (anneau battu), sans combo.
     expect(s.correctCount).toBe(4)
     const triadResults = s.results.filter((r) => r.bonus === 'triad')
     expect(triadResults).toHaveLength(3)
-    expect(triadResults.every((r) => r.multiplier === 1)).toBe(true)
+    expect(triadResults.map((r) => r.multiplier)).toEqual([2, 2, 2])
+    expect(triadResults.every((r) => r.points === r.basePoints * 2)).toBe(true)
     expect(s.combo).toBeNull()
     expect(s.fastStreak).toBe(0)
+  })
+
+  it('double chaque note trouvée avant la fin de son anneau, même la triade perdue', () => {
+    // Fausse note d'emblée : la triade est perdue, mais les deux suivantes restent à battre.
+    const s = answer(answer(answer(opened, 900, false), 1200), LIMIT)
+    expect(s.lastTriad).toMatchObject({ success: false, reason: 'wrong' })
+    const [missed, inTime, late] = s.results.filter((r) => r.bonus === 'triad')
+    expect(missed).toMatchObject({ correct: false, multiplier: 1, points: 0 })
+    expect(inTime).toMatchObject({ correct: true, multiplier: 2, points: inTime.basePoints * 2 })
+    // Pile à la fin de l'anneau : trop tard, la note n'est plus doublée.
+    expect(late).toMatchObject({ correct: true, multiplier: 1, points: late.basePoints })
+    // Le combo reste éteint : les deux bonus ne se cumulent pas.
+    expect(s.combo).toBeNull()
+    expect(s.results.some((r) => r.comboTriggered)).toBe(false)
   })
 
   it('va au bout de ses trois notes, mais échoue sur une réponse lente ou fausse, et dit pourquoi', () => {

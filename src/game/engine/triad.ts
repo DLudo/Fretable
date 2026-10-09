@@ -1,4 +1,4 @@
-import { SCALE_RULES, TRIAD_RULES } from '@/game/config'
+import { COMBO_RULES, SCALE_RULES, TRIAD_RULES } from '@/game/config'
 import type { LevelConfig } from '@/game/levels/levels'
 import { triadVoicings, type TriadVoicing } from '@/game/music/chords'
 import { toPitchClass } from '@/game/music/notes'
@@ -6,6 +6,16 @@ import type { Tuning } from '@/game/music/tuning'
 import type { Random } from './challenge'
 import { shapeAroundTriad, type ScaleKind } from '@/game/music/scales'
 import type { Challenge, GameState, ScaleRunState, TriadPlan, TriadState } from './types'
+
+/**
+ * Multiplicateur d'une bonne réponse sur une note de triade : celui du combo si
+ * elle arrive avant la fin de son anneau (`TRIAD_RULES.fastReactionMs`), même
+ * quand la triade est déjà perdue ; 1 sinon. Le combo, lui, reste éteint : les
+ * deux ne se cumulent jamais.
+ */
+export function triadMultiplier(reactionMs: number): number {
+  return reactionMs < TRIAD_RULES.fastReactionMs ? COMBO_RULES.multiplier : 1
+}
 
 /**
  * Une triade peut-elle commencer avec la prochaine note ? Il faut une partie en

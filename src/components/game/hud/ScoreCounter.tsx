@@ -10,6 +10,11 @@ export interface ScoreCounterProps {
   score: number
   /** Combo en cours : la pastille « ×2 » s'affiche à côté du score. */
   comboActive: boolean
+  /**
+   * Note de triade dont l'anneau tourne : une bonne réponse vaut double, la
+   * pastille s'affiche en vert acide (le combo est alors toujours éteint).
+   */
+  triadBoost?: boolean
   className?: string
 }
 
@@ -22,10 +27,16 @@ function useScorePulse(score: number): number {
   return tracked.pulse
 }
 
-/** Score de la partie, et pastille du multiplicateur pendant un combo. */
-export function ScoreCounter({ score, comboActive, className }: ScoreCounterProps): ReactNode {
+/** Score de la partie, et pastille du multiplicateur pendant un combo ou l'anneau d'une triade. */
+export function ScoreCounter({
+  score,
+  comboActive,
+  triadBoost = false,
+  className,
+}: ScoreCounterProps): ReactNode {
   const reduceMotion = useReducedMotion()
   const pulse = useScorePulse(score)
+  const boost = comboActive ? 'combo' : triadBoost ? 'triad' : null
 
   return (
     <span
@@ -47,17 +58,28 @@ export function ScoreCounter({ score, comboActive, className }: ScoreCounterProp
         pts
       </span>
       <AnimatePresence>
-        {comboActive && (
+        {boost && (
           <motion.span
+            key={boost}
             data-slot="level-score-multiplier"
-            className="rounded-full bg-combo px-1.5 py-0.5 text-[0.7rem] leading-none font-bold text-combo-foreground shadow-[0_0_12px_var(--combo-glow)]"
+            data-boost={boost}
+            className={cn(
+              'rounded-full px-1.5 py-0.5 text-[0.7rem] leading-none font-bold',
+              boost === 'combo'
+                ? 'bg-combo text-combo-foreground shadow-[0_0_12px_var(--combo-glow)]'
+                : 'bg-triad text-triad-foreground shadow-[0_0_12px_var(--triad-glow)]',
+            )}
             initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.4 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.6, transition: { duration: duration.fast } }}
             transition={reduceMotion ? { duration: duration.fast } : spring.bouncy}
           >
             ×{COMBO_RULES.multiplier}
-            <span className="sr-only"> : combo actif, points doublés</span>
+            <span className="sr-only">
+              {boost === 'combo'
+                ? ' : combo actif, points doublés'
+                : ' : note de triade, points doublés avant la fin du délai'}
+            </span>
           </motion.span>
         )}
       </AnimatePresence>
