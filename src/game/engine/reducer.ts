@@ -76,12 +76,19 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'load':
       return createInitialState(action.levelIndex)
 
+    // Le niveau porté par l'état est conservé (`load` seul en change).
     case 'prepare':
-      return { ...createInitialState(state.levelIndex), phase: 'starting', startingAt: action.now }
+      return {
+        ...createInitialState(state.levelIndex),
+        level: state.level,
+        phase: 'starting',
+        startingAt: action.now,
+      }
 
     case 'start':
       return {
         ...createInitialState(state.levelIndex),
+        level: state.level,
         phase: 'playing',
         locked: false,
         challenge: action.challenge,

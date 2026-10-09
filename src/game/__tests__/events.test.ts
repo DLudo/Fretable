@@ -8,9 +8,11 @@ import {
   type GameEvent,
   type GameEventSnapshot,
 } from '@/game/engine/events'
-import { createInitialState, gameReducer } from '@/game/engine/reducer'
+import { gameReducer } from '@/game/engine/reducer'
 import type { Challenge, GameAction, GameState } from '@/game/engine/types'
 import type { PitchClass } from '@/game/music/notes'
+
+import { testState } from './fixtures'
 
 const challenge = (id: number, pc: PitchClass): Challenge => ({ id, stringIndex: 0, fret: 1, pc })
 
@@ -34,7 +36,7 @@ describe('ordre des événements', () => {
   /** Rejoue une suite d'actions et note les événements, comme `useGame`. */
   function record(actions: GameAction[]): string[] {
     const log: string[] = []
-    let state: GameState = createInitialState(0)
+    let state: GameState = testState()
     let emitted: GameEventSnapshot = EMPTY_EVENT_SNAPSHOT
     const flush = () => {
       const snapshot = {

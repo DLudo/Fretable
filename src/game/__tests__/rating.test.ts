@@ -8,20 +8,21 @@ import {
   remainingShare,
   retainedScore,
 } from '@/game/engine/rating'
-import { createInitialState, gameReducer } from '@/game/engine/reducer'
+import { gameReducer } from '@/game/engine/reducer'
 import type { Challenge, GameState, GuessResult } from '@/game/engine/types'
-import { getLevel } from '@/game/levels/levels'
+
+import { TEST_LEVEL, testState } from './fixtures'
 
 /**
  * Le tableau de référence a été étalonné sur un niveau de 30 s : la notation
  * est évaluée sur ce niveau-là, quelle que soit la durée du niveau 1 en jeu.
  */
-const level = { ...getLevel(0), durationMs: 30_000 }
+const level = TEST_LEVEL
 const note = (id: number): Challenge => ({ id, stringIndex: 0, fret: 1, pc: 5 })
 
 /** Partie jouée par le vrai moteur : une réponse toutes les `reactions[i]` ms, erreurs aux index donnés. */
 function play(reactions: number[], wrongAt: number[] = []): GameState {
-  let s = gameReducer(createInitialState(0), { type: 'start', now: 0, challenge: note(0) })
+  let s = gameReducer(testState(), { type: 'start', now: 0, challenge: note(0) })
   let t = 0
   for (let i = 0; i < reactions.length && s.phase === 'playing'; i++) {
     t += reactions[i]
@@ -116,7 +117,7 @@ describe('triade', () => {
       ] as const,
       scale: null,
     }
-    let s = gameReducer(createInitialState(0), { type: 'start', now: 0, challenge: note(0) })
+    let s = gameReducer(testState(), { type: 'start', now: 0, challenge: note(0) })
     let t = 0
     for (let i = 0; i < 6; i++) {
       t += 1500

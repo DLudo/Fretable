@@ -162,15 +162,14 @@ export const RATING_RULES = {
   /**
    * Part du temps du niveau qu'il faut garder en réserve pour la note maximale
    * côté temps (0,63 = 63 %). Figée : raccourcir le compte à rebours rend donc
-   * les étoiles plus exigeantes, en même temps que le niveau. 63 % correspond,
-   * sur 30 s et 6 notes, à une allure de 1,5 s par note sans erreur ; sur les
-   * 2 minutes actuelles, la part de temps sature presque toujours (à revoir avec
-   * le réglage des durées).
+   * les étoiles plus exigeantes, en même temps que le niveau. 63 % correspond
+   * à une allure de 1,5 s par note sans erreur, sur 6 notes en 30 s comme sur
+   * les 24 notes en 2 minutes du niveau 1.
    */
   referenceTimeShare: 0.63,
   /**
    * Allure étalon (ms par note, sans erreur) : le score qu'elle rapporte, combo
-   * compris, vaut la note maximale côté score (3 600 points au niveau 1).
+   * compris, vaut la note maximale côté score (18 000 points au niveau 1).
    */
   referencePaceMs: 1500,
   /** Étoiles au plus quand le coup de pouce a servi (3 : aucun plafond). */

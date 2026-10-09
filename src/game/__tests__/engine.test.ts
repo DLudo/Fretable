@@ -7,13 +7,15 @@ import { getLevel, hasNextLevel, LEVELS } from '@/game/levels/levels'
 import type { PitchClass } from '@/game/music/notes'
 import { STANDARD_TUNING } from '@/game/music/tuning'
 
+import { TEST_LEVEL, testState } from './fixtures'
+
 /** Échéance de la partie démarrée à 1 000 ms par `startedGame`. */
-const DEADLINE = 1000 + getLevel(0).durationMs
+const DEADLINE = 1000 + TEST_LEVEL.durationMs
 
 const challenge = (id: number, pc: PitchClass): Challenge => ({ id, stringIndex: 0, fret: 1, pc })
 
 const startedGame = (): GameState =>
-  gameReducer(createInitialState(0), { type: 'start', now: 1000, challenge: challenge(1, 5) })
+  gameReducer(testState(), { type: 'start', now: 1000, challenge: challenge(1, 5) })
 
 function play(state: GameState, pc: PitchClass, now: number, next?: Challenge): GameState {
   const guessed = gameReducer(state, { type: 'guess', pc, now })
@@ -21,8 +23,8 @@ function play(state: GameState, pc: PitchClass, now: number, next?: Challenge): 
 }
 
 describe('niveau 1', () => {
-  it('demande 6 notes en 2 minutes', () => {
-    expect(getLevel(0)).toMatchObject({ targetCount: 6, durationMs: 120_000 })
+  it('demande 24 notes en 2 minutes', () => {
+    expect(getLevel(0)).toMatchObject({ targetCount: 24, durationMs: 120_000 })
   })
 })
 
@@ -121,7 +123,7 @@ describe('moteur de jeu', () => {
 })
 
 describe('décompte avant la partie', () => {
-  const prepared = gameReducer(createInitialState(0), { type: 'prepare', now: 500 })
+  const prepared = gameReducer(testState(), { type: 'prepare', now: 500 })
 
   it('passe par la phase « starting » sans note ni temps qui court', () => {
     expect(prepared).toMatchObject({

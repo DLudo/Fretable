@@ -26,7 +26,7 @@ export const LEVELS: readonly LevelConfig[] = [
     id: 'level-1',
     number: 1,
     title: 'Niveau 1',
-    targetCount: 6,
+    targetCount: 24,
     durationMs: 120_000,
     frets: { min: 1, max: 12 },
     strings: [0, 1, 2, 3, 4, 5],

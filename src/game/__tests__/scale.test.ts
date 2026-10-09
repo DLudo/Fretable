@@ -2,12 +2,11 @@ import { describe, expect, it } from 'vitest'
 
 import { SCALE_RULES } from '@/game/config'
 import { rateGame, retainedScore } from '@/game/engine/rating'
-import { createInitialState, gameReducer } from '@/game/engine/reducer'
+import { gameReducer } from '@/game/engine/reducer'
 import { deadlineAt } from '@/game/engine/selectors'
 import { planTriad, scaleChallenge, triadChallenge } from '@/game/engine/triad'
 import type { GameState, TriadPlan } from '@/game/engine/types'
 import { remainingMs } from '@/game/engine/useCountdown'
-import { getLevel } from '@/game/levels/levels'
 import type { TriadVoicing } from '@/game/music/chords'
 import type { PitchClass } from '@/game/music/notes'
 import {
@@ -18,7 +17,9 @@ import {
 } from '@/game/music/scales'
 import { midiAt, pitchClassAt, STANDARD_TUNING } from '@/game/music/tuning'
 
-const level = getLevel(0)
+import { TEST_LEVEL, testState } from './fixtures'
+
+const level = TEST_LEVEL
 
 // Do♯ majeur sur les trois cordes graves : Do♯ (9ᵉ case), Fa (8ᵉ), Sol♯ (6ᵉ).
 const voicing: TriadVoicing = {
@@ -83,7 +84,7 @@ describe('parcours de gamme en partie', () => {
   const plan: TriadPlan = planTriad(voicing, level, STANDARD_TUNING)
   const shape = plan.scale!.shape
 
-  const started = gameReducer(createInitialState(0), {
+  const started = gameReducer(testState(), {
     type: 'start',
     now: 0,
     challenge: { id: 1, stringIndex: 0, fret: 1, pc: 5 },

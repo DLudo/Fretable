@@ -23,7 +23,7 @@ npm run dev        # jeu : http://localhost:5173
 ## Règles et contrôles
 
 - **Départ** : chaque partie s'ouvre sur un décompte **3, 2, 1** affiché sur le manche ; la première note apparaît à son terme, et c'est alors seulement que le temps se met à courir. Pendant le décompte, le piano ne répond pas. Rythme et longueur se règlent dans `GAME_FEEL` (`startCountdownFrom`, `startCountdownStepMs`) ; `startCountdownFrom: 0` supprime le décompte.
-- **Niveau 1** : trouver **6 notes en 2 minutes**. Chaque bonne réponse remplit la barre d'un sixième. Une erreur révèle la bonne note en rouge, puis une nouvelle note apparaît.
+- **Niveau 1** : trouver **24 notes en 2 minutes**. Chaque bonne réponse remplit la barre d'un cran. Une erreur révèle la bonne note en rouge, puis une nouvelle note apparaît.
 - **Temps écoulé** : la note en attente est révélée en rouge (sans compter comme une erreur), puis l'écran de fin la rappelle.
 - **Points** : chaque bonne réponse rapporte selon le temps de réaction, mesuré depuis l'apparition du point. 0,5 s ou moins vaut 1 000 points (coup critique), moins de 1 s 600, moins de 2 s 400, moins de 3 s 300, moins de 5 s 200, moins de 10 s 100, au-delà 50.
 - **Combo** : trois bonnes réponses d'affilée en moins de 3 s allument le pourtour du manche (halo et particules bleues) et doublent les points des notes suivantes. Une jauge bleue apparaît sous la barre de progression et se vide en 6 s, quelles que soient les réponses. Chaque bonne réponse en moins de 3 s la recharge de 2 s, sans jamais dépasser 6 s. Une fois la jauge vide, il faut à nouveau trois réponses rapides.
@@ -117,8 +117,8 @@ indice = scoreWeight × min(1, score retenu / score de référence)
        + (1 − scoreWeight) × min(1, part de temps restante / referenceTimeShare)
 ```
 
-- `referenceTimeShare` est une part du temps du niveau, **figée** (63 %) : raccourcir le compte à rebours rend les étoiles plus exigeantes en même temps que le niveau. Elle a été étalonnée sur 30 s ; avec les 2 minutes actuelles, la part de temps sature presque toujours et les étoiles dépendent surtout du score, en attendant le réglage des durées ;
-- le score de référence est celui d'un joueur simulé à `referencePaceMs` par note, sans erreur (3 600 points au niveau 1) ;
+- `referenceTimeShare` est une part du temps du niveau, **figée** (63 %) : raccourcir le compte à rebours rend les étoiles plus exigeantes en même temps que le niveau. Étalonnée sur 6 notes en 30 s, elle correspond de nouveau, avec 24 notes en 2 minutes, à une allure d'environ 1,5 s par note : trois étoiles jusque vers 1,9 s par note, deux entre 2 et 3 s, une au-delà ;
+- le score de référence est celui d'un joueur simulé à `referencePaceMs` par note, sans erreur (18 000 points au niveau 1) ;
 - `twoStarsAt` et `threeStarsAt` placent les seuils, `maxStarsWithAssist` peut plafonner une partie aidée.
 
 Un niveau peut surcharger ces réglages avec son champ `rating`. Sur l'écran de victoire, `data-rating-index` donne l'indice obtenu, et `rateGame` (`src/game/engine/rating.ts`) en détaille les composantes. Les tests de `rating.test.ts` rejouent le tableau de référence : ils signalent tout réglage qui en déplace une ligne.

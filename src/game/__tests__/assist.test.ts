@@ -3,11 +3,12 @@ import { describe, expect, it } from 'vitest'
 import { ASSIST_RULES } from '@/game/config'
 import { averageReactionMs, shouldOfferAssist } from '@/game/engine/assist'
 import { createAssistChallenge } from '@/game/engine/challenge'
-import { createInitialState, gameReducer } from '@/game/engine/reducer'
+import { gameReducer } from '@/game/engine/reducer'
 import type { Challenge, GameState, GuessResult } from '@/game/engine/types'
-import { getLevel } from '@/game/levels/levels'
 import type { PitchClass } from '@/game/music/notes'
 import { pitchClassAt, STANDARD_TUNING } from '@/game/music/tuning'
+
+import { TEST_LEVEL, testState } from './fixtures'
 
 const answer = (reactionMs: number | null): GuessResult => ({
   id: 1,
@@ -40,7 +41,7 @@ describe('condition du coup de pouce', () => {
 })
 
 describe('note du coup de pouce', () => {
-  const level = getLevel(0)
+  const level = TEST_LEVEL
   const previous: Challenge = { id: 1, stringIndex: 0, fret: 3, pc: 7 }
   let seed = 11
   const random = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646
@@ -86,7 +87,7 @@ describe('coup de pouce en partie', () => {
     return s
   }
 
-  const started = gameReducer(createInitialState(0), {
+  const started = gameReducer(testState(), {
     type: 'start',
     now: 0,
     challenge: note(1, 2),
@@ -107,7 +108,7 @@ describe('coup de pouce en partie', () => {
       { reaction: 7000, roll: 0.1, next: note(3, 4, true) },
     ])
     expect(offered.bonusTimeMs).toBe(ASSIST_RULES.bonusTimeMs)
-    const duration = getLevel(0).durationMs
+    const duration = TEST_LEVEL.durationMs
     const deadline = duration + ASSIST_RULES.bonusTimeMs
     // Au-delà de la durée du niveau, la réponse est encore acceptée…
     const late = gameReducer(offered, { type: 'guess', pc: 4, now: duration + 500 })

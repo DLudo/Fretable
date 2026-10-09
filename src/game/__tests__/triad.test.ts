@@ -2,15 +2,16 @@ import { describe, expect, it } from 'vitest'
 
 import { TRIAD_RULES } from '@/game/config'
 import { averageReactionMs } from '@/game/engine/assist'
-import { createInitialState, gameReducer } from '@/game/engine/reducer'
+import { gameReducer } from '@/game/engine/reducer'
 import { canStartTriad, createTriadVoicing, triadChallenge } from '@/game/engine/triad'
 import type { Challenge, GameState, TriadPlan } from '@/game/engine/types'
-import { getLevel } from '@/game/levels/levels'
 import { chordName, triadPitchClasses, triadVoicings, type TriadQuality } from '@/game/music/chords'
 import type { PitchClass } from '@/game/music/notes'
 import { midiAt, pitchClassAt, STANDARD_TUNING } from '@/game/music/tuning'
 
-const level = getLevel(0)
+import { TEST_LEVEL, testState } from './fixtures'
+
+const level = TEST_LEVEL
 const range = { frets: level.frets, strings: level.strings, maxFretSpan: TRIAD_RULES.maxFretSpan }
 
 describe('triades', () => {
@@ -75,7 +76,7 @@ describe('triade en partie', () => {
   }
   const note = (id: number, pc: PitchClass): Challenge => ({ id, stringIndex: 0, fret: 1, pc })
 
-  const started = gameReducer(createInitialState(0), {
+  const started = gameReducer(testState(), {
     type: 'start',
     now: 0,
     challenge: note(1, 2),
