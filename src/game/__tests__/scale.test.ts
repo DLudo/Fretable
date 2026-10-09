@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { SCALE_RULES } from '@/game/config'
+import { SCALE_RULES, TRIAD_RULES } from '@/game/config'
 import { rateGame, retainedScore } from '@/game/engine/rating'
 import { gameReducer } from '@/game/engine/reducer'
 import { deadlineAt } from '@/game/engine/selectors'
@@ -126,7 +126,7 @@ describe('parcours de gamme en partie', () => {
   })
 
   it('ne s’ouvre pas sur une triade manquée', () => {
-    const missed = play(play(play(opened, 800), 2500), 800)
+    const missed = play(play(play(opened, 800), TRIAD_RULES.fastReactionMs + 500), 800)
     expect(missed.lastTriad).toMatchObject({ success: false })
     expect(missed.lastTriad?.scale).toBeUndefined()
     expect(missed.scaleRun).toBeNull()

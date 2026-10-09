@@ -120,7 +120,7 @@ export const TRIAD_RULES = {
    */
   minNotesLeft: 4,
   /** Temps de réaction maximal, par note, pour réussir la triade (ms). */
-  fastReactionMs: 2000,
+  fastReactionMs: 3000,
   /** Écart maximal entre la plus basse et la plus haute case de la triade. */
   maxFretSpan: 3,
   /** Qualités tirées au sort (le palier 1 ajoutera les autres). */

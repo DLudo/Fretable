@@ -12,6 +12,8 @@ import { midiAt, pitchClassAt, STANDARD_TUNING } from '@/game/music/tuning'
 import { TEST_LEVEL, testState } from './fixtures'
 
 const level = TEST_LEVEL
+/** Seuil de rapidité d'une note de triade (ms). */
+const LIMIT = TRIAD_RULES.fastReactionMs
 const range = { frets: level.frets, strings: level.strings, maxFretSpan: TRIAD_RULES.maxFretSpan }
 
 describe('triades', () => {
@@ -119,15 +121,15 @@ describe('triade en partie', () => {
     expect(s).toMatchObject({ combo: null, fastStreak: 0 })
   })
 
-  it('est réussie quand les trois notes sont justes, chacune en moins de 2 s', () => {
-    const s = answer(answer(answer(opened, 900), 1500), 1999)
+  it('est réussie quand les trois notes sont justes, chacune sous le seuil de rapidité', () => {
+    const s = answer(answer(answer(opened, 900), 1500), LIMIT - 1)
     expect(s.triad).toBeNull()
     expect(s.lastTriad).toMatchObject({
       root: 9,
       quality: 'minor',
       success: true,
       missed: 0,
-      slowestMs: 1999,
+      slowestMs: LIMIT - 1,
     })
     expect(s.lastTriad?.reason).toBeUndefined()
     // Les trois notes comptent pour la progression, sans multiplicateur ni combo.
@@ -140,21 +142,21 @@ describe('triade en partie', () => {
   })
 
   it('va au bout de ses trois notes, mais échoue sur une réponse lente ou fausse, et dit pourquoi', () => {
-    const slow = answer(answer(answer(opened, 900), 2000), 900)
+    const slow = answer(answer(answer(opened, 900), LIMIT), 900)
     expect(slow.lastTriad).toMatchObject({
       success: false,
       reason: 'slow',
       missed: 0,
-      slowestMs: 2000,
+      slowestMs: LIMIT,
     })
     const wrong = answer(opened, 900, false)
     expect(wrong.triad).toMatchObject({ step: 1, clean: false, missed: 1 })
     // Une erreur l'emporte sur la lenteur comme raison.
-    expect(answer(answer(wrong, 2500), 500).lastTriad).toMatchObject({
+    expect(answer(answer(wrong, LIMIT + 500), 500).lastTriad).toMatchObject({
       success: false,
       reason: 'wrong',
       missed: 1,
-      slowestMs: 2500,
+      slowestMs: LIMIT + 500,
     })
   })
 
