@@ -7,6 +7,7 @@ import type { TriadOutcome } from '@/game/engine/types'
 import { chordName } from '@/game/music/chords'
 import { scaleKindName } from '@/game/music/scales'
 import { cn } from '@/lib/utils'
+import { formatSeconds } from './hud/format'
 import { duration, ease, spring } from '@/theme/motion'
 
 /** Durée de l'annonce (ms). */
@@ -18,10 +19,20 @@ export interface TriadBannerProps {
   className?: string
 }
 
+/** Pourquoi la triade est manquée, en quelques mots. */
+function failureReason(outcome: TriadOutcome): string | null {
+  if (outcome.reason === 'wrong')
+    return outcome.missed > 1 ? `${outcome.missed} erreurs` : 'une erreur'
+  // Arrondi supérieur : une réponse lente ne s'affiche jamais sous le seuil.
+  if (outcome.reason === 'slow') return `trop lente (${formatSeconds(outcome.slowestMs, 'ceil')})`
+  return null
+}
+
 /**
  * Issue d'une triade, en haut de la scène : vert acide quand elle est réussie
- * (avec la gamme dont la forme s'ouvre), sobre quand elle est manquée. Dans les
- * deux cas l'accord est nommé : l'essai sert d'apprentissage. Ne capte pas les clics.
+ * (avec la gamme dont la forme s'ouvre), sobre quand elle est manquée, avec sa
+ * raison (une erreur, ou la réponse la plus lente). Dans les deux cas l'accord
+ * est nommé : l'essai sert d'apprentissage. Ne capte pas les clics.
  */
 export function TriadBanner({ outcome, className }: TriadBannerProps): ReactNode {
   const reduceMotion = useReducedMotion()
@@ -39,6 +50,7 @@ export function TriadBanner({ outcome, className }: TriadBannerProps): ReactNode
   }, [shown])
 
   const Icon = shown?.success ? Sparkles : Music2
+  const reason = shown && failureReason(shown)
   return (
     <AnimatePresence>
       {shown && (
@@ -48,7 +60,7 @@ export function TriadBanner({ outcome, className }: TriadBannerProps): ReactNode
           data-success={shown.success || undefined}
           role="status"
           className={cn(
-            'flex items-center gap-2 rounded-full py-1.5 pr-4 pl-3 text-sm whitespace-nowrap short:py-1 short:text-xs max-sm:text-xs',
+            'flex items-center gap-2 rounded-full py-1.5 pr-4 pl-3 text-sm whitespace-nowrap short:py-1 short:text-xs max-sm:gap-1.5 max-sm:text-xs',
             shown.success
               ? 'bg-triad text-triad-foreground shadow-[0_6px_24px_-6px_var(--triad)]'
               : 'bg-secondary text-secondary-foreground',
@@ -64,6 +76,7 @@ export function TriadBanner({ outcome, className }: TriadBannerProps): ReactNode
             {shown.success ? 'Triade réussie' : 'Triade manquée'}
           </span>
           <span>{chordName(shown.root, shown.quality, NOTATION)}</span>
+          {reason && <span data-slot="triad-banner-reason">· {reason}</span>}
           {shown.scale && (
             <span data-slot="triad-banner-scale" className="font-semibold">
               → <span className="max-sm:hidden">suis la </span>

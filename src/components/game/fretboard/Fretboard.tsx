@@ -29,6 +29,8 @@ export interface FretboardMarker {
   fret: number
   /** `assist` : note du coup de pouce, cerclée d'ambre ; `triad` : note d'une triade, en vert acide. */
   variant?: 'default' | 'assist' | 'triad'
+  /** Temps imparti pour répondre (ms) : un anneau se vide autour du point. */
+  countdownMs?: number
 }
 
 /** Note à venir, montrée en filigrane (gris) : suite d'une triade, forme de gamme. */
@@ -220,6 +222,7 @@ export function Fretboard({
                 haloId={haloId}
                 triadGlowId={triadGlowId}
                 variant={marker.variant}
+                countdownMs={marker.countdownMs}
                 reduceMotion={reduceMotion}
               />
             )}

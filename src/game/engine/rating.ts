@@ -33,18 +33,22 @@ export function ratingRulesFor(level: LevelConfig): RatingRules {
  * note, sans erreur ni coup de pouce : mêmes règles de points et de combo que
  * le moteur, mêmes temps de révélation entre deux notes.
  *
- * `triadSlot` : la partie a connu une triade ouverte après autant de notes
- * trouvées. Le joueur de référence la vit comme le moteur l'impose : combo
- * éteint à son ouverture, trois notes sans multiplicateur ni série. Sans quoi
+ * `triadSlots` : la partie a connu des triades, ouvertes après autant de notes
+ * trouvées. Le joueur de référence les vit comme le moteur l'impose : combo
+ * éteint à leur ouverture, trois notes sans multiplicateur ni série. Sans quoi
  * un bonus tiré au sort coûterait des étoiles à performance égale.
  */
-export function referenceScore(level: LevelConfig, paceMs: number, triadSlot?: number): number {
+export function referenceScore(
+  level: LevelConfig,
+  paceMs: number,
+  triadSlots: readonly number[] = [],
+): number {
   let step: Pick<ComboStep, 'combo' | 'fastStreak'> = { combo: null, fastStreak: 0 }
   let now = 0
   let score = 0
   for (let i = 0; i < level.targetCount; i++) {
     now += paceMs
-    const inTriad = triadSlot !== undefined && i >= triadSlot && i < triadSlot + 3
+    const inTriad = triadSlots.some((slot) => i >= slot && i < slot + 3)
     if (inTriad) {
       step = { combo: null, fastStreak: 0 }
       score += basePoints(paceMs)
@@ -99,11 +103,11 @@ export function remainingShare(
  */
 export function rateGame(
   state: Pick<GameState, 'phase' | 'level' | 'startedAt' | 'endedAt' | 'results' | 'assistUsed'> &
-    Partial<Pick<GameState, 'pausedMs' | 'lastTriad'>>,
+    Partial<Pick<GameState, 'pausedMs' | 'triadSlots'>>,
   rules: RatingRules = ratingRulesFor(state.level),
 ): GameRating {
   const retained = retainedScore(state.results)
-  const reference = referenceScore(state.level, rules.referencePaceMs, state.lastTriad?.slot)
+  const reference = referenceScore(state.level, rules.referencePaceMs, state.triadSlots)
   const share = remainingShare(state)
   const scoreRatio = reference > 0 ? Math.min(1, retained / reference) : 1
   const timeRatio = rules.referenceTimeShare > 0 ? Math.min(1, share / rules.referenceTimeShare) : 1

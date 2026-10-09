@@ -3,6 +3,7 @@ import { useAnimate, useReducedMotion, type Transition } from 'motion/react'
 
 import { RevealLayer } from '@/effects'
 import { ComboAura } from '@/effects/ambient'
+import { TRIAD_RULES } from '@/game/config'
 import type { GameEventBus } from '@/game/engine/events'
 import { endScreenAt } from '@/game/engine/selectors'
 import { useGame } from '@/game/engine/useGame'
@@ -111,6 +112,10 @@ export function GameScreen({ className }: GameScreenProps) {
             : state.challenge.triad || state.challenge.scale
               ? ('triad' as const)
               : ('default' as const),
+          // Triade encore jouable : le délai par note s'égrène autour du point.
+          ...(state.challenge.triad && state.triad?.clean
+            ? { countdownMs: TRIAD_RULES.fastReactionMs }
+            : {}),
         }
       : null
 

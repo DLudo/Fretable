@@ -81,6 +81,10 @@ export interface TriadState extends TriadPlan {
   step: number
   /** Toutes les réponses jusqu'ici justes, et chacune assez rapide. */
   clean: boolean
+  /** Réponses fausses jusqu'ici. */
+  missed: number
+  /** Temps de réaction le plus long jusqu'ici (ms). */
+  slowestMs: number
 }
 
 /** Issue de la dernière triade. */
@@ -93,6 +97,12 @@ export interface TriadOutcome {
   slot: number
   /** Trois bonnes réponses, chacune en moins de `TRIAD_RULES.fastReactionMs`. */
   success: boolean
+  /** Raison de l'échec : une erreur au moins, ou une réponse trop lente. */
+  reason?: 'wrong' | 'slow'
+  /** Réponses fausses. */
+  missed: number
+  /** Temps de réaction le plus long des trois notes (ms). */
+  slowestMs: number
   /** Gamme dont le parcours s'ouvre à la suite (triade réussie et forme disponible). */
   scale?: ScaleShape['kind']
 }
@@ -161,6 +171,10 @@ export interface GameState {
   triad: TriadState | null
   /** Triades commencées dans cette partie (voir `TRIAD_RULES.maxPerGame`). */
   triadsStarted: number
+  /** Place de chaque triade de la partie : notes trouvées à son ouverture. */
+  triadSlots: readonly number[]
+  /** Notes ordinaires à jouer encore avant qu'une triade puisse recommencer. */
+  triadCooldown: number
   /** Issue de la dernière triade, ou `null`. */
   lastTriad: TriadOutcome | null
   /** Parcours de gamme en cours, ou `null`. */

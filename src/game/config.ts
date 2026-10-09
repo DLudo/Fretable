@@ -98,17 +98,22 @@ export const ASSIST_RULES = {
 export const NOTATION = 'solfege' as const
 
 /**
- * Bonus de mode, première étape : à un moment aléatoire, trois notes forment
- * une triade jouable (fondamentale, tierce, quinte sur trois cordes voisines).
+ * Bonus de mode, première étape : à tout moment de la partie, trois notes
+ * peuvent former une triade jouable (fondamentale, tierce, quinte sur trois cordes voisines).
  * Trouvées toutes trois, chacune en moins de `fastReactionMs`, elles ouvrent le
  * parcours de gamme. Les notes de la triade ne nourrissent ni le combo ni le
  * coup de pouce.
  */
 export const TRIAD_RULES = {
   /** Chance, à chaque nouvelle note où c'est possible, qu'une triade commence. */
-  chance: 0.35,
-  /** Triades au plus par partie. */
-  maxPerGame: 1,
+  chance: 0.2,
+  /** Triades au plus par partie (`Infinity` : aucune limite). */
+  maxPerGame: Number.POSITIVE_INFINITY,
+  /**
+   * Notes ordinaires à jouer entre la fin d'une triade (ou de son parcours de
+   * gamme) et le début de la suivante : elles ne s'enchaînent jamais.
+   */
+  minNotesBetween: 4,
   /**
    * Notes qu'il doit rester à trouver quand la triade commence : ses trois
    * notes, plus une, pour que la partie ne s'achève pas sur la triade.

@@ -103,7 +103,7 @@ export function useGame(options: UseGameOptions = {}): GameController {
   // Après une tentative : on laisse vivre la révélation, puis nouvelle note —
   // imposée par la triade ou le coup de pouce en cours, ou début d'une triade.
   const { phase, locked, lastResult, challenge, assist, triad, triadsStarted, correctCount } = state
-  const { level, scaleRun } = state
+  const { level, scaleRun, triadCooldown } = state
   useEffect(() => {
     if (phase !== 'playing' || !locked || !lastResult) return
     const hold = lastResult.correct ? GAME_FEEL.holdAfterCorrectMs : GAME_FEEL.holdAfterWrongMs
@@ -120,6 +120,7 @@ export function useGame(options: UseGameOptions = {}): GameController {
           triad,
           assist,
           triadsStarted,
+          triadCooldown,
           correctCount,
           level,
           scaleRun,
@@ -151,6 +152,7 @@ export function useGame(options: UseGameOptions = {}): GameController {
     triad,
     scaleRun,
     triadsStarted,
+    triadCooldown,
     correctCount,
     level,
     tuning,

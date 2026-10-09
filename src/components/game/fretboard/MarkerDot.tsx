@@ -29,6 +29,12 @@ interface MarkerDotProps {
    * `triad` : note d'une triade, nimbée de vert acide et semée d'étincelles (`--triad`).
    */
   variant?: 'default' | 'assist' | 'triad'
+  /**
+   * Temps imparti pour répondre (ms) : un anneau vert acide se vide autour du
+   * point, depuis midi et dans le sens des aiguilles d'une montre. Il renseigne,
+   * donc il s'écoule aussi quand les animations sont réduites.
+   */
+  countdownMs?: number
   reduceMotion: boolean
 }
 
@@ -67,6 +73,7 @@ export function MarkerDot({
   haloId,
   triadGlowId,
   variant = 'default',
+  countdownMs,
   reduceMotion,
 }: MarkerDotProps) {
   return (
@@ -138,6 +145,31 @@ export function MarkerDot({
           className="stroke-assist"
           strokeWidth={r * 0.3}
         />
+      )}
+      {countdownMs !== undefined && (
+        <g data-slot="fretboard-marker-countdown">
+          <circle
+            cx={cx}
+            cy={cy}
+            r={r * 1.5}
+            fill="none"
+            className="stroke-triad"
+            strokeOpacity={0.25}
+            strokeWidth={r * 0.24}
+          />
+          <motion.path
+            // Deux demi-cercles depuis midi, dans le sens antihoraire : en se
+            // rétractant, l'arc restant recule dans le sens des aiguilles d'une
+            // montre, comme balayé par une trotteuse.
+            d={`M ${cx} ${cy - r * 1.5} A ${r * 1.5} ${r * 1.5} 0 1 0 ${cx} ${cy + r * 1.5} A ${r * 1.5} ${r * 1.5} 0 1 0 ${cx} ${cy - r * 1.5}`}
+            fill="none"
+            className="stroke-triad"
+            strokeWidth={r * 0.24}
+            initial={{ pathLength: 1 }}
+            animate={{ pathLength: 0 }}
+            transition={{ duration: countdownMs / 1000, ease: 'linear' }}
+          />
+        </g>
       )}
       <circle
         data-slot="fretboard-marker-dot"

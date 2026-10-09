@@ -9,14 +9,15 @@ import type { Challenge, GameState, ScaleRunState, TriadPlan, TriadState } from 
 
 /**
  * Une triade peut-elle commencer avec la prochaine note ? Il faut une partie en
- * cours, ni triade ni coup de pouce déjà engagés, le quota de la partie non
- * atteint, et assez de notes à trouver pour que la partie ne s'achève pas
- * dessus (`TRIAD_RULES.minNotesLeft`).
+ * cours, ni triade, ni parcours de gamme, ni coup de pouce engagés, le quota de
+ * la partie non atteint, assez de notes ordinaires jouées depuis la précédente
+ * (`TRIAD_RULES.minNotesBetween`), et assez de notes à trouver pour que la
+ * partie ne s'achève pas dessus (`TRIAD_RULES.minNotesLeft`).
  */
 export function canStartTriad(
   state: Pick<
     GameState,
-    'phase' | 'triad' | 'assist' | 'triadsStarted' | 'correctCount' | 'level'
+    'phase' | 'triad' | 'assist' | 'triadsStarted' | 'triadCooldown' | 'correctCount' | 'level'
   > &
     Partial<Pick<GameState, 'scaleRun'>>,
 ): boolean {
@@ -25,6 +26,7 @@ export function canStartTriad(
     state.triad === null &&
     !state.scaleRun &&
     state.assist === null &&
+    state.triadCooldown <= 0 &&
     state.triadsStarted < TRIAD_RULES.maxPerGame &&
     state.level.targetCount - state.correctCount >= TRIAD_RULES.minNotesLeft
   )

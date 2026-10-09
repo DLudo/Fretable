@@ -122,7 +122,14 @@ describe('triade en partie', () => {
   it('est réussie quand les trois notes sont justes, chacune en moins de 2 s', () => {
     const s = answer(answer(answer(opened, 900), 1500), 1999)
     expect(s.triad).toBeNull()
-    expect(s.lastTriad).toMatchObject({ root: 9, quality: 'minor', success: true })
+    expect(s.lastTriad).toMatchObject({
+      root: 9,
+      quality: 'minor',
+      success: true,
+      missed: 0,
+      slowestMs: 1999,
+    })
+    expect(s.lastTriad?.reason).toBeUndefined()
     // Les trois notes comptent pour la progression, sans multiplicateur ni combo.
     expect(s.correctCount).toBe(4)
     const triadResults = s.results.filter((r) => r.bonus === 'triad')
@@ -132,12 +139,23 @@ describe('triade en partie', () => {
     expect(s.fastStreak).toBe(0)
   })
 
-  it('va au bout de ses trois notes, mais échoue sur une réponse lente ou fausse', () => {
+  it('va au bout de ses trois notes, mais échoue sur une réponse lente ou fausse, et dit pourquoi', () => {
     const slow = answer(answer(answer(opened, 900), 2000), 900)
-    expect(slow.lastTriad).toMatchObject({ success: false })
+    expect(slow.lastTriad).toMatchObject({
+      success: false,
+      reason: 'slow',
+      missed: 0,
+      slowestMs: 2000,
+    })
     const wrong = answer(opened, 900, false)
-    expect(wrong.triad).toMatchObject({ step: 1, clean: false })
-    expect(answer(answer(wrong, 500), 500).lastTriad).toMatchObject({ success: false })
+    expect(wrong.triad).toMatchObject({ step: 1, clean: false, missed: 1 })
+    // Une erreur l'emporte sur la lenteur comme raison.
+    expect(answer(answer(wrong, 2500), 500).lastTriad).toMatchObject({
+      success: false,
+      reason: 'wrong',
+      missed: 1,
+      slowestMs: 2500,
+    })
   })
 
   it('ne nourrit pas le coup de pouce', () => {
@@ -160,20 +178,46 @@ describe('triade en partie', () => {
     expect(t.assistUsed).toBe(false)
   })
 
-  it('ne commence qu’une fois par partie, hors coup de pouce, avec assez de notes à trouver', () => {
+  it('ne commence qu’après quelques notes ordinaires, hors coup de pouce, avec assez de notes à trouver', () => {
     const playing = { ...answered, phase: 'playing' as const }
     expect(canStartTriad(playing)).toBe(true)
-    expect(canStartTriad({ ...playing, triadsStarted: TRIAD_RULES.maxPerGame })).toBe(false)
+    expect(canStartTriad({ ...playing, triadCooldown: 1 })).toBe(false)
     expect(canStartTriad({ ...playing, assist: { pc: 2, total: 3, remaining: 3 } })).toBe(false)
     const late = { ...playing, correctCount: level.targetCount - TRIAD_RULES.minNotesLeft + 1 }
     expect(canStartTriad(late)).toBe(false)
     // Refusée par le moteur, la note reste mais redevient ordinaire.
     const refused = gameReducer(
-      { ...answered, triadsStarted: TRIAD_RULES.maxPerGame },
+      { ...answered, triadCooldown: 2 },
       { type: 'next', challenge: triadChallenge(2, voicing, 0), now: 1400, triad: voicing },
     )
     expect(refused.triad).toBeNull()
     expect(refused.challenge?.triad).toBeUndefined()
+    expect(refused.triadsStarted).toBe(0)
+  })
+
+  it('revient plusieurs fois dans la partie, séparée par quelques notes ordinaires', () => {
+    // Niveau plus long : deux triades et leurs notes d'intervalle y tiennent.
+    const long = { ...opened, level: { ...level, targetCount: 24 } }
+    let s = answer(answer(answer(long, 900), 900), 900)
+    expect(s.triadCooldown).toBe(TRIAD_RULES.minNotesBetween)
+    expect(canStartTriad(s)).toBe(false)
+    // Notes ordinaires, justes ou fausses : chacune rapproche la suivante.
+    for (let i = 0; i < TRIAD_RULES.minNotesBetween; i++) {
+      s = gameReducer(s, { type: 'next', challenge: note(50 + i, 2), now: s.lastResult!.at + 400 })
+      expect(canStartTriad(s)).toBe(false)
+      s = gameReducer(s, { type: 'guess', pc: i === 1 ? 3 : 2, now: s.challengeShownAt! + 900 })
+    }
+    expect(s.triadCooldown).toBe(0)
+    expect(canStartTriad(s)).toBe(true)
+    s = gameReducer(s, {
+      type: 'next',
+      challenge: triadChallenge(60, voicing, 0),
+      now: s.lastResult!.at + 400,
+      triad: voicing,
+    })
+    expect(s.triad).toMatchObject({ step: 0, clean: true, slot: 7 })
+    expect(s.triadsStarted).toBe(2)
+    expect(s.triadSlots).toEqual([1, 7])
   })
 
   it('s’efface à la fin du temps', () => {

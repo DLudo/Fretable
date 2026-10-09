@@ -33,6 +33,8 @@ export function createInitialState(levelIndex = 0): GameState {
     bonusTimeMs: 0,
     triad: null,
     triadsStarted: 0,
+    triadSlots: [],
+    triadCooldown: 0,
     lastTriad: null,
     scaleRun: null,
     lastScaleRun: null,
@@ -201,6 +203,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         bonusTimeMs,
         triad: won ? null : triad,
         lastTriad,
+        // Une triade qui s'achève impose quelques notes ordinaires avant la suivante.
+        triadCooldown:
+          triadNote && triad === null
+            ? TRIAD_RULES.minNotesBetween
+            : triadNote
+              ? state.triadCooldown
+              : Math.max(0, state.triadCooldown - 1),
         scaleRun,
         pausedAt,
         lastResult: result,
@@ -225,8 +234,16 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       // Triade engagée : combo éteint (un bonus ne se cumule pas avec lui).
       return {
         ...shown,
-        triad: { ...action.triad, step: 0, clean: true, slot: state.correctCount },
+        triad: {
+          ...action.triad,
+          step: 0,
+          clean: true,
+          missed: 0,
+          slowestMs: 0,
+          slot: state.correctCount,
+        },
         triadsStarted: state.triadsStarted + 1,
+        triadSlots: [...state.triadSlots, state.correctCount],
         combo: null,
         fastStreak: 0,
       }
@@ -289,9 +306,11 @@ function advanceTriad(
   answer: { id: number; correct: boolean; reactionMs: number },
   lastTriad: TriadOutcome | null = null,
 ): { triad: TriadState | null; lastTriad: TriadOutcome | null } {
-  const clean = triad.clean && answer.correct && answer.reactionMs < TRIAD_RULES.fastReactionMs
+  const missed = triad.missed + (answer.correct ? 0 : 1)
+  const slowestMs = Math.max(triad.slowestMs, answer.reactionMs)
+  const clean = missed === 0 && slowestMs < TRIAD_RULES.fastReactionMs
   if (triad.step + 1 < triad.notes.length) {
-    return { triad: { ...triad, step: triad.step + 1, clean }, lastTriad }
+    return { triad: { ...triad, step: triad.step + 1, clean, missed, slowestMs }, lastTriad }
   }
   return {
     triad: null,
@@ -301,6 +320,9 @@ function advanceTriad(
       quality: triad.quality,
       slot: triad.slot,
       success: clean,
+      ...(clean ? {} : { reason: missed > 0 ? ('wrong' as const) : ('slow' as const) }),
+      missed,
+      slowestMs,
     },
   }
 }
