@@ -27,11 +27,13 @@ import {
 } from '@/components/ui/card'
 import { Kbd } from '@/components/ui/kbd'
 import { NOTATION } from '@/game/config'
+import { rateGame } from '@/game/engine/rating'
 import type { GameState } from '@/game/engine/types'
 import { keyHint } from '@/game/input/keymap'
 import { NATURAL_PCS, noteName } from '@/game/music/notes'
 import { cn } from '@/lib/utils'
 import { duration, ease } from '@/theme/motion'
+import { RatingStars } from './RatingStars'
 
 export interface LevelOverlayProps {
   state: GameState
@@ -274,7 +276,14 @@ function WonPanel({
         )
       }
     >
-      <ScoreLine score={state.score} className="mb-4" />
+      {/* Étoiles au-dessus du score ; sur écran bas, à sa droite pour gagner une ligne. */}
+      <div
+        data-slot="level-overlay-result"
+        className="mb-4 flex flex-col gap-4 short:flex-row-reverse short:items-center short:justify-between"
+      >
+        <RatingStars rating={rateGame(state)} />
+        <ScoreLine score={state.score} />
+      </div>
       <dl data-slot="level-overlay-stats" className="grid grid-cols-3 divide-x rounded-lg border">
         {/* Tronqué : avec le minuteur du HUD (arrondi au-dessus), le total fait la durée du niveau. */}
         <Stat label="Temps" value={formatSeconds(elapsed, 'floor')} />

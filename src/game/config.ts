@@ -89,3 +89,40 @@ export const ASSIST_RULES = {
 
 /** Notation affichée partout (piano, révélations). */
 export const NOTATION = 'solfege' as const
+
+/**
+ * Notation de fin de niveau, de une à trois étoiles. Une étoile récompense le
+ * niveau réussi ; les suivantes dépendent d'un indice qui mêle le score et la
+ * part du temps restante :
+ *
+ *   indice = scoreWeight × min(1, score retenu / score de référence)
+ *          + (1 − scoreWeight) × min(1, part de temps restante / referenceTimeShare)
+ *
+ * Le coup de pouce est neutralisé : le temps qu'il accorde ne compte pas, et ses
+ * trois bonnes réponses ne pèsent qu'une note (la moyenne de leurs points).
+ * Chaque niveau peut surcharger ces réglages (`LevelConfig.rating`).
+ */
+export const RATING_RULES = {
+  /** Poids du score dans l'indice ; la part de temps restante pèse le complément. */
+  scoreWeight: 0.6,
+  /** Indice minimal pour deux étoiles. */
+  twoStarsAt: 0.5,
+  /** Indice minimal pour trois étoiles. */
+  threeStarsAt: 0.85,
+  /**
+   * Part du temps du niveau qu'il faut garder en réserve pour la note maximale
+   * côté temps (0,63 = 63 %). Figée : raccourcir le compte à rebours rend donc
+   * les étoiles plus exigeantes, en même temps que le niveau. 63 % correspond,
+   * sur 30 s et 6 notes, à une allure de 1,5 s par note sans erreur.
+   */
+  referenceTimeShare: 0.63,
+  /**
+   * Allure étalon (ms par note, sans erreur) : le score qu'elle rapporte, combo
+   * compris, vaut la note maximale côté score (3 600 points au niveau 1).
+   */
+  referencePaceMs: 1500,
+  /** Étoiles au plus quand le coup de pouce a servi (3 : aucun plafond). */
+  maxStarsWithAssist: 3,
+}
+
+export type RatingRules = typeof RATING_RULES

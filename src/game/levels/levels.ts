@@ -1,3 +1,5 @@
+import type { RatingRules } from '@/game/config'
+
 /**
  * Level design : chaque niveau est une donnée pure.
  * Ajouter un niveau = ajouter une entrée à `LEVELS`.
@@ -15,6 +17,8 @@ export interface LevelConfig {
   frets: { min: number; max: number }
   /** Index des cordes jouables (0 = Mi grave). */
   strings: readonly number[]
+  /** Réglages de notation propres au niveau (sinon `RATING_RULES`). */
+  rating?: Partial<RatingRules>
 }
 
 export const LEVELS: readonly LevelConfig[] = [

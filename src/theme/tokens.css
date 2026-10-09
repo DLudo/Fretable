@@ -60,6 +60,10 @@
   /* — Coup de pouce — ambre : pastille, annonce et anneau du point */
   --assist: oklch(0.83 0.15 80);
   --assist-foreground: oklch(0.22 0.05 70);
+
+  /* — Notation — étoiles de l'écran de victoire (gagnées, puis manquées) */
+  --rating-star: oklch(0.86 0.16 88);
+  --rating-star-empty: color-mix(in oklab, var(--foreground) 14%, transparent);
 }
 
 /*
@@ -136,6 +140,8 @@
   --color-combo-track: var(--combo-track);
   --color-assist: var(--assist);
   --color-assist-foreground: var(--assist-foreground);
+  --color-rating-star: var(--rating-star);
+  --color-rating-star-empty: var(--rating-star-empty);
   --color-fretboard-shadow: var(--fretboard-shadow);
   --color-string-highlight: var(--string-highlight);
   --color-nut-highlight: var(--nut-highlight);
