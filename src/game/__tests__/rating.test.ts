@@ -70,6 +70,13 @@ describe('étoiles', () => {
     expect(rateGame(play(pace(3200))).index).toBeCloseTo(0.38, 2)
   })
 
+  it('accorde l’étoile pile sur un seuil, malgré la virgule flottante', () => {
+    // 3 500 points en 17,4 s : 0,6 × 35/36 + 0,4 × (0,42 / 0,63) = 0,85 exactement.
+    const s = play([4864, 4111, 1626, 1646, 2800, 253])
+    expect(s).toMatchObject({ phase: 'won', score: 3500, endedAt: 17_400 })
+    expect(rateGame(s)).toMatchObject({ index: 0.85, stars: 3 })
+  })
+
   it('n’en donne aucune sur une défaite', () => {
     const lost = gameReducer(play(pace(1500, 2)), { type: 'timeUp', now: 30_000 })
     expect(lost.phase).toBe('lost')

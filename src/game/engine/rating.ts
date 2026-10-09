@@ -86,7 +86,9 @@ export function rateGame(
   const scoreRatio = reference > 0 ? Math.min(1, retained / reference) : 1
   const timeRatio = rules.referenceTimeShare > 0 ? Math.min(1, share / rules.referenceTimeShare) : 1
   const weight = clamp01(rules.scoreWeight)
-  const index = weight * scoreRatio + (1 - weight) * timeRatio
+  // Arrondi : une partie pile sur un seuil (0,85 tout rond) ne perd pas d'étoile
+  // à cause d'un 0,8499999999999999 de virgule flottante.
+  const index = Math.round((weight * scoreRatio + (1 - weight) * timeRatio) * 1e9) / 1e9
 
   let stars: StarCount = 0
   if (state.phase === 'won') {

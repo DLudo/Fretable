@@ -66,7 +66,7 @@ Trois principes guident l'ensemble :
 2. **Jetons du jeu** : `src/theme/tokens.css` couvre le manche, les cordes, les frettes, le piano, le feedback, le HUD et les révélations. Ils sont exposés à Tailwind (`fill-fretboard`, `bg-key-white`, `text-feedback-success`…). Des alias sémantiques (`--fretboard-shadow`, `--key-black-sharp`, `--reveal-highlight`…) se redéfinissent un à un. Le HUD dérive de `--foreground` et suit donc un thème clair. Pour une touche en érable, posez `data-fretboard="maple"` sur un ancêtre.
 3. **Mouvement** : `src/theme/motion.ts` centralise courbes, durées et ressorts ; les transitions propres à un composant sont des constantes nommées en tête de fichier.
 4. **Ciblage fin** : les `data-slot` (`fretboard-string`, `piano-key`, `level-progress`…) et les attributs d'état (`data-state`, `data-color`, `data-orientation`, `data-sharp-mode`) se ciblent en CSS. Comme Tailwind range ses utilitaires dans `@layer utilities`, une feuille non « layerisée » l'emporte sans surenchère de spécificité. Le piano expose aussi `--keybed-h` et `--black-key-width`.
-5. **Écrans bas** : le variant `short:` (hauteur ≤ 420 px) est défini dans `index.css`.
+5. **Écrans bas** : les variants `short:` (hauteur ≤ 420 px) et `compact:` (hauteur ≤ 500 px) sont définis dans `index.css`.
 
 ## Brancher vos animations
 

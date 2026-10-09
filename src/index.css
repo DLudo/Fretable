@@ -9,6 +9,9 @@
 /* Écrans bas (mobile en paysage) : HUD compact, aide réduite. */
 @custom-variant short (@media (max-height: 420px));
 
+/* Écrans peu hauts (≤ 500 px, `short` compris) : l'écran de victoire range ses étoiles à côté du score. */
+@custom-variant compact (@media (max-height: 500px));
+
 /*
  * shadcn/ui — base color « neutral ».
  * Ces variables sont le premier point d'entrée du design system :

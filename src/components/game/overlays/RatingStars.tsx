@@ -36,7 +36,7 @@ export function RatingStars({ rating, className }: RatingStarsProps): ReactNode 
       data-rating-index={rating.index.toFixed(3)}
       role="img"
       aria-label={label}
-      className={cn('flex items-end justify-center gap-2 short:gap-1.5', className)}
+      className={cn('flex items-end justify-center gap-2 compact:gap-1.5', className)}
     >
       {[0, 1, 2].map((i) => {
         const earned = i < rating.stars
@@ -45,7 +45,7 @@ export function RatingStars({ rating, className }: RatingStarsProps): ReactNode 
             key={i}
             data-slot="level-rating-star"
             data-earned={earned || undefined}
-            className={cn('inline-flex', i === 1 && '-translate-y-1.5 short:-translate-y-1')}
+            className={cn('inline-flex', i === 1 && '-translate-y-1.5 compact:-translate-y-1')}
             initial={
               reduceMotion
                 ? { opacity: 0 }
@@ -60,7 +60,7 @@ export function RatingStars({ rating, className }: RatingStarsProps): ReactNode 
               aria-hidden
               strokeWidth={1.5}
               className={cn(
-                i === 1 ? 'size-11 short:size-8' : 'size-8 short:size-6',
+                i === 1 ? 'size-11 compact:size-8' : 'size-8 compact:size-6',
                 earned
                   ? 'fill-rating-star text-rating-star drop-shadow-[0_0_10px_var(--rating-star)]'
                   : 'fill-rating-star-empty text-rating-star-empty',

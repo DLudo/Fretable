@@ -276,10 +276,10 @@ function WonPanel({
         )
       }
     >
-      {/* Étoiles au-dessus du score ; sur écran bas, à sa droite pour gagner une ligne. */}
+      {/* Étoiles au-dessus du score ; sur écran peu haut, à sa droite pour gagner une ligne. */}
       <div
         data-slot="level-overlay-result"
-        className="mb-4 flex flex-col gap-4 short:flex-row-reverse short:items-center short:justify-between"
+        className="mb-4 flex flex-col gap-4 compact:flex-row-reverse compact:items-center compact:justify-between"
       >
         <RatingStars rating={rateGame(state)} />
         <ScoreLine score={state.score} />
