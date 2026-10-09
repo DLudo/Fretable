@@ -1,0 +1,155 @@
+/*
+ * Jetons propres au jeu (manche, piano, feedback).
+ *
+ * Toute la couche visuelle du jeu lit ces variables : pour brancher un design
+ * system, il suffit de redéfinir ces valeurs (ou de surcharger ce fichier).
+ * Les composants n'emploient jamais de couleur en dur.
+ *
+ * Exposés à Tailwind via `@theme inline` : `fill-fretboard`, `bg-key-white`,
+ * `text-feedback-success`, etc.
+ */
+:root {
+  /* — Manche — (niveaux de gris ; un préréglage « érable » est donné plus bas) */
+  --fretboard: oklch(0.27 0 0);
+  --fretboard-edge: oklch(0.2 0 0);
+  --fretboard-grain: oklch(0.31 0 0);
+  --fret-wire: oklch(0.78 0 0);
+  --fret-wire-highlight: oklch(0.95 0 0);
+  --nut: oklch(0.93 0 0);
+  --inlay: oklch(0.5 0 0);
+  --string: oklch(0.82 0 0);
+  --string-wound: oklch(0.68 0 0);
+  --fret-number: oklch(0.68 0 0);
+
+  /* — Repère (le point à deviner) — */
+  --marker: oklch(0.985 0 0);
+  --marker-ring: oklch(0.985 0 0 / 35%);
+
+  /* — Piano — */
+  --key-white: oklch(0.96 0 0);
+  --key-white-pressed: oklch(0.84 0 0);
+  --key-white-foreground: oklch(0.2 0 0);
+  --key-black: oklch(0.18 0 0);
+  --key-black-pressed: oklch(0.32 0 0);
+  --key-black-foreground: oklch(0.9 0 0);
+  --key-border: oklch(0.12 0 0);
+
+  /* — Feedback — (seules couleurs saturées de l'interface) */
+  --feedback-success: oklch(0.78 0.2 150);
+  --feedback-success-foreground: oklch(0.18 0.05 150);
+  --feedback-error: oklch(0.66 0.23 25);
+  --feedback-error-foreground: oklch(0.18 0.05 25);
+
+  /* — HUD — (dérivé du texte de la page : suit automatiquement un thème clair) */
+  --hud-track: color-mix(in oklab, var(--foreground) 10%, transparent);
+  --hud-fill: var(--foreground);
+  --hud-time: color-mix(in oklab, var(--foreground) 35%, transparent);
+  --hud-time-critical: var(--feedback-error);
+  --hud-tick: var(--background);
+
+  /* — Révélations — blanc « chauffé » des étincelles, éclats et flashs */
+  --reveal-highlight: oklch(0.985 0 0);
+
+  /* — Combo — seul bleu de l'interface : jauge, pastille ×2, halo et particules du manche */
+  --combo: oklch(0.72 0.16 245);
+  --combo-glow: oklch(0.68 0.2 250);
+  --combo-spark: oklch(0.9 0.08 235);
+  --combo-foreground: oklch(0.16 0.04 250);
+  --combo-track: color-mix(in oklab, var(--combo) 18%, transparent);
+
+  /* — Coup de pouce — ambre : pastille, annonce et anneau du point */
+  --assist: oklch(0.83 0.15 80);
+  --assist-foreground: oklch(0.22 0.05 70);
+
+  /* — Notation — étoiles de l'écran de victoire (gagnées, puis manquées) */
+  --rating-star: oklch(0.86 0.16 88);
+  --rating-star-empty: color-mix(in oklab, var(--foreground) 14%, transparent);
+}
+
+/*
+ * Alias sémantiques : chacun pointe par défaut vers un jeton ci-dessus, mais
+ * peut être redéfini seul. Déclarés aussi sur `[data-fretboard]` pour suivre
+ * les préréglages appliqués plus bas dans l'arbre.
+ */
+:root,
+[data-fretboard] {
+  --fretboard-shadow: var(--fretboard-edge);
+  --string-highlight: var(--fret-wire-highlight);
+  --nut-highlight: var(--fret-wire-highlight);
+  --marker-halo: var(--marker-ring);
+  --marker-outline: var(--fretboard-edge);
+  --piano-case: var(--key-black);
+  --piano-keybed: var(--key-border);
+  --key-white-hover: color-mix(in oklab, var(--key-white) 70%, var(--key-white-pressed));
+  --key-black-hover: color-mix(in oklab, var(--key-black) 75%, var(--key-black-pressed));
+  --key-black-sharp: color-mix(in oklab, var(--key-black) 68%, var(--key-black-foreground));
+}
+
+/*
+ * Préréglage « touche en érable » — appliquez `data-fretboard="maple"` sur un
+ * ancêtre du manche (ou sur <html>) pour l'activer.
+ */
+[data-fretboard='maple'] {
+  --fretboard: oklch(0.86 0.06 80);
+  --fretboard-edge: oklch(0.78 0.07 75);
+  --fretboard-grain: oklch(0.82 0.07 78);
+  --fret-wire: oklch(0.72 0.01 90);
+  --inlay: oklch(0.52 0.05 65);
+  --fret-number: oklch(0.72 0.04 80);
+  /* Sur bois clair, le repère passe au quasi-noir, nettement plus sombre que les repères de touche. */
+  --marker: oklch(0.17 0 0);
+  --marker-ring: oklch(0.17 0 0 / 40%);
+  --marker-outline: oklch(0.15 0 0);
+  --fretboard-shadow: oklch(0.55 0.05 70);
+}
+
+@theme inline {
+  --color-fretboard: var(--fretboard);
+  --color-fretboard-edge: var(--fretboard-edge);
+  --color-fretboard-grain: var(--fretboard-grain);
+  --color-fret-wire: var(--fret-wire);
+  --color-fret-wire-highlight: var(--fret-wire-highlight);
+  --color-nut: var(--nut);
+  --color-inlay: var(--inlay);
+  --color-string: var(--string);
+  --color-string-wound: var(--string-wound);
+  --color-fret-number: var(--fret-number);
+  --color-marker: var(--marker);
+  --color-marker-ring: var(--marker-ring);
+  --color-key-white: var(--key-white);
+  --color-key-white-pressed: var(--key-white-pressed);
+  --color-key-white-foreground: var(--key-white-foreground);
+  --color-key-black: var(--key-black);
+  --color-key-black-pressed: var(--key-black-pressed);
+  --color-key-black-foreground: var(--key-black-foreground);
+  --color-key-border: var(--key-border);
+  --color-feedback-success: var(--feedback-success);
+  --color-feedback-success-foreground: var(--feedback-success-foreground);
+  --color-feedback-error: var(--feedback-error);
+  --color-feedback-error-foreground: var(--feedback-error-foreground);
+  --color-hud-track: var(--hud-track);
+  --color-hud-fill: var(--hud-fill);
+  --color-hud-time: var(--hud-time);
+  --color-hud-time-critical: var(--hud-time-critical);
+  --color-hud-tick: var(--hud-tick);
+  --color-reveal-highlight: var(--reveal-highlight);
+  --color-combo: var(--combo);
+  --color-combo-glow: var(--combo-glow);
+  --color-combo-spark: var(--combo-spark);
+  --color-combo-foreground: var(--combo-foreground);
+  --color-combo-track: var(--combo-track);
+  --color-assist: var(--assist);
+  --color-assist-foreground: var(--assist-foreground);
+  --color-rating-star: var(--rating-star);
+  --color-rating-star-empty: var(--rating-star-empty);
+  --color-fretboard-shadow: var(--fretboard-shadow);
+  --color-string-highlight: var(--string-highlight);
+  --color-nut-highlight: var(--nut-highlight);
+  --color-marker-halo: var(--marker-halo);
+  --color-marker-outline: var(--marker-outline);
+  --color-piano-case: var(--piano-case);
+  --color-piano-keybed: var(--piano-keybed);
+  --color-key-white-hover: var(--key-white-hover);
+  --color-key-black-hover: var(--key-black-hover);
+  --color-key-black-sharp: var(--key-black-sharp);
+}
