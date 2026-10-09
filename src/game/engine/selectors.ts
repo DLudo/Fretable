@@ -13,6 +13,28 @@ export function deadlineAt(
   return state.startedAt === null ? null : state.startedAt + totalDurationMs(state)
 }
 
+/** Durée du décompte 3, 2, 1 avant la première note (ms). */
+export function startCountdownMs(): number {
+  return Math.max(0, GAME_FEEL.startCountdownFrom) * Math.max(0, GAME_FEEL.startCountdownStepMs)
+}
+
+/** Instant où le décompte s'achève et où la partie démarre, ou `null` hors décompte. */
+export function playStartsAt(state: Pick<GameState, 'phase' | 'startingAt'>): number | null {
+  if (state.phase !== 'starting' || state.startingAt === null) return null
+  return state.startingAt + startCountdownMs()
+}
+
+/** Chiffre du décompte à afficher à l'instant `now` (3, 2, 1), ou `null` hors décompte. */
+export function countdownDigit(
+  state: Pick<GameState, 'phase' | 'startingAt'>,
+  now: number,
+): number | null {
+  const end = playStartsAt(state)
+  if (end === null || now >= end || GAME_FEEL.startCountdownStepMs <= 0) return null
+  const elapsed = Math.max(0, now - state.startingAt!)
+  return GAME_FEEL.startCountdownFrom - Math.floor(elapsed / GAME_FEEL.startCountdownStepMs)
+}
+
 /**
  * Instant (`performance.now()`) où l'écran de fin peut s'afficher, ou `null`
  * hors fin de partie. Il attend que la dernière révélation ait eu le temps de

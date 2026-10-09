@@ -23,6 +23,7 @@ import { Fretboard } from './fretboard'
 import { LevelHud } from './hud'
 import { LevelOverlay } from './overlays'
 import { Piano, type PianoFeedback } from './piano'
+import { StartCountdown } from './StartCountdown'
 
 /** Largeur maximale du manche sur grand écran. */
 const BOARD_MAX_WIDTH = '72rem'
@@ -133,10 +134,11 @@ export function GameScreen({ className }: GameScreenProps) {
           ref={boardRef}
           data-slot="game-board"
           data-combo={comboActive || undefined}
-          className="w-full"
+          className="relative w-full"
           style={{ maxWidth: boardMaxWidth }}
         >
           <Fretboard layout={layout} marker={marker} overlay={overlay} orientation={orientation} />
+          <StartCountdown state={state} />
         </div>
         {/* Hors partie, le piano sort du parcours clavier et de l'arbre d'accessibilité. */}
         <div ref={pianoRef} data-slot="game-piano" className="w-full" inert={!playing}>

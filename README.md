@@ -22,6 +22,7 @@ npm run dev        # jeu : http://localhost:5173
 
 ## Règles et contrôles
 
+- **Départ** : chaque partie s'ouvre sur un décompte **3, 2, 1** affiché sur le manche ; la première note apparaît à son terme, et c'est alors seulement que le temps se met à courir. Pendant le décompte, le piano ne répond pas. Rythme et longueur se règlent dans `GAME_FEEL` (`startCountdownFrom`, `startCountdownStepMs`) ; `startCountdownFrom: 0` supprime le décompte.
 - **Niveau 1** : trouver **6 notes en 30 secondes**. Chaque bonne réponse remplit la barre d'un sixième. Une erreur révèle la bonne note en rouge, puis une nouvelle note apparaît.
 - **Temps écoulé** : la note en attente est révélée en rouge (sans compter comme une erreur), puis l'écran de fin la rappelle.
 - **Points** : chaque bonne réponse rapporte selon le temps de réaction, mesuré depuis l'apparition du point. 0,5 s ou moins vaut 1 000 points (coup critique), moins de 1 s 600, moins de 2 s 400, moins de 3 s 300, moins de 5 s 200, moins de 10 s 100, au-delà 50.
@@ -56,7 +57,7 @@ src/
 
 Trois principes guident l'ensemble :
 
-- **Le domaine ignore l'interface.** `gameReducer` est une machine à états pure (`ready → playing → won | lost`) à laquelle le hasard et l'horloge sont injectés. Les tests unitaires sont rangés à côté de chaque module (`__tests__`).
+- **Le domaine ignore l'interface.** `gameReducer` est une machine à états pure (`ready → starting → playing → won | lost`) à laquelle le hasard et l'horloge sont injectés. Les tests unitaires sont rangés à côté de chaque module (`__tests__`).
 - **Le manche est modélisé en millimètres** d'après une Stratocaster : diapason de 648 mm, 42,8 mm au sillet, 52,1 mm à la 12ᵉ frette, frettes placées selon la règle des douze demi-tons égaux. Le SVG travaille directement dans ces unités, si bien que les proportions restent justes à toutes les tailles et dans les deux orientations.
 - **L'interface est structurante, non définitive.** Aucune couleur n'est codée en dur, chaque partie significative porte un `data-slot` et les composants acceptent un `className`.
 
@@ -92,7 +93,7 @@ export const monEffet: RevealEffect = {
 - **Robustesse** : un effet qui plante est remplacé par une étiquette statique, puis écarté pour la session. Une durée de vie maximale (`maxDurationMs`, 3 s par défaut) démonte un effet qui oublierait `onComplete`. Quand l'utilisateur préfère réduire les animations, une révélation sobre remplace l'effet, sauf s'il déclare `handlesReducedMotion`.
 - **Lab** : `/?lab` joue chaque effet isolément, à l'échelle du bureau, du paysage ou du portrait. Paramètres d'URL : `effect`, `outcome`, `streak`, `label`, `marker`, `combo=1`, `autoplay=1`, `delay`.
 - **Aura du combo** : halo et particules sont dessinés en canvas le long du contour réel du manche, dans les deux orientations. Couleurs, densité, vitesse, respiration et fondu se règlent dans `src/effects/ambient/combo-aura.config.ts`. Pour une texture After Effects, déposez une image (PNG ou WebP transparent) dans `public/fx/combo/` et renseignez `particles.sprite`. La pastille `RevealCombo` du kit affiche le multiplicateur (« ×2 ») pendant le combo ; le Lab le prévisualise avec la case « Combo ».
-- **Événements globaux** : `game.events.on('guess' | 'combo' | 'assist' | 'phase' | 'challenge', …)` permet de brancher sons, vibrations ou effets d'écran sans toucher au moteur. Pour un même changement d'état, l'ordre est garanti (`guess → combo → assist → phase → challenge`), sans doublon. `useBoardImpact`, dans `GameScreen`, en donne un exemple.
+- **Événements globaux** : `game.events.on('guess' | 'combo' | 'assist' | 'phase' | 'challenge', …)` permet de brancher sons, vibrations ou effets d'écran sans toucher au moteur. Pour un même changement d'état, l'ordre est garanti (`guess → combo → assist → phase → challenge`), sans doublon. Une partie s'ouvre sur `phase: starting` (le décompte), puis `phase: playing` et la première note. `useBoardImpact`, dans `GameScreen`, en donne un exemple.
 
 ## Régler les bonus
 

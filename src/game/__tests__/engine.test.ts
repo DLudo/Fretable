@@ -114,6 +114,41 @@ describe('moteur de jeu', () => {
   })
 })
 
+describe('décompte avant la partie', () => {
+  const prepared = gameReducer(createInitialState(0), { type: 'prepare', now: 500 })
+
+  it('passe par la phase « starting » sans note ni temps qui court', () => {
+    expect(prepared).toMatchObject({
+      phase: 'starting',
+      startingAt: 500,
+      startedAt: null,
+      challenge: null,
+      locked: true,
+    })
+  })
+
+  it('ignore réponses et fin du temps pendant le décompte', () => {
+    expect(gameReducer(prepared, { type: 'guess', pc: 5, now: 900 })).toBe(prepared)
+    expect(gameReducer(prepared, { type: 'timeUp', now: 40_000 })).toBe(prepared)
+    expect(gameReducer(prepared, { type: 'next', challenge: challenge(2, 7), now: 900 })).toBe(
+      prepared,
+    )
+  })
+
+  it('lance la partie sur la première note à son terme', () => {
+    const s = gameReducer(prepared, { type: 'start', now: 3500, challenge: challenge(1, 5) })
+    expect(s).toMatchObject({ phase: 'playing', startedAt: 3500, startingAt: null, locked: false })
+    expect(s.challenge).toEqual(challenge(1, 5))
+    expect(s.challengeShownAt).toBe(3500)
+  })
+
+  it('repart de zéro quand on rejoue', () => {
+    const won = { ...play(startedGame(), 5, 2000), phase: 'won' as const, score: 600 }
+    const again = gameReducer(won, { type: 'prepare', now: 9000 })
+    expect(again).toMatchObject({ phase: 'starting', score: 0, correctCount: 0, results: [] })
+  })
+})
+
 describe('niveaux', () => {
   it('charge un niveau en repartant de zéro', () => {
     const won = { ...play(startedGame(), 5, 2000), phase: 'won' as const, endedAt: 2000 }

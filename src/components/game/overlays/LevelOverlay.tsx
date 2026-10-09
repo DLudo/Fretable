@@ -65,7 +65,8 @@ export function LevelOverlay({
 }: LevelOverlayProps): ReactNode {
   const reduceMotion = useReducedMotion()
   const { phase } = state
-  const open = visible && phase !== 'playing'
+  // Ni pendant la partie, ni pendant le décompte qui la précède.
+  const open = visible && (phase === 'ready' || phase === 'won' || phase === 'lost')
 
   return (
     <AnimatePresence>

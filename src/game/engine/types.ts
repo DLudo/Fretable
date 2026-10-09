@@ -1,7 +1,8 @@
 import type { LevelConfig } from '@/game/levels/levels'
 import type { PitchClass } from '@/game/music/notes'
 
-export type GamePhase = 'ready' | 'playing' | 'won' | 'lost'
+/** `starting` : décompte 3, 2, 1 avant la première note (le temps ne court pas encore). */
+export type GamePhase = 'ready' | 'starting' | 'playing' | 'won' | 'lost'
 
 /** Une note à deviner : une position sur le manche. */
 export interface Challenge {
@@ -85,7 +86,9 @@ export interface GameState {
   assistUsed: boolean
   /** Temps accordé en plus de `level.durationMs` (coup de pouce), en ms. */
   bonusTimeMs: number
-  /** `performance.now()` au lancement du niveau. */
+  /** `performance.now()` au début du décompte 3, 2, 1 (phase `starting`). */
+  startingAt: number | null
+  /** `performance.now()` au lancement du niveau : apparition de la première note. */
   startedAt: number | null
   /** `performance.now()` à la victoire ou à l'expiration du temps. */
   endedAt: number | null
@@ -95,6 +98,8 @@ export interface GameState {
 
 export type GameAction =
   | { type: 'load'; levelIndex: number }
+  /** Lance le décompte 3, 2, 1 ; `start` suivra à son terme. */
+  | { type: 'prepare'; now: number }
   | { type: 'start'; now: number; challenge: Challenge }
   /**
    * `roll` : tirage dans [0, 1) pour le coup de pouce (injecté pour garder le

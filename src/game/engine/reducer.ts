@@ -23,6 +23,7 @@ export function createInitialState(levelIndex = 0): GameState {
     assist: null,
     assistUsed: false,
     bonusTimeMs: 0,
+    startingAt: null,
     startedAt: null,
     endedAt: null,
     lastResult: null,
@@ -39,11 +40,13 @@ function isExpired(state: GameState, now: number): boolean {
  * Machine à états du jeu — pure et déterministe.
  * Le hasard et l'horloge sont injectés par les actions (voir `useGame`).
  *
- *   ready ──start──▶ playing ──(dernière bonne réponse)──▶ won
- *                       │
- *                       └──────────(timeUp)──────────────▶ lost
+ *   ready ──prepare──▶ starting ──start──▶ playing ──(dernière bonne réponse)──▶ won
+ *                                            │
+ *                                            └──────────(timeUp)──────────────▶ lost
  *
- * `load` ramène à `ready` sur un autre niveau ; `start` relance depuis n'importe quelle phase.
+ * `starting` est le décompte 3, 2, 1 : rien ne se joue, le temps ne court pas.
+ * `load` ramène à `ready` sur un autre niveau ; `prepare` et `start` relancent
+ * depuis n'importe quelle phase (`start` seul saute le décompte).
  * Le combo (voir `stepCombo`) vit à côté : déclenché par les réponses, épuisé par `comboExpire`.
  * Le coup de pouce (voir `shouldOfferAssist`) aussi : offert après une réponse,
  * il ajoute du temps et impose la même note jusqu'à `ASSIST_RULES.repeats`
@@ -54,6 +57,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case 'load':
       return createInitialState(action.levelIndex)
+
+    case 'prepare':
+      return { ...createInitialState(state.levelIndex), phase: 'starting', startingAt: action.now }
 
     case 'start':
       return {

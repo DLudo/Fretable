@@ -108,6 +108,14 @@ describe('ordre des événements', () => {
     ])
   })
 
+  it('annonce le décompte, puis la partie et sa première note', () => {
+    const log = record([
+      { type: 'prepare', now: 0 },
+      { type: 'start', now: 3000, challenge: challenge(1, 0) },
+    ])
+    expect(log).toEqual(['phase:ready', 'phase:starting', 'phase:playing', 'challenge:1'])
+  })
+
   it('ne rediffuse rien quand rien ne change', () => {
     const snapshot: GameEventSnapshot = {
       phase: 'playing',

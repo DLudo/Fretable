@@ -18,6 +18,13 @@ export const GAME_FEEL = {
   criticalTimeMs: 10_000,
   /** Série au-delà de laquelle l'intensité des effets est maximale. */
   maxStreakIntensity: 6,
+  /**
+   * Décompte avant chaque partie : 3, 2, 1, puis la première note, et le temps
+   * se met à courir. 0 : la partie démarre aussitôt.
+   */
+  startCountdownFrom: 3,
+  /** Durée de chaque chiffre du décompte (ms). */
+  startCountdownStepMs: 1000,
 } as const
 
 /**

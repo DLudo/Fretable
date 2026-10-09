@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
 import { GAME_FEEL } from '@/game/config'
-import { deadlineAt, endScreenAt, totalDurationMs } from '@/game/engine/selectors'
+import {
+  countdownDigit,
+  deadlineAt,
+  endScreenAt,
+  playStartsAt,
+  startCountdownMs,
+  totalDurationMs,
+} from '@/game/engine/selectors'
 import type { GameState, GuessResult } from '@/game/engine/types'
 import { remainingMs, type CountdownState } from '@/game/engine/useCountdown'
 import { getLevel } from '@/game/levels/levels'
@@ -91,5 +98,30 @@ describe('écran de fin', () => {
   it('s’affiche aussitôt quand aucune révélation ne joue', () => {
     expect(end({ lastResult: result(20_000) })).toBe(31_000)
     expect(end({})).toBe(31_000)
+  })
+})
+
+describe('décompte 3, 2, 1', () => {
+  const starting = { phase: 'starting' as const, startingAt: 1000 }
+  const { startCountdownFrom: from, startCountdownStepMs: step } = GAME_FEEL
+
+  it('dure un battement par chiffre', () => {
+    expect(startCountdownMs()).toBe(from * step)
+    expect(playStartsAt(starting)).toBe(1000 + from * step)
+    expect(playStartsAt({ phase: 'playing', startingAt: 1000 })).toBeNull()
+  })
+
+  it('affiche 3, puis 2, puis 1, puis plus rien', () => {
+    expect(countdownDigit(starting, 500)).toBe(from)
+    expect(countdownDigit(starting, 1000)).toBe(3)
+    expect(countdownDigit(starting, 1000 + step - 1)).toBe(3)
+    expect(countdownDigit(starting, 1000 + step)).toBe(2)
+    expect(countdownDigit(starting, 1000 + 2 * step)).toBe(1)
+    expect(countdownDigit(starting, 1000 + 3 * step)).toBeNull()
+    expect(countdownDigit({ phase: 'ready', startingAt: null }, 1500)).toBeNull()
+  })
+
+  it('laisse le temps plein tant que la partie n’a pas commencé', () => {
+    expect(remainingMs(clock({ phase: 'starting', startedAt: null }), 50_000)).toBe(30_000)
   })
 })

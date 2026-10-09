@@ -14,7 +14,7 @@ import {
   type GameEventSnapshot,
 } from './events'
 import { createInitialState, gameReducer } from './reducer'
-import { deadlineAt } from './selectors'
+import { deadlineAt, playStartsAt, startCountdownMs } from './selectors'
 import type { AssistState, Challenge, GameState } from './types'
 
 export interface UseGameOptions {
@@ -26,9 +26,12 @@ export interface UseGameOptions {
 export interface GameController {
   state: GameState
   tuning: Tuning
-  /** Bus d'événements ; pour un même changement d'état : `guess` → `combo` → `assist` → `phase` → `challenge`. */
+  /**
+   * Bus d'événements ; pour un même changement d'état : `guess` → `combo` → `assist` → `phase` → `challenge`.
+   * Une partie s'ouvre sur `phase: starting` (décompte 3, 2, 1), puis `phase: playing` et la première note.
+   */
   events: GameEventBus
-  /** Démarre (ou redémarre) le niveau courant. */
+  /** Démarre (ou redémarre) le niveau courant, après le décompte 3, 2, 1. */
   start(): void
   /** Propose une réponse ; ignorée hors partie ou pendant une révélation. */
   guess(pc: PitchClass): void
@@ -64,7 +67,8 @@ export function useGame(options: UseGameOptions = {}): GameController {
   )
 
   const start = useCallback(() => {
-    dispatch({ type: 'start', now: now(), challenge: makeChallenge(null) })
+    if (startCountdownMs() > 0) dispatch({ type: 'prepare', now: now() })
+    else dispatch({ type: 'start', now: now(), challenge: makeChallenge(null) })
   }, [makeChallenge])
 
   const guess = useCallback(
@@ -75,6 +79,17 @@ export function useGame(options: UseGameOptions = {}): GameController {
   const nextLevel = useCallback(() => {
     if (hasNextLevel(state.levelIndex)) dispatch({ type: 'load', levelIndex: state.levelIndex + 1 })
   }, [state.levelIndex])
+
+  // Fin du décompte : la partie démarre sur la première note, et le temps se met à courir.
+  const playAt = playStartsAt(state)
+  useEffect(() => {
+    if (playAt === null) return
+    const timer = window.setTimeout(
+      () => dispatch({ type: 'start', now: now(), challenge: makeChallenge(null) }),
+      Math.max(0, playAt - now()),
+    )
+    return () => window.clearTimeout(timer)
+  }, [playAt, makeChallenge])
 
   // Après une tentative : on laisse vivre la révélation, puis nouvelle note
   // (imposée par le coup de pouce s'il est en cours).
