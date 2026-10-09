@@ -223,6 +223,7 @@ export function Fretboard({
                 triadGlowId={triadGlowId}
                 variant={marker.variant}
                 countdownMs={marker.countdownMs}
+                orientation={orientation}
                 reduceMotion={reduceMotion}
               />
             )}

@@ -1,5 +1,6 @@
 import { motion, type Transition } from 'motion/react'
 
+import type { BoardOrientation } from '@/game/fretboard/projection'
 import { duration, ease, spring } from '@/theme/motion'
 
 /** Apparition « note suivante ! » : pop très raide, posé en moins de 250 ms. */
@@ -35,6 +36,11 @@ interface MarkerDotProps {
    * donc il s'écoule aussi quand les animations sont réduites.
    */
   countdownMs?: number
+  /**
+   * Sens du manche : le dessin est tourné d'un quart de tour en vertical ;
+   * l'anneau en tient compte pour partir de midi à l'écran.
+   */
+  orientation?: BoardOrientation
   reduceMotion: boolean
 }
 
@@ -74,8 +80,15 @@ export function MarkerDot({
   triadGlowId,
   variant = 'default',
   countdownMs,
+  orientation = 'horizontal',
   reduceMotion,
 }: MarkerDotProps) {
+  // Midi à l'écran : en haut du point, ou à sa gauche sur le manche tourné
+  // (`rotate(90)` envoie la gauche en haut).
+  const ring = r * 1.5
+  const vertical = orientation === 'vertical'
+  const top = vertical ? { x: cx - ring, y: cy } : { x: cx, y: cy - ring }
+  const bottom = vertical ? { x: cx + ring, y: cy } : { x: cx, y: cy + ring }
   return (
     <motion.g
       data-slot="fretboard-marker"
@@ -148,20 +161,20 @@ export function MarkerDot({
       )}
       {countdownMs !== undefined && (
         <g data-slot="fretboard-marker-countdown">
+          {/* Gorge sombre : l'arc restant tranche sur la lueur verte, la part écoulée aussi. */}
           <circle
             cx={cx}
             cy={cy}
-            r={r * 1.5}
+            r={ring}
             fill="none"
-            className="stroke-triad"
-            strokeOpacity={0.25}
-            strokeWidth={r * 0.24}
+            className="stroke-triad-foreground"
+            strokeWidth={r * 0.4}
           />
           <motion.path
-            // Deux demi-cercles depuis midi, dans le sens antihoraire : en se
-            // rétractant, l'arc restant recule dans le sens des aiguilles d'une
-            // montre, comme balayé par une trotteuse.
-            d={`M ${cx} ${cy - r * 1.5} A ${r * 1.5} ${r * 1.5} 0 1 0 ${cx} ${cy + r * 1.5} A ${r * 1.5} ${r * 1.5} 0 1 0 ${cx} ${cy - r * 1.5}`}
+            // Deux demi-cercles depuis midi (à l'écran), dans le sens antihoraire :
+            // en se rétractant, l'arc restant recule dans le sens des aiguilles
+            // d'une montre, comme balayé par une trotteuse.
+            d={`M ${top.x} ${top.y} A ${ring} ${ring} 0 1 0 ${bottom.x} ${bottom.y} A ${ring} ${ring} 0 1 0 ${top.x} ${top.y}`}
             fill="none"
             className="stroke-triad"
             strokeWidth={r * 0.24}
