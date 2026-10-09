@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 
-import { ASSIST_RULES, GAME_FEEL } from '@/game/config'
+import { ASSIST_RULES, GAME_FEEL, TRIAD_RULES } from '@/game/config'
 import { hasNextLevel } from '@/game/levels/levels'
 import type { PitchClass } from '@/game/music/notes'
 import { STANDARD_TUNING, type Tuning } from '@/game/music/tuning'
@@ -15,6 +15,8 @@ import {
 } from './events'
 import { createInitialState, gameReducer } from './reducer'
 import { deadlineAt, playStartsAt, startCountdownMs } from './selectors'
+import { canStartTriad, createTriadVoicing, triadChallenge } from './triad'
+import type { TriadVoicing } from '@/game/music/chords'
 import type { AssistState, Challenge, GameState } from './types'
 
 export interface UseGameOptions {
@@ -27,7 +29,8 @@ export interface GameController {
   state: GameState
   tuning: Tuning
   /**
-   * Bus d'événements ; pour un même changement d'état : `guess` → `combo` → `assist` → `phase` → `challenge`.
+   * Bus d'événements ; pour un même changement d'état :
+   * `guess` → `combo` → `assist` → `triad` → `triadResult` → `phase` → `challenge`.
    * Une partie s'ouvre sur `phase: starting` (décompte 3, 2, 1), puis `phase: playing` et la première note.
    */
   events: GameEventBus
@@ -91,23 +94,52 @@ export function useGame(options: UseGameOptions = {}): GameController {
     return () => window.clearTimeout(timer)
   }, [playAt, makeChallenge])
 
-  // Après une tentative : on laisse vivre la révélation, puis nouvelle note
-  // (imposée par le coup de pouce s'il est en cours).
-  const { phase, locked, lastResult, challenge, assist } = state
+  // Après une tentative : on laisse vivre la révélation, puis nouvelle note —
+  // imposée par la triade ou le coup de pouce en cours, ou début d'une triade.
+  const { phase, locked, lastResult, challenge, assist, triad, triadsStarted, correctCount } = state
+  const { level } = state
   useEffect(() => {
     if (phase !== 'playing' || !locked || !lastResult) return
     const hold = lastResult.correct ? GAME_FEEL.holdAfterCorrectMs : GAME_FEEL.holdAfterWrongMs
-    const timer = window.setTimeout(
-      () =>
-        dispatch({
-          type: 'next',
-          challenge: makeChallenge(lastResult.challenge, assist),
-          now: now(),
-        }),
-      hold,
-    )
+    const timer = window.setTimeout(() => {
+      let next: Challenge
+      let opening: TriadVoicing | undefined
+      if (triad) {
+        next = triadChallenge(++nextId.current, triad, triad.step)
+      } else {
+        const eligible = canStartTriad({ phase, triad, assist, triadsStarted, correctCount, level })
+        const voicing =
+          eligible && random() < TRIAD_RULES.chance
+            ? createTriadVoicing(level, tuning, random, lastResult.challenge)
+            : null
+        if (voicing) {
+          next = triadChallenge(++nextId.current, voicing, 0)
+          opening = voicing
+        } else {
+          next = makeChallenge(lastResult.challenge, assist)
+        }
+      }
+      dispatch({
+        type: 'next',
+        challenge: next,
+        now: now(),
+        ...(opening ? { triad: opening } : {}),
+      })
+    }, hold)
     return () => window.clearTimeout(timer)
-  }, [phase, locked, lastResult, assist, makeChallenge])
+  }, [
+    phase,
+    locked,
+    lastResult,
+    assist,
+    triad,
+    triadsStarted,
+    correctCount,
+    level,
+    tuning,
+    random,
+    makeChallenge,
+  ])
 
   // Expiration du temps imparti (reprogrammée quand du temps est accordé).
   const deadline = deadlineAt(state)
@@ -136,13 +168,21 @@ export function useGame(options: UseGameOptions = {}): GameController {
   // Le ref mémorise ce qui a déjà été publié : rien n'est émis deux fois,
   // même quand StrictMode rejoue les effets au montage.
   const emitted = useRef<GameEventSnapshot>(EMPTY_EVENT_SNAPSHOT)
-  const { combo } = state
+  const { combo, lastTriad } = state
   useEffect(() => {
-    const snapshot: GameEventSnapshot = { phase, challenge, lastResult, combo, assist }
+    const snapshot: GameEventSnapshot = {
+      phase,
+      challenge,
+      lastResult,
+      combo,
+      assist,
+      triad,
+      lastTriad,
+    }
     const pending = diffGameEvents(emitted.current, snapshot)
     emitted.current = snapshot
     for (const event of pending) emitGameEvent(events, event)
-  }, [phase, challenge, lastResult, combo, assist, events])
+  }, [phase, challenge, lastResult, combo, assist, triad, lastTriad, events])
 
   return {
     state,

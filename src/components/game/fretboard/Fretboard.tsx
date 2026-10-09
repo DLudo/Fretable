@@ -13,6 +13,7 @@ import { stringNumber } from '@/game/music/tuning'
 import { useElementSize } from '@/hooks/useElementSize'
 import { cn } from '@/lib/utils'
 import { FretNumbers } from './FretNumbers'
+import { GhostDot } from './GhostDot'
 import { CoveredInlaysContext } from './inlay-context'
 import { MarkerDot } from './MarkerDot'
 import { NeckBoard } from './NeckBoard'
@@ -25,14 +26,30 @@ export interface FretboardMarker {
   stringIndex: number
   /** Case (1 à 12). */
   fret: number
-  /** `assist` : note du coup de pouce, cerclée d'ambre. */
-  variant?: 'default' | 'assist'
+  /** `assist` : note du coup de pouce, cerclée d'ambre ; `triad` : note d'une triade, en vert acide. */
+  variant?: 'default' | 'assist' | 'triad'
 }
+
+/** Note à venir, montrée en filigrane (gris) : suite d'une triade, forme de gamme. */
+export interface FretboardGhost {
+  /** Clé stable (la position, en général) : une note qui reste ne réapparaît pas. */
+  key: string
+  stringIndex: number
+  fret: number
+  /** `triad` : nimbe vert acide léger, la note appartient à la triade en cours. */
+  tone?: 'plain' | 'triad'
+  /** Délai d'apparition (s), pour égrener les notes. */
+  delay?: number
+}
+
+const NO_GHOSTS: readonly FretboardGhost[] = []
 
 export interface FretboardProps {
   layout: NeckLayout
   /** Note à deviner ; `null` = pas de point (une révélation se joue à cet endroit). */
   marker: FretboardMarker | null
+  /** Notes à venir, en filigrane, sous la note à deviner. */
+  ghosts?: readonly FretboardGhost[]
   /** Calque HTML posé au-dessus du manche, en px ; reçoit la projection mm → px. */
   overlay?: (projection: BoardProjection) => ReactNode
   /** Numéros de cases le long du manche (défaut : `true`). */
@@ -61,6 +78,7 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 export function Fretboard({
   layout,
   marker,
+  ghosts = NO_GHOSTS,
   overlay,
   showFretNumbers = true,
   orientation = 'horizontal',
@@ -93,16 +111,24 @@ export function Fretboard({
 
   const position = marker ? layout.position(marker.stringIndex, marker.fret) : null
   const haloId = `${uid}-marker-halo`
+  const triadGlowId = `${uid}-triad-glow`
 
-  // Repères recouverts par le point : estompés, puis rétablis quand le point repart.
-  const stringIndex = marker?.stringIndex
-  const fret = marker?.fret
+  // Repères recouverts par le point ou par les notes en filigrane : estompés,
+  // puis rétablis quand ils repartent. La clé ne change qu'avec les positions.
+  const spots = [
+    ...(marker ? [`${marker.stringIndex}:${marker.fret}`] : []),
+    ...ghosts.map((ghost) => `${ghost.stringIndex}:${ghost.fret}`),
+  ].join(' ')
   const covered = useMemo(() => {
-    if (stringIndex === undefined || fret === undefined) return NO_INLAY
-    const point = layout.position(stringIndex, fret)
-    const ids = inlaysUnder(layout.inlays, point, layout.markerRadius).map((inlay) => inlay.id)
-    return ids.length > 0 ? ids : NO_INLAY
-  }, [layout, stringIndex, fret])
+    if (!spots) return NO_INLAY
+    const ids = new Set<string>()
+    for (const spot of spots.split(' ')) {
+      const [s, f] = spot.split(':').map(Number)
+      const point = layout.position(s, f)
+      for (const inlay of inlaysUnder(layout.inlays, point, layout.markerRadius)) ids.add(inlay.id)
+    }
+    return ids.size > 0 ? [...ids] : NO_INLAY
+  }, [layout, spots])
 
   return (
     <div
@@ -133,7 +159,29 @@ export function Fretboard({
               <stop offset={0.45} style={{ stopColor: 'var(--marker-halo)', stopOpacity: 1 }} />
               <stop offset={1} style={{ stopColor: 'var(--marker-halo)', stopOpacity: 0 }} />
             </radialGradient>
+            <radialGradient id={triadGlowId}>
+              <stop offset={0.25} style={{ stopColor: 'var(--triad-glow)', stopOpacity: 1 }} />
+              <stop offset={1} style={{ stopColor: 'var(--triad-glow)', stopOpacity: 0 }} />
+            </radialGradient>
           </defs>
+          <g data-slot="fretboard-ghosts">
+            <AnimatePresence>
+              {ghosts.map((ghost) => {
+                const at = layout.position(ghost.stringIndex, ghost.fret)
+                return (
+                  <GhostDot
+                    key={ghost.key}
+                    cx={at.x}
+                    cy={at.y}
+                    r={layout.markerRadius}
+                    triadGlowId={ghost.tone === 'triad' ? triadGlowId : undefined}
+                    delay={ghost.delay}
+                    reduceMotion={reduceMotion}
+                  />
+                )
+              })}
+            </AnimatePresence>
+          </g>
           <AnimatePresence>
             {marker && position && (
               <MarkerDot
@@ -142,6 +190,7 @@ export function Fretboard({
                 cy={position.y}
                 r={layout.markerRadius}
                 haloId={haloId}
+                triadGlowId={triadGlowId}
                 variant={marker.variant}
                 reduceMotion={reduceMotion}
               />

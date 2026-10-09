@@ -98,6 +98,31 @@ export const ASSIST_RULES = {
 export const NOTATION = 'solfege' as const
 
 /**
+ * Bonus de mode, première étape : à un moment aléatoire, trois notes forment
+ * une triade jouable (fondamentale, tierce, quinte sur trois cordes voisines).
+ * Trouvées toutes trois, chacune en moins de `fastReactionMs`, elles ouvrent le
+ * parcours de gamme. Les notes de la triade ne nourrissent ni le combo ni le
+ * coup de pouce.
+ */
+export const TRIAD_RULES = {
+  /** Chance, à chaque nouvelle note où c'est possible, qu'une triade commence. */
+  chance: 0.35,
+  /** Triades au plus par partie. */
+  maxPerGame: 1,
+  /**
+   * Notes qu'il doit rester à trouver quand la triade commence : ses trois
+   * notes, plus une, pour que la partie ne s'achève pas sur la triade.
+   */
+  minNotesLeft: 4,
+  /** Temps de réaction maximal, par note, pour réussir la triade (ms). */
+  fastReactionMs: 2000,
+  /** Écart maximal entre la plus basse et la plus haute case de la triade. */
+  maxFretSpan: 3,
+  /** Qualités tirées au sort (le palier 1 ajoutera les autres). */
+  qualities: ['major', 'minor'],
+} as const
+
+/**
  * Notation de fin de niveau, de une à trois étoiles. Une étoile récompense le
  * niveau réussi ; les suivantes dépendent d'un indice qui mêle le score et la
  * part du temps restante :
@@ -120,7 +145,9 @@ export const RATING_RULES = {
    * Part du temps du niveau qu'il faut garder en réserve pour la note maximale
    * côté temps (0,63 = 63 %). Figée : raccourcir le compte à rebours rend donc
    * les étoiles plus exigeantes, en même temps que le niveau. 63 % correspond,
-   * sur 30 s et 6 notes, à une allure de 1,5 s par note sans erreur.
+   * sur 30 s et 6 notes, à une allure de 1,5 s par note sans erreur ; sur les
+   * 2 minutes actuelles, la part de temps sature presque toujours (à revoir avec
+   * le réglage des durées).
    */
   referenceTimeShare: 0.63,
   /**

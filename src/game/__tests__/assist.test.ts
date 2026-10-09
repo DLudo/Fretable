@@ -107,9 +107,10 @@ describe('coup de pouce en partie', () => {
       { reaction: 7000, roll: 0.1, next: note(3, 4, true) },
     ])
     expect(offered.bonusTimeMs).toBe(ASSIST_RULES.bonusTimeMs)
-    const deadline = 30_000 + ASSIST_RULES.bonusTimeMs
-    // Au-delà des 30 s du niveau, la réponse est encore acceptée…
-    const late = gameReducer(offered, { type: 'guess', pc: 4, now: 30_500 })
+    const duration = getLevel(0).durationMs
+    const deadline = duration + ASSIST_RULES.bonusTimeMs
+    // Au-delà de la durée du niveau, la réponse est encore acceptée…
+    const late = gameReducer(offered, { type: 'guess', pc: 4, now: duration + 500 })
     expect(late).toMatchObject({ phase: 'playing', locked: true })
     expect(late.lastResult).toMatchObject({ correct: true, assisted: true })
     // … jusqu’à la nouvelle échéance, où la note est révélée comme à l’ordinaire.

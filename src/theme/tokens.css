@@ -61,6 +61,13 @@
   --assist: oklch(0.83 0.15 80);
   --assist-foreground: oklch(0.22 0.05 70);
 
+  /* — Triade — vert acide : halo et étincelles des notes de la triade, annonce */
+  --triad: #b6f43d;
+  --triad-foreground: oklch(0.24 0.07 128);
+  --triad-glow: color-mix(in oklab, var(--triad) 70%, transparent);
+  /* Notes à venir (triade, forme de gamme) : en gris, en filigrane */
+  --marker-ghost: color-mix(in oklab, var(--marker) 38%, transparent);
+
   /* — Notation — étoiles de l'écran de victoire (gagnées, puis manquées) */
   --rating-star: oklch(0.86 0.16 88);
   --rating-star-empty: color-mix(in oklab, var(--foreground) 14%, transparent);
@@ -140,6 +147,10 @@
   --color-combo-track: var(--combo-track);
   --color-assist: var(--assist);
   --color-assist-foreground: var(--assist-foreground);
+  --color-triad: var(--triad);
+  --color-triad-foreground: var(--triad-foreground);
+  --color-triad-glow: var(--triad-glow);
+  --color-marker-ghost: var(--marker-ghost);
   --color-rating-star: var(--rating-star);
   --color-rating-star-empty: var(--rating-star-empty);
   --color-fretboard-shadow: var(--fretboard-shadow);

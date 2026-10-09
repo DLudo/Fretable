@@ -10,6 +10,9 @@ const EXIT: Transition = { duration: duration.instant, ease: ease.inQuad }
 const PULSE: Transition = { duration: duration.pulse, ease: ease.inOut, repeat: Infinity }
 /** Onde de choc à l'apparition. */
 const SHOCKWAVE: Transition = { duration: duration.reveal, ease: ease.outExpo }
+/** Étincelles de la triade : chacune part du point, s'éloigne et s'éteint, en boucle décalée. */
+const SPARK_COUNT = 8
+const SPARK_SECONDS = 1.5
 
 const CENTERED = { transformBox: 'fill-box', transformOrigin: 'center' } as const
 
@@ -19,9 +22,41 @@ interface MarkerDotProps {
   r: number
   /** Identifiant du dégradé de halo (défini une fois par le parent, couleur `--marker-halo`). */
   haloId: string
-  /** `assist` : note du coup de pouce, cerclée d'un anneau ambré (`--assist`). */
-  variant?: 'default' | 'assist'
+  /** Identifiant du dégradé de lueur de la triade (couleur `--triad-glow`). */
+  triadGlowId?: string
+  /**
+   * `assist` : note du coup de pouce, cerclée d'un anneau ambré (`--assist`) ;
+   * `triad` : note d'une triade, nimbée de vert acide et semée d'étincelles (`--triad`).
+   */
+  variant?: 'default' | 'assist' | 'triad'
   reduceMotion: boolean
+}
+
+/** Étincelles vert acide autour d'une note de triade. */
+function TriadSparks({ cx, cy, r }: { cx: number; cy: number; r: number }) {
+  return Array.from({ length: SPARK_COUNT }, (_, i) => {
+    // Répartition régulière, légèrement désaxée pour ne pas paraître mécanique.
+    const angle = (i / SPARK_COUNT) * Math.PI * 2 + (i % 2 === 0 ? 0.25 : -0.15)
+    const travel = r * (1.5 + (i % 3) * 0.4)
+    return (
+      <motion.circle
+        key={i}
+        data-slot="fretboard-marker-spark"
+        cx={cx + Math.cos(angle) * r * 1.1}
+        cy={cy + Math.sin(angle) * r * 1.1}
+        r={r * (i % 3 === 0 ? 0.22 : 0.14)}
+        className="fill-triad"
+        initial={{ opacity: 0, x: 0, y: 0 }}
+        animate={{ opacity: [0, 1, 0], x: Math.cos(angle) * travel, y: Math.sin(angle) * travel }}
+        transition={{
+          duration: SPARK_SECONDS,
+          ease: ease.outQuart,
+          repeat: Infinity,
+          delay: (i * SPARK_SECONDS) / SPARK_COUNT,
+        }}
+      />
+    )
+  })
 }
 
 /** Le point à deviner. À monter dans `AnimatePresence`, clé = identifiant de la note. */
@@ -30,6 +65,7 @@ export function MarkerDot({
   cy,
   r,
   haloId,
+  triadGlowId,
   variant = 'default',
   reduceMotion,
 }: MarkerDotProps) {
@@ -46,6 +82,19 @@ export function MarkerDot({
       }}
       exit={{ scale: 0.4, opacity: 0, transition: EXIT }}
     >
+      {variant === 'triad' && triadGlowId && (
+        <motion.circle
+          data-slot="fretboard-marker-triad-glow"
+          cx={cx}
+          cy={cy}
+          r={r * 3.2}
+          fill={`url(#${triadGlowId})`}
+          style={CENTERED}
+          animate={reduceMotion ? undefined : { scale: [1, 1.15, 1], opacity: [0.75, 1, 0.75] }}
+          transition={PULSE}
+        />
+      )}
+      {variant === 'triad' && !reduceMotion && <TriadSparks cx={cx} cy={cy} r={r} />}
       <motion.circle
         data-slot="fretboard-marker-halo"
         cx={cx}

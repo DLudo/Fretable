@@ -43,6 +43,8 @@ describe('ordre des événements', () => {
         lastResult: state.lastResult,
         combo: state.combo,
         assist: state.assist,
+        triad: state.triad,
+        lastTriad: state.lastTriad,
       }
       for (const event of diffGameEvents(emitted, snapshot)) log.push(label(event))
       emitted = snapshot
@@ -68,6 +70,10 @@ describe('ordre des événements', () => {
         return `combo:${event.payload ? 'on' : 'off'}`
       case 'assist':
         return `assist:${event.payload ? event.payload.remaining : 'off'}`
+      case 'triad':
+        return `triad:${event.payload ? event.payload.step : 'off'}`
+      case 'triadResult':
+        return `triadResult:${event.payload.success ? 'success' : 'missed'}`
     }
   }
 
@@ -116,6 +122,42 @@ describe('ordre des événements', () => {
     expect(log).toEqual(['phase:ready', 'phase:starting', 'phase:playing', 'challenge:1'])
   })
 
+  it('annonce la triade note après note, puis son issue', () => {
+    const voicing = {
+      root: 9 as PitchClass,
+      quality: 'minor' as const,
+      notes: [
+        { stringIndex: 0, fret: 5, pc: 9 as PitchClass },
+        { stringIndex: 1, fret: 3, pc: 0 as PitchClass },
+        { stringIndex: 2, fret: 2, pc: 4 as PitchClass },
+      ] as const,
+    }
+    const triadNote = (id: number, step: number) => ({ ...voicing.notes[step], id, triad: true })
+    const log = record([
+      { type: 'start', now: 0, challenge: challenge(1, 2) },
+      { type: 'guess', pc: 2, now: 1000 },
+      { type: 'next', challenge: triadNote(2, 0), now: 1400, triad: voicing },
+      { type: 'guess', pc: 9, now: 2000 },
+      { type: 'next', challenge: triadNote(3, 1), now: 2400 },
+      { type: 'guess', pc: 0, now: 3000 },
+      { type: 'next', challenge: triadNote(4, 2), now: 3400 },
+      { type: 'guess', pc: 4, now: 4000 },
+    ])
+    expect(log.slice(4)).toEqual([
+      'triad:0',
+      'challenge:2',
+      'guess:true',
+      'triad:1',
+      'challenge:3',
+      'guess:true',
+      'triad:2',
+      'challenge:4',
+      'guess:true',
+      'triad:off',
+      'triadResult:success',
+    ])
+  })
+
   it('ne rediffuse rien quand rien ne change', () => {
     const snapshot: GameEventSnapshot = {
       phase: 'playing',
@@ -123,6 +165,8 @@ describe('ordre des événements', () => {
       lastResult: null,
       combo: null,
       assist: null,
+      triad: null,
+      lastTriad: null,
     }
     expect(diffGameEvents(snapshot, { ...snapshot })).toEqual([])
   })

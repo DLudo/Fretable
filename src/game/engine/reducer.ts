@@ -1,9 +1,10 @@
-import { ASSIST_RULES } from '@/game/config'
+import { ASSIST_RULES, TRIAD_RULES } from '@/game/config'
 import { getLevel } from '@/game/levels/levels'
 import { shouldOfferAssist } from './assist'
 import { basePoints, stepCombo, type ComboStep } from './scoring'
 import { deadlineAt } from './selectors'
-import type { GameAction, GameState, GuessResult } from './types'
+import { canStartTriad } from './triad'
+import type { GameAction, GameState, GuessResult, TriadOutcome, TriadState } from './types'
 
 export function createInitialState(levelIndex = 0): GameState {
   return {
@@ -23,6 +24,9 @@ export function createInitialState(levelIndex = 0): GameState {
     assist: null,
     assistUsed: false,
     bonusTimeMs: 0,
+    triad: null,
+    triadsStarted: 0,
+    lastTriad: null,
     startingAt: null,
     startedAt: null,
     endedAt: null,
@@ -50,8 +54,10 @@ function isExpired(state: GameState, now: number): boolean {
  * Le combo (voir `stepCombo`) vit à côté : déclenché par les réponses, épuisé par `comboExpire`.
  * Le coup de pouce (voir `shouldOfferAssist`) aussi : offert après une réponse,
  * il ajoute du temps et impose la même note jusqu'à `ASSIST_RULES.repeats`
- * bonnes réponses, qui ne valent ensemble qu'un cran. Combo et coup de pouce
- * ne se cumulent jamais.
+ * bonnes réponses, qui ne valent ensemble qu'un cran. La triade (voir
+ * `canStartTriad`) arrive avec une note (`next`) : ses trois notes comptent
+ * normalement, sans nourrir ni combo ni coup de pouce. Combo et bonus ne se
+ * cumulent jamais.
  */
 export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
@@ -84,10 +90,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       // seule la dernière bonne réponse attendue fait avancer la progression.
       const assisted = state.challenge.assist === true && state.assist !== null
       const completesAssist = assisted && correct && state.assist!.remaining <= 1
+      // Note de la triade : comptée normalement, mais hors combo et hors coup de pouce.
+      const triadNote = state.challenge.triad === true && state.triad !== null
       const correctCount = state.correctCount + (correct && (!assisted || completesAssist) ? 1 : 0)
-      const step: ComboStep = assisted
-        ? { combo: null, fastStreak: 0, multiplier: 1, triggered: false }
-        : stepCombo(state.combo, state.fastStreak, { now: action.now, correct, reactionMs })
+      const step: ComboStep =
+        assisted || triadNote
+          ? { combo: null, fastStreak: 0, multiplier: 1, triggered: false }
+          : stepCombo(state.combo, state.fastStreak, { now: action.now, correct, reactionMs })
       const base = correct ? basePoints(reactionMs) : 0
       const result: GuessResult = {
         id: state.challenge.id,
@@ -102,6 +111,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         points: base * step.multiplier,
         comboTriggered: step.triggered,
         assisted,
+        ...(triadNote ? { bonus: 'triad' as const } : {}),
       }
       const results = [...state.results, result]
       const won = correctCount >= state.level.targetCount
@@ -110,11 +120,24 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       let assist = state.assist
       let assistUsed = state.assistUsed
       let bonusTimeMs = state.bonusTimeMs
+      const { triad, lastTriad } = triadNote
+        ? advanceTriad(
+            state.triad!,
+            { id: state.challenge.id, correct, reactionMs },
+            state.lastTriad,
+          )
+        : { triad: state.triad, lastTriad: state.lastTriad }
       if (assisted && assist) {
         // Une erreur ne consomme rien : la note revient jusqu'à être trouvée.
         if (completesAssist) assist = null
         else if (correct) assist = { ...assist, remaining: assist.remaining - 1 }
-      } else if (!won && !assistUsed && shouldOfferAssist(results, action.roll ?? 1)) {
+      } else if (
+        !won &&
+        !assistUsed &&
+        !triadNote &&
+        triad === null &&
+        shouldOfferAssist(results, action.roll ?? 1)
+      ) {
         // Coup de pouce offert : du temps en plus, et la note qui vient d'être
         // révélée revient plusieurs fois.
         assist = {
@@ -144,19 +167,36 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         assist: won ? null : assist,
         assistUsed,
         bonusTimeMs,
+        triad: won ? null : triad,
+        lastTriad,
         lastResult: result,
         results,
       }
     }
 
-    case 'next':
+    case 'next': {
       if (state.phase !== 'playing' || !state.locked) return state
-      return {
+      const shown: GameState = {
         ...state,
         challenge: action.challenge,
         challengeShownAt: action.now,
         locked: false,
       }
+      if (!action.triad) return shown
+      if (!canStartTriad(state)) {
+        // Triade refusée : la note reste, mais redevient une note ordinaire.
+        const { triad: _ignored, ...plain } = action.challenge
+        return { ...shown, challenge: plain }
+      }
+      // Triade engagée : combo éteint (un bonus ne se cumule pas avec lui).
+      return {
+        ...shown,
+        triad: { ...action.triad, step: 0, clean: true },
+        triadsStarted: state.triadsStarted + 1,
+        combo: null,
+        fastStreak: 0,
+      }
+    }
 
     case 'timeUp':
       if (state.phase !== 'playing') return state
@@ -182,6 +222,7 @@ function timeUp(state: GameState, now: number): GameState {
     endedAt: now,
     combo: null,
     assist: null,
+    triad: null,
   }
   if (state.locked || !state.challenge) return ended
   const result: GuessResult = {
@@ -197,6 +238,27 @@ function timeUp(state: GameState, now: number): GameState {
     points: 0,
     comboTriggered: false,
     assisted: state.challenge.assist === true,
+    ...(state.challenge.triad ? { bonus: 'triad' as const } : {}),
   }
   return { ...ended, streak: 0, lastResult: result, results: [...state.results, result] }
+}
+
+/**
+ * Fait avancer la triade d'une réponse. Elle va toujours au bout de ses trois
+ * notes ; la dernière réponse en livre l'issue : réussie si toutes trois ont été
+ * justes et rapides.
+ */
+function advanceTriad(
+  triad: TriadState,
+  answer: { id: number; correct: boolean; reactionMs: number },
+  lastTriad: TriadOutcome | null = null,
+): { triad: TriadState | null; lastTriad: TriadOutcome | null } {
+  const clean = triad.clean && answer.correct && answer.reactionMs < TRIAD_RULES.fastReactionMs
+  if (triad.step + 1 < triad.notes.length) {
+    return { triad: { ...triad, step: triad.step + 1, clean }, lastTriad }
+  }
+  return {
+    triad: null,
+    lastTriad: { id: answer.id, root: triad.root, quality: triad.quality, success: clean },
+  }
 }

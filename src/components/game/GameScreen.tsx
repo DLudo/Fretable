@@ -19,17 +19,20 @@ import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { cn } from '@/lib/utils'
 import { duration, ease } from '@/theme/motion'
 import { AssistBanner } from './AssistBanner'
-import { Fretboard } from './fretboard'
+import { Fretboard, type FretboardGhost } from './fretboard'
 import { LevelHud } from './hud'
 import { LevelOverlay } from './overlays'
 import { Piano, type PianoFeedback } from './piano'
 import { StartCountdown } from './StartCountdown'
+import { TriadBanner } from './TriadBanner'
 
 /** Largeur maximale du manche sur grand écran. */
 const BOARD_MAX_WIDTH = '72rem'
 
 /** Téléphone tenu en portrait : le manche passe à la verticale (sillet en haut). */
 const PORTRAIT_QUERY = '(orientation: portrait) and (max-width: 639px)'
+
+const NO_GHOSTS: readonly FretboardGhost[] = []
 
 /** Petit coup sec du manche sur une bonne réponse. */
 const BOARD_HIT: Transition = { duration: duration.fast, ease: ease.outQuart }
@@ -101,9 +104,26 @@ export function GameScreen({ className }: GameScreenProps) {
           id: state.challenge.id,
           stringIndex: state.challenge.stringIndex,
           fret: state.challenge.fret,
-          variant: state.challenge.assist ? ('assist' as const) : ('default' as const),
+          variant: state.challenge.assist
+            ? ('assist' as const)
+            : state.challenge.triad
+              ? ('triad' as const)
+              : ('default' as const),
         }
       : null
+
+  // Suite de la triade en filigrane : les notes pas encore demandées. Pendant
+  // une révélation (`locked`), la note suivante attend encore son tour.
+  const triad = playing ? state.triad : null
+  const ghosts = useMemo<readonly FretboardGhost[]>(() => {
+    if (!triad) return NO_GHOSTS
+    return triad.notes.slice(state.locked ? triad.step : triad.step + 1).map((note) => ({
+      key: `${note.stringIndex}:${note.fret}`,
+      stringIndex: note.stringIndex,
+      fret: note.fret,
+      tone: 'triad' as const,
+    }))
+  }, [triad, state.locked])
 
   const boardRef = useBoardImpact(game.events)
   const box = orientViewBox(layout.viewBox, orientation)
@@ -137,7 +157,13 @@ export function GameScreen({ className }: GameScreenProps) {
           className="relative w-full"
           style={{ maxWidth: boardMaxWidth }}
         >
-          <Fretboard layout={layout} marker={marker} overlay={overlay} orientation={orientation} />
+          <Fretboard
+            layout={layout}
+            marker={marker}
+            ghosts={ghosts}
+            overlay={overlay}
+            orientation={orientation}
+          />
           <StartCountdown state={state} />
         </div>
         {/* Hors partie, le piano sort du parcours clavier et de l'arbre d'accessibilité. */}
@@ -152,6 +178,7 @@ export function GameScreen({ className }: GameScreenProps) {
           />
         </div>
         <AssistBanner assist={playing ? state.assist : null} />
+        <TriadBanner outcome={playing ? state.lastTriad : null} />
         <LevelOverlay
           state={state}
           visible={overlayVisible}

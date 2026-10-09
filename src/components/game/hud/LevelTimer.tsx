@@ -7,7 +7,7 @@ import { totalDurationMs } from '@/game/engine/selectors'
 import { useCountdown, type CountdownState } from '@/game/engine/useCountdown'
 import { cn } from '@/lib/utils'
 import { ease } from '@/theme/motion'
-import { formatSeconds } from './format'
+import { formatClock } from './format'
 
 export interface LevelTimerProps {
   state: CountdownState
@@ -87,7 +87,7 @@ export function LevelTimer({ state, className, barClassName }: LevelTimerProps):
           animate={{ scale: 1, opacity: 1 }}
           transition={BEAT_TRANSITION}
         >
-          {formatSeconds(remaining, 'ceil')}
+          {formatClock(remaining, 'ceil')}
         </motion.span>
         <AnimatePresence>
           {bonusPop && (

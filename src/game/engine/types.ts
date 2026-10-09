@@ -1,4 +1,5 @@
 import type { LevelConfig } from '@/game/levels/levels'
+import type { TriadQuality, TriadVoicing } from '@/game/music/chords'
 import type { PitchClass } from '@/game/music/notes'
 
 /** `starting` : décompte 3, 2, 1 avant la première note (le temps ne court pas encore). */
@@ -13,6 +14,8 @@ export interface Challenge {
   pc: PitchClass
   /** Note proposée par le coup de pouce (voir `AssistState`). */
   assist?: boolean
+  /** Note d'une triade (voir `TriadState`). */
+  triad?: boolean
 }
 
 /** Résultat d'une tentative — c'est ce que consomment les effets de révélation. */
@@ -39,6 +42,11 @@ export interface GuessResult {
   comboTriggered: boolean
   /** Réponse à une note du coup de pouce (jamais multipliée, sans effet sur le combo). */
   assisted: boolean
+  /**
+   * Réponse à une note de bonus (`triad`) : jamais multipliée, elle ne nourrit
+   * ni le combo ni le coup de pouce.
+   */
+  bonus?: 'triad'
 }
 
 /**
@@ -51,6 +59,24 @@ export interface AssistState {
   /** Bonnes réponses attendues au total, et celles qui manquent encore. */
   total: number
   remaining: number
+}
+
+/** Triade en cours : ses trois notes sont demandées l'une après l'autre. */
+export interface TriadState extends TriadVoicing {
+  /** Index de la note demandée (0 : fondamentale, 1 : tierce, 2 : quinte). */
+  step: number
+  /** Toutes les réponses jusqu'ici justes, et chacune assez rapide. */
+  clean: boolean
+}
+
+/** Issue de la dernière triade. */
+export interface TriadOutcome {
+  /** Identifiant de sa dernière note (sert de clé à l'annonce). */
+  id: number
+  root: PitchClass
+  quality: TriadQuality
+  /** Trois bonnes réponses, chacune en moins de `TRIAD_RULES.fastReactionMs`. */
+  success: boolean
 }
 
 /** Combo en cours : actif tant que `performance.now() < endsAt`. */
@@ -86,6 +112,12 @@ export interface GameState {
   assistUsed: boolean
   /** Temps accordé en plus de `level.durationMs` (coup de pouce), en ms. */
   bonusTimeMs: number
+  /** Triade en cours, ou `null`. */
+  triad: TriadState | null
+  /** Triades commencées dans cette partie (voir `TRIAD_RULES.maxPerGame`). */
+  triadsStarted: number
+  /** Issue de la dernière triade, ou `null`. */
+  lastTriad: TriadOutcome | null
   /** `performance.now()` au début du décompte 3, 2, 1 (phase `starting`). */
   startingAt: number | null
   /** `performance.now()` au lancement du niveau : apparition de la première note. */
@@ -106,6 +138,10 @@ export type GameAction =
    * réducteur pur) ; absent, aucun coup de pouce n'est offert.
    */
   | { type: 'guess'; pc: PitchClass; now: number; roll?: number }
-  | { type: 'next'; challenge: Challenge; now: number }
+  /**
+   * `triad` : la note suivante ouvre cette triade (`challenge` est sa
+   * fondamentale) ; ignorée si une triade ne peut pas commencer (`canStartTriad`).
+   */
+  | { type: 'next'; challenge: Challenge; now: number; triad?: TriadVoicing }
   | { type: 'timeUp'; now: number }
   | { type: 'comboExpire'; now: number }

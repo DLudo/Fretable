@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatSeconds } from '@/components/game/hud/format'
+import { formatClock, formatDurationWords, formatSeconds } from '@/components/game/hud/format'
 
 /** « 27,6 s » → 276 dixièmes. */
 const tenthsOf = (label: string) =>
@@ -46,5 +46,34 @@ describe('formatSeconds', () => {
       const left = tenthsOf(formatSeconds(duration - elapsed, 'ceil'))
       expect(shown + left, `écoulé ${elapsed} ms`).toBe(duration / 100)
     }
+  })
+})
+
+describe('formatClock', () => {
+  it('garde le dixième sous la minute', () => {
+    expect(formatClock(59_900, 'ceil')).toBe('59,9 s')
+    expect(formatClock(9_250, 'ceil')).toBe('9,3 s')
+  })
+
+  it('passe en minutes et secondes au-delà', () => {
+    expect(formatClock(120_000, 'ceil')).toBe('2:00')
+    expect(formatClock(119_001, 'ceil')).toBe('2:00')
+    expect(formatClock(119_000, 'ceil')).toBe('1:59')
+    expect(formatClock(65_400, 'floor')).toBe('1:05')
+    // La bascule se fait sans « 60,0 s » : 59,95 s s'affiche déjà « 1:00 ».
+    expect(formatClock(59_950, 'ceil')).toBe('1:00')
+  })
+
+  it('ramène les durées négatives à zéro', () => {
+    expect(formatClock(-5, 'ceil')).toBe('0,0 s')
+  })
+})
+
+describe('formatDurationWords', () => {
+  it('dit les minutes rondes en minutes, le reste en secondes', () => {
+    expect(formatDurationWords(120_000)).toBe('2 minutes')
+    expect(formatDurationWords(60_000)).toBe('1 minute')
+    expect(formatDurationWords(30_000)).toBe('30 secondes')
+    expect(formatDurationWords(90_000)).toBe('90 secondes')
   })
 })

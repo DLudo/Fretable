@@ -13,7 +13,8 @@ import type { GameState, GuessResult } from '@/game/engine/types'
 import { remainingMs, type CountdownState } from '@/game/engine/useCountdown'
 import { getLevel } from '@/game/levels/levels'
 
-const level = getLevel(0)
+/** Niveau de 30 s : les valeurs attendues ci-dessous en dépendent. */
+const level = { ...getLevel(0), durationMs: 30_000 }
 const clock = (patch: Partial<CountdownState>): CountdownState => ({
   phase: 'playing',
   startedAt: 1000,

@@ -15,7 +15,7 @@ import {
 } from 'motion/react'
 import { ArrowBigUp, ArrowRight, Play, RotateCcw } from 'lucide-react'
 
-import { formatScore, formatSeconds } from '@/components/game/hud'
+import { formatClock, formatDurationWords, formatScore } from '@/components/game/hud'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -191,11 +191,10 @@ function Panel({
 
 function ReadyPanel({ state, onStart }: PanelProps) {
   const { level } = state
-  const seconds = Math.round(level.durationMs / 1000)
   return (
     <Panel
       title={level.title}
-      description={`Trouve ${level.targetCount} notes en ${seconds} secondes.`}
+      description={`Trouve ${level.targetCount} notes en ${formatDurationWords(level.durationMs)}.`}
       actions={
         <>
           <Button size="lg" className="w-full" autoFocus onClick={blurThen(onStart)}>
@@ -287,7 +286,7 @@ function WonPanel({
       </div>
       <dl data-slot="level-overlay-stats" className="grid grid-cols-3 divide-x rounded-lg border">
         {/* Tronqué : avec le minuteur du HUD (arrondi au-dessus), le total fait la durée du niveau. */}
-        <Stat label="Temps" value={formatSeconds(elapsed, 'floor')} />
+        <Stat label="Temps" value={formatClock(elapsed, 'floor')} />
         <Stat label="Erreurs" value={state.mistakes} />
         <Stat label="Meilleure série" value={state.bestStreak} />
       </dl>

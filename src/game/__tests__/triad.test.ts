@@ -1,0 +1,187 @@
+import { describe, expect, it } from 'vitest'
+
+import { TRIAD_RULES } from '@/game/config'
+import { averageReactionMs } from '@/game/engine/assist'
+import { createInitialState, gameReducer } from '@/game/engine/reducer'
+import { canStartTriad, createTriadVoicing, triadChallenge } from '@/game/engine/triad'
+import type { Challenge, GameState } from '@/game/engine/types'
+import { getLevel } from '@/game/levels/levels'
+import {
+  chordName,
+  triadPitchClasses,
+  triadVoicings,
+  type TriadQuality,
+  type TriadVoicing,
+} from '@/game/music/chords'
+import type { PitchClass } from '@/game/music/notes'
+import { midiAt, pitchClassAt, STANDARD_TUNING } from '@/game/music/tuning'
+
+const level = getLevel(0)
+const range = { frets: level.frets, strings: level.strings, maxFretSpan: TRIAD_RULES.maxFretSpan }
+
+describe('triades', () => {
+  it('nomme et construit les accords', () => {
+    expect(chordName(9, 'minor')).toBe('La mineur')
+    expect(chordName(6, 'major')).toBe('Fa♯ majeur')
+    expect(triadPitchClasses(0, 'major')).toEqual([0, 4, 7])
+    expect(triadPitchClasses(9, 'minor')).toEqual([9, 0, 4])
+  })
+
+  it('ne propose que des voicings jouables : trois cordes voisines, fondamentale, tierce, quinte', () => {
+    for (const quality of ['major', 'minor'] as TriadQuality[]) {
+      for (let root = 0; root < 12; root++) {
+        const voicings = triadVoicings(STANDARD_TUNING, root as PitchClass, quality, range)
+        expect(voicings.length).toBeGreaterThan(0)
+        for (const { notes } of voicings) {
+          const pcs = triadPitchClasses(root as PitchClass, quality)
+          expect(notes.map((n) => n.pc)).toEqual(pcs)
+          expect(notes.map((n) => pitchClassAt(STANDARD_TUNING, n.stringIndex, n.fret))).toEqual(
+            pcs,
+          )
+          // Cordes voisines, du grave à l'aigu, et hauteurs croissantes dans l'octave.
+          expect(notes[1].stringIndex).toBe(notes[0].stringIndex + 1)
+          expect(notes[2].stringIndex).toBe(notes[1].stringIndex + 1)
+          const midis = notes.map((n) => midiAt(STANDARD_TUNING, n.stringIndex, n.fret))
+          expect(midis[2] - midis[0]).toBe(7)
+          expect(midis[1]).toBeGreaterThan(midis[0])
+          // Dans le périmètre du niveau, la main peu écartée.
+          const frets = notes.map((n) => n.fret)
+          expect(Math.min(...frets)).toBeGreaterThanOrEqual(level.frets.min)
+          expect(Math.max(...frets)).toBeLessThanOrEqual(level.frets.max)
+          expect(Math.max(...frets) - Math.min(...frets)).toBeLessThanOrEqual(range.maxFretSpan)
+        }
+      }
+    }
+  })
+
+  it('tire une triade dont la fondamentale diffère de la note précédente', () => {
+    let seed = 3
+    const random = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646
+    for (let i = 0; i < 200; i++) {
+      const previous: Challenge = { id: 0, stringIndex: 0, fret: 5, pc: (i % 12) as PitchClass }
+      const voicing = createTriadVoicing(level, STANDARD_TUNING, random, previous)
+      expect(voicing).not.toBeNull()
+      expect(voicing!.root).not.toBe(previous.pc)
+    }
+  })
+})
+
+describe('triade en partie', () => {
+  // La mineur sur les cordes de La, Ré et Sol : La (5ᵉ case), Do (3ᵉ), Mi (2ᵉ).
+  const voicing: TriadVoicing = {
+    root: 9,
+    quality: 'minor',
+    notes: [
+      { stringIndex: 0, fret: 5, pc: 9 },
+      { stringIndex: 1, fret: 3, pc: 0 },
+      { stringIndex: 2, fret: 2, pc: 4 },
+    ],
+  }
+  const note = (id: number, pc: PitchClass): Challenge => ({ id, stringIndex: 0, fret: 1, pc })
+
+  const started = gameReducer(createInitialState(0), {
+    type: 'start',
+    now: 0,
+    challenge: note(1, 2),
+  })
+  /** Première note jouée (juste, en 1 s), puis la triade ouverte à 1 400 ms. */
+  const answered = gameReducer(started, { type: 'guess', pc: 2, now: 1000 })
+  const opened = gameReducer(answered, {
+    type: 'next',
+    challenge: triadChallenge(2, voicing, 0),
+    now: 1400,
+    triad: voicing,
+  })
+
+  /** Répond à la note de triade en cours en `reaction` ms, puis enchaîne la suivante. */
+  function answer(s: GameState, reaction: number, right = true): GameState {
+    const t = s.challengeShownAt! + reaction
+    const pc = right ? s.challenge!.pc : (((s.challenge!.pc + 1) % 12) as PitchClass)
+    let next = gameReducer(s, { type: 'guess', pc, now: t, roll: 0 })
+    if (next.triad) {
+      next = gameReducer(next, {
+        type: 'next',
+        challenge: triadChallenge(100 + next.triad.step, next.triad, next.triad.step),
+        now: t + 400,
+      })
+    }
+    return next
+  }
+
+  it('s’ouvre sur la fondamentale et éteint un combo en cours', () => {
+    expect(opened.triad).toMatchObject({ root: 9, quality: 'minor', step: 0, clean: true })
+    expect(opened.triadsStarted).toBe(1)
+    expect(opened.challenge).toMatchObject({ pc: 9, triad: true })
+    const withCombo = { ...answered, combo: { startedAt: 0, endsAt: 99_999 }, fastStreak: 2 }
+    const s = gameReducer(withCombo, {
+      type: 'next',
+      challenge: triadChallenge(2, voicing, 0),
+      now: 1400,
+      triad: voicing,
+    })
+    expect(s).toMatchObject({ combo: null, fastStreak: 0 })
+  })
+
+  it('est réussie quand les trois notes sont justes, chacune en moins de 2 s', () => {
+    const s = answer(answer(answer(opened, 900), 1500), 1999)
+    expect(s.triad).toBeNull()
+    expect(s.lastTriad).toMatchObject({ root: 9, quality: 'minor', success: true })
+    // Les trois notes comptent pour la progression, sans multiplicateur ni combo.
+    expect(s.correctCount).toBe(4)
+    const triadResults = s.results.filter((r) => r.bonus === 'triad')
+    expect(triadResults).toHaveLength(3)
+    expect(triadResults.every((r) => r.multiplier === 1)).toBe(true)
+    expect(s.combo).toBeNull()
+    expect(s.fastStreak).toBe(0)
+  })
+
+  it('va au bout de ses trois notes, mais échoue sur une réponse lente ou fausse', () => {
+    const slow = answer(answer(answer(opened, 900), 2000), 900)
+    expect(slow.lastTriad).toMatchObject({ success: false })
+    const wrong = answer(opened, 900, false)
+    expect(wrong.triad).toMatchObject({ step: 1, clean: false })
+    expect(answer(answer(wrong, 500), 500).lastTriad).toMatchObject({ success: false })
+  })
+
+  it('ne nourrit pas le coup de pouce', () => {
+    const s = answer(answer(answer(opened, 1500), 1500), 1500)
+    // Moyenne calculée sans les notes de la triade : seule la première réponse compte.
+    expect(averageReactionMs(s.results)).toBe(1000)
+    // Même pour un joueur déjà lent (moyenne > 5 s), aucune note de la triade
+    // n'ouvre le coup de pouce, malgré un tirage favorable.
+    const slowPlayer: GameState = {
+      ...opened,
+      // Deux réponses ordinaires lentes : de quoi juger la moyenne (`ASSIST_RULES.minAnswers`).
+      results: [0, 1].map((id) => ({ ...opened.results[0], id, reactionMs: 9000 })),
+    }
+    expect(averageReactionMs(slowPlayer.results)).toBeGreaterThan(5000)
+    let t: GameState = slowPlayer
+    for (let i = 0; i < 3; i++) {
+      t = answer(t, 9000)
+      expect(t.assist).toBeNull()
+    }
+    expect(t.assistUsed).toBe(false)
+  })
+
+  it('ne commence qu’une fois par partie, hors coup de pouce, avec assez de notes à trouver', () => {
+    const playing = { ...answered, phase: 'playing' as const }
+    expect(canStartTriad(playing)).toBe(true)
+    expect(canStartTriad({ ...playing, triadsStarted: TRIAD_RULES.maxPerGame })).toBe(false)
+    expect(canStartTriad({ ...playing, assist: { pc: 2, total: 3, remaining: 3 } })).toBe(false)
+    const late = { ...playing, correctCount: level.targetCount - TRIAD_RULES.minNotesLeft + 1 }
+    expect(canStartTriad(late)).toBe(false)
+    // Refusée par le moteur, la note reste mais redevient ordinaire.
+    const refused = gameReducer(
+      { ...answered, triadsStarted: TRIAD_RULES.maxPerGame },
+      { type: 'next', challenge: triadChallenge(2, voicing, 0), now: 1400, triad: voicing },
+    )
+    expect(refused.triad).toBeNull()
+    expect(refused.challenge?.triad).toBeUndefined()
+  })
+
+  it('s’efface à la fin du temps', () => {
+    const s = gameReducer(opened, { type: 'timeUp', now: 200_000 })
+    expect(s).toMatchObject({ phase: 'lost', triad: null })
+    expect(s.lastResult).toMatchObject({ guess: null, bonus: 'triad' })
+  })
+})

@@ -12,7 +12,11 @@ import { createInitialState, gameReducer } from '@/game/engine/reducer'
 import type { Challenge, GameState, GuessResult } from '@/game/engine/types'
 import { getLevel } from '@/game/levels/levels'
 
-const level = getLevel(0)
+/**
+ * Le tableau de référence a été étalonné sur un niveau de 30 s : la notation
+ * est évaluée sur ce niveau-là, quelle que soit la durée du niveau 1 en jeu.
+ */
+const level = { ...getLevel(0), durationMs: 30_000 }
 const note = (id: number): Challenge => ({ id, stringIndex: 0, fret: 1, pc: 5 })
 
 /** Partie jouée par le vrai moteur : une réponse toutes les `reactions[i]` ms, erreurs aux index donnés. */
@@ -29,7 +33,7 @@ function play(reactions: number[], wrongAt: number[] = []): GameState {
     s = gameReducer(s, { type: 'comboExpire', now: t })
     s = gameReducer(s, { type: 'next', challenge: note(i + 1), now: t })
   }
-  return s
+  return { ...s, level }
 }
 
 const pace = (ms: number, count = 6) => Array<number>(count).fill(ms)
