@@ -21,6 +21,8 @@ const clock = (patch: Partial<CountdownState>): CountdownState => ({
   endedAt: null,
   level,
   bonusTimeMs: 0,
+  pausedAt: null,
+  pausedMs: 0,
   ...patch,
 })
 

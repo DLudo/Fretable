@@ -19,11 +19,12 @@ import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { cn } from '@/lib/utils'
 import { duration, ease } from '@/theme/motion'
 import { AssistBanner } from './AssistBanner'
-import { Fretboard, type FretboardGhost } from './fretboard'
+import { Fretboard, type FretboardGhost, type FretboardGuide } from './fretboard'
 import { LevelHud } from './hud'
 import { LevelOverlay } from './overlays'
 import { Piano, type PianoFeedback } from './piano'
 import { StartCountdown } from './StartCountdown'
+import { ScaleBanner } from './ScaleBanner'
 import { TriadBanner } from './TriadBanner'
 
 /** Largeur maximale du manche sur grand écran. */
@@ -104,26 +105,54 @@ export function GameScreen({ className }: GameScreenProps) {
           id: state.challenge.id,
           stringIndex: state.challenge.stringIndex,
           fret: state.challenge.fret,
+          // Triade et parcours de gamme : même langage visuel, vert acide.
           variant: state.challenge.assist
             ? ('assist' as const)
-            : state.challenge.triad
+            : state.challenge.triad || state.challenge.scale
               ? ('triad' as const)
               : ('default' as const),
         }
       : null
 
-  // Suite de la triade en filigrane : les notes pas encore demandées. Pendant
-  // une révélation (`locked`), la note suivante attend encore son tour.
+  // Notes en filigrane. Triade : celles pas encore demandées (pendant une
+  // révélation, `locked`, la suivante attend encore son tour). Parcours de
+  // gamme : toute la forme, sauf la note à deviner ; elle se dessine du grave
+  // à l'aigu à son ouverture, puis chaque note jouée prend sa couleur.
   const triad = playing ? state.triad : null
+  const run = playing ? state.scaleRun : null
+  const locked = state.locked
   const ghosts = useMemo<readonly FretboardGhost[]>(() => {
+    if (run) {
+      const drawing = run.outcomes.length === 0 && locked
+      return run.notes.flatMap((note, i) => {
+        if (i === run.step && !locked) return []
+        const outcome = run.outcomes[i]
+        return [
+          {
+            key: `${note.stringIndex}:${note.fret}`,
+            stringIndex: note.stringIndex,
+            fret: note.fret,
+            tone: outcome ?? (run.accents.includes(i) ? 'triad' : 'plain'),
+            delay: drawing ? i * 0.07 : 0,
+          },
+        ]
+      })
+    }
     if (!triad) return NO_GHOSTS
-    return triad.notes.slice(state.locked ? triad.step : triad.step + 1).map((note) => ({
+    return triad.notes.slice(locked ? triad.step : triad.step + 1).map((note) => ({
       key: `${note.stringIndex}:${note.fret}`,
       stringIndex: note.stringIndex,
       fret: note.fret,
       tone: 'triad' as const,
     }))
-  }, [triad, state.locked])
+  }, [run, triad, locked])
+  // La forme garde la même référence tout au long du parcours : le tracé ne se redessine pas.
+  const runNotes = run?.notes ?? null
+  const guide = useMemo<FretboardGuide | null>(
+    () =>
+      runNotes ? { key: `${runNotes[0].stringIndex}:${runNotes[0].fret}`, points: runNotes } : null,
+    [runNotes],
+  )
 
   const boardRef = useBoardImpact(game.events)
   const box = orientViewBox(layout.viewBox, orientation)
@@ -161,6 +190,7 @@ export function GameScreen({ className }: GameScreenProps) {
             layout={layout}
             marker={marker}
             ghosts={ghosts}
+            guide={guide}
             overlay={overlay}
             orientation={orientation}
           />
@@ -179,6 +209,7 @@ export function GameScreen({ className }: GameScreenProps) {
         </div>
         <AssistBanner assist={playing ? state.assist : null} />
         <TriadBanner outcome={playing ? state.lastTriad : null} />
+        <ScaleBanner outcome={playing ? state.lastScaleRun : null} />
         <LevelOverlay
           state={state}
           visible={overlayVisible}

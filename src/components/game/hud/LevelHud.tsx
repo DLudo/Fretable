@@ -8,6 +8,7 @@ import { AssistChip } from './AssistChip'
 import { ComboMeter } from './ComboMeter'
 import { LevelProgress } from './LevelProgress'
 import { LevelTimer } from './LevelTimer'
+import { ScaleChip } from './ScaleChip'
 import { ScoreCounter } from './ScoreCounter'
 
 export interface LevelHudProps {
@@ -37,7 +38,7 @@ function useRisePulse(value: number): number {
  * du haut s'efface (`display: contents`) et la barre se glisse au milieu (`order`).
  */
 export function LevelHud({ state, className }: LevelHudProps): ReactNode {
-  const { level, correctCount, phase, score, combo, assist } = state
+  const { level, correctCount, phase, score, combo, assist, scaleRun } = state
   const pulseId = useRisePulse(correctCount)
   const reduceMotion = useReducedMotion()
 
@@ -61,6 +62,7 @@ export function LevelHud({ state, className }: LevelHudProps): ReactNode {
 
           <ScoreCounter score={score} comboActive={combo !== null} className="short:shrink-0" />
           <AssistChip assist={assist} className="short:shrink-0" />
+          <ScaleChip run={scaleRun} className="short:shrink-0" />
 
           <span
             data-slot="level-count"

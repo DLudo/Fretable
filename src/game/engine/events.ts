@@ -4,6 +4,8 @@ import type {
   ComboState,
   GamePhase,
   GuessResult,
+  ScaleRunOutcome,
+  ScaleRunState,
   TriadOutcome,
   TriadState,
 } from './types'
@@ -24,6 +26,10 @@ export interface GameEventMap {
   triad: TriadState | null
   /** Issue d'une triade, à sa dernière note : réussie ou manquée. */
   triadResult: TriadOutcome
+  /** Parcours de gamme ouvert, avancé d'une note (`step`) ou terminé (`null`). */
+  scaleRun: ScaleRunState | null
+  /** Issue d'un parcours de gamme, à sa dernière note. */
+  scaleResult: ScaleRunOutcome
 }
 
 type Handler<T> = (payload: T) => void
@@ -62,6 +68,8 @@ export interface GameEventSnapshot {
   assist: AssistState | null
   triad: TriadState | null
   lastTriad: TriadOutcome | null
+  scaleRun: ScaleRunState | null
+  lastScaleRun: ScaleRunOutcome | null
 }
 
 export const EMPTY_EVENT_SNAPSHOT: GameEventSnapshot = {
@@ -72,11 +80,14 @@ export const EMPTY_EVENT_SNAPSHOT: GameEventSnapshot = {
   assist: null,
   triad: null,
   lastTriad: null,
+  scaleRun: null,
+  lastScaleRun: null,
 }
 
 /**
  * Événements à diffuser pour passer de `prev` à `next`, dans un ordre fixe :
- * tentative → combo → coup de pouce → triade → issue de la triade → phase → note. D'où, au démarrage :
+ * tentative → combo → coup de pouce → triade → issue de la triade → parcours
+ * de gamme → issue du parcours → phase → note. D'où, au démarrage :
  * phase puis première note ; sur la dernière réponse ou à la fin du temps :
  * révélation, extinction du combo, puis phase. Une valeur inchangée n'est
  * jamais rediffusée.
@@ -90,6 +101,9 @@ export function diffGameEvents(prev: GameEventSnapshot, next: GameEventSnapshot)
   if (next.triad !== prev.triad) list.push({ type: 'triad', payload: next.triad })
   if (next.lastTriad && next.lastTriad !== prev.lastTriad)
     list.push({ type: 'triadResult', payload: next.lastTriad })
+  if (next.scaleRun !== prev.scaleRun) list.push({ type: 'scaleRun', payload: next.scaleRun })
+  if (next.lastScaleRun && next.lastScaleRun !== prev.lastScaleRun)
+    list.push({ type: 'scaleResult', payload: next.lastScaleRun })
   if (next.phase && next.phase !== prev.phase) list.push({ type: 'phase', payload: next.phase })
   if (next.challenge && next.challenge !== prev.challenge)
     list.push({ type: 'challenge', payload: next.challenge })

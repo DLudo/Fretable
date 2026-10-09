@@ -1,10 +1,17 @@
-import { ASSIST_RULES, TRIAD_RULES } from '@/game/config'
+import { ASSIST_RULES, SCALE_RULES, TRIAD_RULES } from '@/game/config'
 import { getLevel } from '@/game/levels/levels'
 import { shouldOfferAssist } from './assist'
 import { basePoints, stepCombo, type ComboStep } from './scoring'
 import { deadlineAt } from './selectors'
 import { canStartTriad } from './triad'
-import type { GameAction, GameState, GuessResult, TriadOutcome, TriadState } from './types'
+import type {
+  GameAction,
+  GameState,
+  GuessResult,
+  ScaleRunState,
+  TriadOutcome,
+  TriadState,
+} from './types'
 
 export function createInitialState(levelIndex = 0): GameState {
   return {
@@ -27,6 +34,10 @@ export function createInitialState(levelIndex = 0): GameState {
     triad: null,
     triadsStarted: 0,
     lastTriad: null,
+    scaleRun: null,
+    lastScaleRun: null,
+    pausedAt: null,
+    pausedMs: 0,
     startingAt: null,
     startedAt: null,
     endedAt: null,
@@ -56,8 +67,9 @@ function isExpired(state: GameState, now: number): boolean {
  * il ajoute du temps et impose la même note jusqu'à `ASSIST_RULES.repeats`
  * bonnes réponses, qui ne valent ensemble qu'un cran. La triade (voir
  * `canStartTriad`) arrive avec une note (`next`) : ses trois notes comptent
- * normalement, sans nourrir ni combo ni coup de pouce. Combo et bonus ne se
- * cumulent jamais.
+ * normalement, sans nourrir ni combo ni coup de pouce. Réussie, elle ouvre le
+ * parcours de gamme (`scaleRun`) : le temps se suspend (`pausedAt`) jusqu'à sa
+ * dernière note. Combo et bonus ne se cumulent jamais.
  */
 export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
@@ -79,6 +91,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'guess': {
       if (state.phase !== 'playing' || state.locked || !state.challenge) return state
+      if (state.challenge.scale === true && state.scaleRun !== null) {
+        return guessScaleNote(state, state.scaleRun, action.pc, action.now)
+      }
       // Réponse arrivée après l'échéance : refusée, comme si le minuteur avait sonné à temps.
       if (isExpired(state, action.now)) {
         return timeUp(state, deadlineAt(state)!)
@@ -120,13 +135,22 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       let assist = state.assist
       let assistUsed = state.assistUsed
       let bonusTimeMs = state.bonusTimeMs
-      const { triad, lastTriad } = triadNote
+      let { triad, lastTriad } = triadNote
         ? advanceTriad(
             state.triad!,
             { id: state.challenge.id, correct, reactionMs },
             state.lastTriad,
           )
         : { triad: state.triad, lastTriad: state.lastTriad }
+      // Triade réussie : la forme de gamme qui la prolonge s'ouvre, le temps se suspend.
+      let scaleRun = state.scaleRun
+      let pausedAt = state.pausedAt
+      const plan = triadNote ? state.triad!.scale : null
+      if (!won && plan && triad === null && lastTriad?.success) {
+        scaleRun = { ...plan.shape, accents: plan.accents, step: 0, outcomes: [], points: 0 }
+        pausedAt = action.now
+        lastTriad = { ...lastTriad, scale: plan.shape.kind }
+      }
       if (assisted && assist) {
         // Une erreur ne consomme rien : la note revient jusqu'à être trouvée.
         if (completesAssist) assist = null
@@ -136,6 +160,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         !assistUsed &&
         !triadNote &&
         triad === null &&
+        scaleRun === null &&
         shouldOfferAssist(results, action.roll ?? 1)
       ) {
         // Coup de pouce offert : du temps en plus, et la note qui vient d'être
@@ -169,6 +194,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         bonusTimeMs,
         triad: won ? null : triad,
         lastTriad,
+        scaleRun,
+        pausedAt,
         lastResult: result,
         results,
       }
@@ -223,6 +250,8 @@ function timeUp(state: GameState, now: number): GameState {
     combo: null,
     assist: null,
     triad: null,
+    scaleRun: null,
+    pausedAt: null,
   }
   if (state.locked || !state.challenge) return ended
   const result: GuessResult = {
@@ -260,5 +289,70 @@ function advanceTriad(
   return {
     triad: null,
     lastTriad: { id: answer.id, root: triad.root, quality: triad.quality, success: clean },
+  }
+}
+
+/**
+ * Réponse à une note du parcours de gamme : des points si elle est juste, rien
+ * sinon, et le parcours continue jusqu'au bout. Ni progression, ni série, ni
+ * erreur comptée pour la partie. À la dernière note, le supplément d'un
+ * parcours sans faute s'ajoute et le temps reprend.
+ */
+function guessScaleNote(
+  state: GameState,
+  run: ScaleRunState,
+  pc: GuessResult['guess'] & number,
+  now: number,
+): GameState {
+  const challenge = state.challenge!
+  const correct = pc === challenge.pc
+  const points = correct ? SCALE_RULES.pointsPerNote : 0
+  const result: GuessResult = {
+    id: challenge.id,
+    challenge,
+    guess: pc,
+    correct,
+    streak: state.streak,
+    at: now,
+    reactionMs: Math.max(0, now - (state.challengeShownAt ?? now)),
+    basePoints: points,
+    multiplier: 1,
+    points,
+    comboTriggered: false,
+    assisted: false,
+    bonus: 'scale',
+  }
+  const outcomes = [...run.outcomes, correct ? ('hit' as const) : ('miss' as const)]
+  const common = { locked: true, lastResult: result, results: [...state.results, result] }
+
+  if (run.step + 1 < run.notes.length) {
+    return {
+      ...state,
+      ...common,
+      score: state.score + points,
+      scaleRun: { ...run, step: run.step + 1, outcomes, points: run.points + points },
+    }
+  }
+  const hits = outcomes.filter((o) => o === 'hit').length
+  const perfect = hits === run.notes.length
+  const total = run.points + points + (perfect ? SCALE_RULES.perfectBonus : 0)
+  return {
+    ...state,
+    ...common,
+    score: state.score + points + (perfect ? SCALE_RULES.perfectBonus : 0),
+    scaleRun: null,
+    lastScaleRun: {
+      id: challenge.id,
+      root: run.root,
+      quality: run.quality,
+      kind: run.kind,
+      hits,
+      total: run.notes.length,
+      points: total,
+      perfect,
+    },
+    // Fin de la pause : le temps reprend où il s'était arrêté.
+    pausedMs: state.pausedMs + Math.max(0, now - (state.pausedAt ?? now)),
+    pausedAt: null,
   }
 }

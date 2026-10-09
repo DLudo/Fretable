@@ -45,6 +45,8 @@ describe('ordre des événements', () => {
         assist: state.assist,
         triad: state.triad,
         lastTriad: state.lastTriad,
+        scaleRun: state.scaleRun,
+        lastScaleRun: state.lastScaleRun,
       }
       for (const event of diffGameEvents(emitted, snapshot)) log.push(label(event))
       emitted = snapshot
@@ -74,6 +76,10 @@ describe('ordre des événements', () => {
         return `triad:${event.payload ? event.payload.step : 'off'}`
       case 'triadResult':
         return `triadResult:${event.payload.success ? 'success' : 'missed'}`
+      case 'scaleRun':
+        return `scaleRun:${event.payload ? event.payload.step : 'off'}`
+      case 'scaleResult':
+        return `scaleResult:${event.payload.perfect ? 'perfect' : event.payload.hits}`
     }
   }
 
@@ -131,6 +137,7 @@ describe('ordre des événements', () => {
         { stringIndex: 1, fret: 3, pc: 0 as PitchClass },
         { stringIndex: 2, fret: 2, pc: 4 as PitchClass },
       ] as const,
+      scale: null,
     }
     const triadNote = (id: number, step: number) => ({ ...voicing.notes[step], id, triad: true })
     const log = record([
@@ -167,6 +174,8 @@ describe('ordre des événements', () => {
       assist: null,
       triad: null,
       lastTriad: null,
+      scaleRun: null,
+      lastScaleRun: null,
     }
     expect(diffGameEvents(snapshot, { ...snapshot })).toEqual([])
   })

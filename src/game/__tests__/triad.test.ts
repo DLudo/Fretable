@@ -4,15 +4,9 @@ import { TRIAD_RULES } from '@/game/config'
 import { averageReactionMs } from '@/game/engine/assist'
 import { createInitialState, gameReducer } from '@/game/engine/reducer'
 import { canStartTriad, createTriadVoicing, triadChallenge } from '@/game/engine/triad'
-import type { Challenge, GameState } from '@/game/engine/types'
+import type { Challenge, GameState, TriadPlan } from '@/game/engine/types'
 import { getLevel } from '@/game/levels/levels'
-import {
-  chordName,
-  triadPitchClasses,
-  triadVoicings,
-  type TriadQuality,
-  type TriadVoicing,
-} from '@/game/music/chords'
+import { chordName, triadPitchClasses, triadVoicings, type TriadQuality } from '@/game/music/chords'
 import type { PitchClass } from '@/game/music/notes'
 import { midiAt, pitchClassAt, STANDARD_TUNING } from '@/game/music/tuning'
 
@@ -68,7 +62,7 @@ describe('triades', () => {
 
 describe('triade en partie', () => {
   // La mineur sur les cordes de La, Ré et Sol : La (5ᵉ case), Do (3ᵉ), Mi (2ᵉ).
-  const voicing: TriadVoicing = {
+  const voicing: TriadPlan = {
     root: 9,
     quality: 'minor',
     notes: [
@@ -76,6 +70,8 @@ describe('triade en partie', () => {
       { stringIndex: 1, fret: 3, pc: 0 },
       { stringIndex: 2, fret: 2, pc: 4 },
     ],
+    // Sans forme de gamme : ce lot teste la triade seule.
+    scale: null,
   }
   const note = (id: number, pc: PitchClass): Challenge => ({ id, stringIndex: 0, fret: 1, pc })
 

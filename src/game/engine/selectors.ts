@@ -6,11 +6,16 @@ export function totalDurationMs(state: Pick<GameState, 'level' | 'bonusTimeMs'>)
   return state.level.durationMs + state.bonusTimeMs
 }
 
-/** Échéance (`performance.now()`) de la partie, ou `null` avant le départ. */
+/**
+ * Échéance (`performance.now()`) de la partie, ou `null` avant le départ et
+ * pendant une pause (le temps ne court pas). Les pauses passées la repoussent
+ * d'autant.
+ */
 export function deadlineAt(
-  state: Pick<GameState, 'level' | 'bonusTimeMs' | 'startedAt'>,
+  state: Pick<GameState, 'level' | 'bonusTimeMs' | 'startedAt' | 'pausedAt' | 'pausedMs'>,
 ): number | null {
-  return state.startedAt === null ? null : state.startedAt + totalDurationMs(state)
+  if (state.startedAt === null || state.pausedAt !== null) return null
+  return state.startedAt + totalDurationMs(state) + state.pausedMs
 }
 
 /** Durée du décompte 3, 2, 1 avant la première note (ms). */

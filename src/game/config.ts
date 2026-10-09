@@ -123,6 +123,21 @@ export const TRIAD_RULES = {
 } as const
 
 /**
+ * Bonus de mode, seconde étape : une triade réussie dessine sur le manche la
+ * forme de gamme qui la prolonge ; le joueur la parcourt du grave à l'aigu,
+ * jusqu'au bout. Le temps de la partie est suspendu pendant le parcours, qui ne
+ * compte pas pour la progression.
+ */
+export const SCALE_RULES = {
+  /** Gammes accessibles. Sans le palier 1 débloqué, le bonus s'en tient à la pentatonique. */
+  kinds: ['pentatonic'],
+  /** Points par note juste du parcours. */
+  pointsPerNote: 150,
+  /** Supplément pour un parcours sans faute. */
+  perfectBonus: 1000,
+} as const
+
+/**
  * Notation de fin de niveau, de une à trois étoiles. Une étoile récompense le
  * niveau réussi ; les suivantes dépendent d'un indice qui mêle le score et la
  * part du temps restante :

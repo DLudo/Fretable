@@ -15,9 +15,14 @@ import {
 } from './events'
 import { createInitialState, gameReducer } from './reducer'
 import { deadlineAt, playStartsAt, startCountdownMs } from './selectors'
-import { canStartTriad, createTriadVoicing, triadChallenge } from './triad'
-import type { TriadVoicing } from '@/game/music/chords'
-import type { AssistState, Challenge, GameState } from './types'
+import {
+  canStartTriad,
+  createTriadVoicing,
+  planTriad,
+  scaleChallenge,
+  triadChallenge,
+} from './triad'
+import type { AssistState, Challenge, GameState, TriadPlan } from './types'
 
 export interface UseGameOptions {
   tuning?: Tuning
@@ -30,7 +35,8 @@ export interface GameController {
   tuning: Tuning
   /**
    * Bus d'événements ; pour un même changement d'état :
-   * `guess` → `combo` → `assist` → `triad` → `triadResult` → `phase` → `challenge`.
+   * `guess` → `combo` → `assist` → `triad` → `triadResult` → `scaleRun` → `scaleResult`
+   * → `phase` → `challenge`.
    * Une partie s'ouvre sur `phase: starting` (décompte 3, 2, 1), puis `phase: playing` et la première note.
    */
   events: GameEventBus
@@ -97,24 +103,34 @@ export function useGame(options: UseGameOptions = {}): GameController {
   // Après une tentative : on laisse vivre la révélation, puis nouvelle note —
   // imposée par la triade ou le coup de pouce en cours, ou début d'une triade.
   const { phase, locked, lastResult, challenge, assist, triad, triadsStarted, correctCount } = state
-  const { level } = state
+  const { level, scaleRun } = state
   useEffect(() => {
     if (phase !== 'playing' || !locked || !lastResult) return
     const hold = lastResult.correct ? GAME_FEEL.holdAfterCorrectMs : GAME_FEEL.holdAfterWrongMs
     const timer = window.setTimeout(() => {
       let next: Challenge
-      let opening: TriadVoicing | undefined
-      if (triad) {
+      let opening: TriadPlan | undefined
+      if (scaleRun) {
+        next = scaleChallenge(++nextId.current, scaleRun, scaleRun.step)
+      } else if (triad) {
         next = triadChallenge(++nextId.current, triad, triad.step)
       } else {
-        const eligible = canStartTriad({ phase, triad, assist, triadsStarted, correctCount, level })
+        const eligible = canStartTriad({
+          phase,
+          triad,
+          assist,
+          triadsStarted,
+          correctCount,
+          level,
+          scaleRun,
+        })
         const voicing =
           eligible && random() < TRIAD_RULES.chance
             ? createTriadVoicing(level, tuning, random, lastResult.challenge)
             : null
         if (voicing) {
           next = triadChallenge(++nextId.current, voicing, 0)
-          opening = voicing
+          opening = planTriad(voicing, level, tuning)
         } else {
           next = makeChallenge(lastResult.challenge, assist)
         }
@@ -133,6 +149,7 @@ export function useGame(options: UseGameOptions = {}): GameController {
     lastResult,
     assist,
     triad,
+    scaleRun,
     triadsStarted,
     correctCount,
     level,
@@ -168,7 +185,7 @@ export function useGame(options: UseGameOptions = {}): GameController {
   // Le ref mémorise ce qui a déjà été publié : rien n'est émis deux fois,
   // même quand StrictMode rejoue les effets au montage.
   const emitted = useRef<GameEventSnapshot>(EMPTY_EVENT_SNAPSHOT)
-  const { combo, lastTriad } = state
+  const { combo, lastTriad, lastScaleRun } = state
   useEffect(() => {
     const snapshot: GameEventSnapshot = {
       phase,
@@ -178,11 +195,24 @@ export function useGame(options: UseGameOptions = {}): GameController {
       assist,
       triad,
       lastTriad,
+      scaleRun,
+      lastScaleRun,
     }
     const pending = diffGameEvents(emitted.current, snapshot)
     emitted.current = snapshot
     for (const event of pending) emitGameEvent(events, event)
-  }, [phase, challenge, lastResult, combo, assist, triad, lastTriad, events])
+  }, [
+    phase,
+    challenge,
+    lastResult,
+    combo,
+    assist,
+    triad,
+    lastTriad,
+    scaleRun,
+    lastScaleRun,
+    events,
+  ])
 
   return {
     state,

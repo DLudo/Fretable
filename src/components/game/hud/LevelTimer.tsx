@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion, type Transition } from 'motion/react'
-import { Timer } from 'lucide-react'
+import { Pause, Timer } from 'lucide-react'
 
 import { GAME_FEEL } from '@/game/config'
 import { totalDurationMs } from '@/game/engine/selectors'
@@ -60,8 +60,10 @@ export function LevelTimer({ state, className, barClassName }: LevelTimerProps):
   const ratio = total > 0 ? remaining / total : 0
   const critical = remaining < GAME_FEEL.criticalTimeMs
   const boosted = bonusPop !== null
+  // Temps suspendu (parcours de gamme) : icône de pause, couleur du bonus.
+  const paused = state.phase === 'playing' && state.pausedAt !== null
   // Clé changée à chaque seconde entamée en zone critique : le libellé est remonté et pulse.
-  const beat = critical && state.phase === 'playing' ? Math.ceil(remaining / 1000) : 0
+  const beat = critical && state.phase === 'playing' && !paused ? Math.ceil(remaining / 1000) : 0
   const pulse = beat > 0 && !reduceMotion
 
   return (
@@ -70,15 +72,26 @@ export function LevelTimer({ state, className, barClassName }: LevelTimerProps):
         data-slot="level-timer"
         data-critical={critical || undefined}
         data-boosted={boosted || undefined}
+        data-paused={paused || undefined}
         role="timer"
         className={cn(
           'relative inline-flex items-center gap-1.5 text-sm font-medium tabular-nums whitespace-nowrap transition-colors duration-200',
-          boosted ? 'text-assist' : critical ? 'text-hud-time-critical' : 'text-foreground',
+          boosted
+            ? 'text-assist'
+            : paused
+              ? 'text-triad'
+              : critical
+                ? 'text-hud-time-critical'
+                : 'text-foreground',
           className,
         )}
       >
-        <Timer aria-hidden className={cn('size-3.5', !critical && 'text-muted-foreground')} />
-        <span className="sr-only">Temps restant :</span>
+        {paused ? (
+          <Pause aria-hidden className="size-3.5" />
+        ) : (
+          <Timer aria-hidden className={cn('size-3.5', !critical && 'text-muted-foreground')} />
+        )}
+        <span className="sr-only">{paused ? 'Temps suspendu :' : 'Temps restant :'}</span>
         <motion.span
           key={beat}
           data-slot="level-timer-value"

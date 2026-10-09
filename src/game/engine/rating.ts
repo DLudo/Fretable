@@ -50,12 +50,16 @@ export function referenceScore(level: LevelConfig, paceMs: number): number {
   return score
 }
 
-/** Score retenu : les bonnes réponses du coup de pouce valent ensemble la moyenne de leurs points. */
+/**
+ * Score retenu : les bonnes réponses du coup de pouce valent ensemble la
+ * moyenne de leurs points ; le parcours de gamme, simple bonus, ne compte pas.
+ */
 export function retainedScore(results: readonly GuessResult[]): number {
   let own = 0
   let assistedPoints = 0
   let assistedHits = 0
   for (const r of results) {
+    if (r.bonus === 'scale') continue
     if (!r.assisted) own += r.points
     else if (r.correct) {
       assistedPoints += r.points
@@ -65,11 +69,16 @@ export function retainedScore(results: readonly GuessResult[]): number {
   return own + (assistedHits > 0 ? assistedPoints / assistedHits : 0)
 }
 
-/** Part du temps du niveau restante à la fin de la partie, sans le temps accordé. */
-export function remainingShare(state: Pick<GameState, 'level' | 'startedAt' | 'endedAt'>): number {
-  const { level, startedAt, endedAt } = state
+/**
+ * Part du temps du niveau restante à la fin de la partie, sans le temps accordé
+ * et sans les pauses (parcours de gamme).
+ */
+export function remainingShare(
+  state: Pick<GameState, 'level' | 'startedAt' | 'endedAt'> & Partial<Pick<GameState, 'pausedMs'>>,
+): number {
+  const { level, startedAt, endedAt, pausedMs = 0 } = state
   if (startedAt === null || endedAt === null || level.durationMs <= 0) return 0
-  return clamp01((level.durationMs - (endedAt - startedAt)) / level.durationMs)
+  return clamp01((level.durationMs - (endedAt - startedAt - pausedMs)) / level.durationMs)
 }
 
 /**
@@ -77,7 +86,8 @@ export function remainingShare(state: Pick<GameState, 'level' | 'startedAt' | 'e
  * trois étoiles demandent un indice suffisant. Une défaite n'en vaut aucune.
  */
 export function rateGame(
-  state: Pick<GameState, 'phase' | 'level' | 'startedAt' | 'endedAt' | 'results' | 'assistUsed'>,
+  state: Pick<GameState, 'phase' | 'level' | 'startedAt' | 'endedAt' | 'results' | 'assistUsed'> &
+    Partial<Pick<GameState, 'pausedMs'>>,
   rules: RatingRules = ratingRulesFor(state.level),
 ): GameRating {
   const retained = retainedScore(state.results)

@@ -1,5 +1,6 @@
 import type { LevelConfig } from '@/game/levels/levels'
 import type { TriadQuality, TriadVoicing } from '@/game/music/chords'
+import type { ScaleShape } from '@/game/music/scales'
 import type { PitchClass } from '@/game/music/notes'
 
 /** `starting` : décompte 3, 2, 1 avant la première note (le temps ne court pas encore). */
@@ -16,6 +17,8 @@ export interface Challenge {
   assist?: boolean
   /** Note d'une triade (voir `TriadState`). */
   triad?: boolean
+  /** Note du parcours de gamme (voir `ScaleRunState`). */
+  scale?: boolean
 }
 
 /** Résultat d'une tentative — c'est ce que consomment les effets de révélation. */
@@ -43,10 +46,11 @@ export interface GuessResult {
   /** Réponse à une note du coup de pouce (jamais multipliée, sans effet sur le combo). */
   assisted: boolean
   /**
-   * Réponse à une note de bonus (`triad`) : jamais multipliée, elle ne nourrit
-   * ni le combo ni le coup de pouce.
+   * Réponse à une note de bonus (`triad`, `scale`) : jamais multipliée, elle ne
+   * nourrit ni le combo ni le coup de pouce. Celles du parcours de gamme ne
+   * comptent pas non plus pour la progression.
    */
-  bonus?: 'triad'
+  bonus?: 'triad' | 'scale'
 }
 
 /**
@@ -61,8 +65,16 @@ export interface AssistState {
   remaining: number
 }
 
+/**
+ * Triade prête à être jouée, avec la forme de gamme qu'elle ouvrira si elle est
+ * réussie (`null` : aucune forme ne tient sur le manche).
+ */
+export interface TriadPlan extends TriadVoicing {
+  scale: { shape: ScaleShape; accents: readonly number[] } | null
+}
+
 /** Triade en cours : ses trois notes sont demandées l'une après l'autre. */
-export interface TriadState extends TriadVoicing {
+export interface TriadState extends TriadPlan {
   /** Index de la note demandée (0 : fondamentale, 1 : tierce, 2 : quinte). */
   step: number
   /** Toutes les réponses jusqu'ici justes, et chacune assez rapide. */
@@ -77,6 +89,35 @@ export interface TriadOutcome {
   quality: TriadQuality
   /** Trois bonnes réponses, chacune en moins de `TRIAD_RULES.fastReactionMs`. */
   success: boolean
+  /** Gamme dont le parcours s'ouvre à la suite (triade réussie et forme disponible). */
+  scale?: ScaleShape['kind']
+}
+
+/** Parcours de gamme en cours : la forme est jouée note après note, jusqu'au bout. */
+export interface ScaleRunState extends ScaleShape {
+  /** Index, dans `notes`, des notes de la triade d'origine (mises en valeur). */
+  accents: readonly number[]
+  /** Index de la note demandée. */
+  step: number
+  /** Issue de chaque note déjà jouée, dans l'ordre. */
+  outcomes: readonly ('hit' | 'miss')[]
+  /** Points gagnés jusqu'ici. */
+  points: number
+}
+
+/** Issue du dernier parcours de gamme. */
+export interface ScaleRunOutcome {
+  /** Identifiant de sa dernière note (sert de clé à l'annonce). */
+  id: number
+  root: PitchClass
+  quality: TriadQuality
+  kind: ScaleShape['kind']
+  /** Notes justes, sur le total. */
+  hits: number
+  total: number
+  /** Points du parcours, supplément compris. */
+  points: number
+  perfect: boolean
 }
 
 /** Combo en cours : actif tant que `performance.now() < endsAt`. */
@@ -118,6 +159,14 @@ export interface GameState {
   triadsStarted: number
   /** Issue de la dernière triade, ou `null`. */
   lastTriad: TriadOutcome | null
+  /** Parcours de gamme en cours, ou `null`. */
+  scaleRun: ScaleRunState | null
+  /** Issue du dernier parcours de gamme, ou `null`. */
+  lastScaleRun: ScaleRunOutcome | null
+  /** Début de la pause en cours (`performance.now()`), ou `null` : le temps court. */
+  pausedAt: number | null
+  /** Temps de pause cumulé depuis le lancement (ms), hors pause en cours. */
+  pausedMs: number
   /** `performance.now()` au début du décompte 3, 2, 1 (phase `starting`). */
   startingAt: number | null
   /** `performance.now()` au lancement du niveau : apparition de la première note. */
@@ -142,6 +191,6 @@ export type GameAction =
    * `triad` : la note suivante ouvre cette triade (`challenge` est sa
    * fondamentale) ; ignorée si une triade ne peut pas commencer (`canStartTriad`).
    */
-  | { type: 'next'; challenge: Challenge; now: number; triad?: TriadVoicing }
+  | { type: 'next'; challenge: Challenge; now: number; triad?: TriadPlan }
   | { type: 'timeUp'; now: number }
   | { type: 'comboExpire'; now: number }

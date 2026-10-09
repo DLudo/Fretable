@@ -1,4 +1,4 @@
-import { AnimatePresence, useReducedMotion } from 'motion/react'
+import { AnimatePresence, motion, useReducedMotion, type Transition } from 'motion/react'
 import { useId, useMemo, type ReactNode } from 'react'
 
 import { inlaysUnder, type NeckLayout } from '@/game/fretboard/geometry'
@@ -12,8 +12,9 @@ import {
 import { stringNumber } from '@/game/music/tuning'
 import { useElementSize } from '@/hooks/useElementSize'
 import { cn } from '@/lib/utils'
+import { duration, ease } from '@/theme/motion'
 import { FretNumbers } from './FretNumbers'
-import { GhostDot } from './GhostDot'
+import { GhostDot, type GhostTone } from './GhostDot'
 import { CoveredInlaysContext } from './inlay-context'
 import { MarkerDot } from './MarkerDot'
 import { NeckBoard } from './NeckBoard'
@@ -36,13 +37,23 @@ export interface FretboardGhost {
   key: string
   stringIndex: number
   fret: number
-  /** `triad` : nimbe vert acide léger, la note appartient à la triade en cours. */
-  tone?: 'plain' | 'triad'
+  /** Aspect (voir `GhostTone`) : à venir, de la triade, jouée juste ou manquée. */
+  tone?: GhostTone
   /** Délai d'apparition (s), pour égrener les notes. */
   delay?: number
 }
 
+/** Tracé reliant des notes dans l'ordre (forme de gamme, du grave à l'aigu). */
+export interface FretboardGuide {
+  /** Clé du tracé : une nouvelle clé le redessine. */
+  key: string
+  points: readonly { stringIndex: number; fret: number }[]
+}
+
 const NO_GHOSTS: readonly FretboardGhost[] = []
+
+/** Le tracé se dessine du grave à l'aigu, au rythme des notes qui apparaissent. */
+const GUIDE_DRAW: Transition = { duration: 1.1, ease: ease.outQuart }
 
 export interface FretboardProps {
   layout: NeckLayout
@@ -50,6 +61,8 @@ export interface FretboardProps {
   marker: FretboardMarker | null
   /** Notes à venir, en filigrane, sous la note à deviner. */
   ghosts?: readonly FretboardGhost[]
+  /** Tracé reliant les notes d'une forme, sous les notes en filigrane. */
+  guide?: FretboardGuide | null
   /** Calque HTML posé au-dessus du manche, en px ; reçoit la projection mm → px. */
   overlay?: (projection: BoardProjection) => ReactNode
   /** Numéros de cases le long du manche (défaut : `true`). */
@@ -79,6 +92,7 @@ export function Fretboard({
   layout,
   marker,
   ghosts = NO_GHOSTS,
+  guide = null,
   overlay,
   showFretNumbers = true,
   orientation = 'horizontal',
@@ -164,6 +178,32 @@ export function Fretboard({
               <stop offset={1} style={{ stopColor: 'var(--triad-glow)', stopOpacity: 0 }} />
             </radialGradient>
           </defs>
+          <AnimatePresence>
+            {guide && (
+              <motion.path
+                key={guide.key}
+                data-slot="fretboard-guide"
+                d={guide.points
+                  .map((p, i) => {
+                    const at = layout.position(p.stringIndex, p.fret)
+                    return `${i === 0 ? 'M' : 'L'}${at.x} ${at.y}`
+                  })
+                  .join(' ')}
+                fill="none"
+                className="stroke-triad"
+                strokeOpacity={0.5}
+                strokeWidth={layout.markerRadius * 0.2}
+                // Pointillé : le tracé se distingue des cordes qu'il longe.
+                strokeDasharray={`${layout.markerRadius * 0.45} ${layout.markerRadius * 0.4}`}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                initial={reduceMotion ? { opacity: 0 } : { pathLength: 0, opacity: 1 }}
+                animate={{ pathLength: 1, opacity: 1 }}
+                exit={{ opacity: 0, transition: { duration: duration.fast } }}
+                transition={reduceMotion ? { duration: duration.fast } : GUIDE_DRAW}
+              />
+            )}
+          </AnimatePresence>
           <g data-slot="fretboard-ghosts">
             <AnimatePresence>
               {ghosts.map((ghost) => {
@@ -174,7 +214,8 @@ export function Fretboard({
                     cx={at.x}
                     cy={at.y}
                     r={layout.markerRadius}
-                    triadGlowId={ghost.tone === 'triad' ? triadGlowId : undefined}
+                    tone={ghost.tone}
+                    triadGlowId={triadGlowId}
                     delay={ghost.delay}
                     reduceMotion={reduceMotion}
                   />
