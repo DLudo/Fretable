@@ -112,8 +112,8 @@ export function GameScreen({ className }: GameScreenProps) {
             : state.challenge.triad || state.challenge.scale
               ? ('triad' as const)
               : ('default' as const),
-          // Triade encore jouable : le délai par note s'égrène autour du point.
-          ...(state.challenge.triad && state.triad?.clean
+          // Chaque note de la triade, à son tour, égrène son délai autour du point.
+          ...(state.challenge.triad && state.triad
             ? { countdownMs: TRIAD_RULES.fastReactionMs }
             : {}),
         }
