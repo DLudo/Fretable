@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react'
 import { AnimatePresence, useReducedMotion } from 'motion/react'
-import { ArrowBigUp, ArrowRight, Play, RotateCcw } from 'lucide-react'
+import { ArrowRight, Play, RotateCcw } from 'lucide-react'
 
 import { clockResolutionOf, formatClock, formatDurationWords } from '@/components/game/hud'
 import { Button } from '@/components/ui/button'
@@ -10,10 +10,9 @@ import { rateGame } from '@/game/engine/rating'
 import { playedMs } from '@/game/engine/selectors'
 import { remainingMs } from '@/game/engine/useCountdown'
 import type { GameState } from '@/game/engine/types'
-import { keyHint } from '@/game/input/keymap'
-import { NATURAL_PCS, noteName } from '@/game/music/notes'
+import { noteName } from '@/game/music/notes'
 import { cn } from '@/lib/utils'
-import { Panel, PresenceLayer, ScoreLine, Stat } from './panel'
+import { KeyboardMap, Panel, PresenceLayer, ScoreLine, Stat } from './panel'
 import { blurThen, ENTER, LEAVE } from './transitions'
 import { RatingStars } from './RatingStars'
 
@@ -127,27 +126,7 @@ function ReadyPanel({ state, onStart }: PanelProps) {
           Clique sur le piano ou joue au clavier :
         </p>
         <p className="hidden pointer-coarse:block">Touche le piano pour répondre.</p>
-        <dl
-          data-slot="level-overlay-keymap"
-          className="grid grid-cols-7 gap-1 pointer-coarse:hidden"
-        >
-          {NATURAL_PCS.map((pc) => (
-            <div key={pc} className="flex flex-col items-center gap-1.5">
-              <dt>
-                <Kbd className="h-6 min-w-6 font-mono text-foreground">{keyHint(pc)}</Kbd>
-              </dt>
-              <dd className="text-xs">{noteName(pc, NOTATION)}</dd>
-            </div>
-          ))}
-        </dl>
-        <p className="pointer-coarse:hidden">
-          Maintiens{' '}
-          <Kbd>
-            <ArrowBigUp aria-hidden className="size-3.5" strokeWidth={2.25} />
-            Maj
-          </Kbd>{' '}
-          pour jouer le dièse.
-        </p>
+        <KeyboardMap />
       </div>
     </Panel>
   )

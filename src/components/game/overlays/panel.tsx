@@ -1,5 +1,6 @@
 import { useId, useLayoutEffect, useRef, type ComponentProps, type ReactNode } from 'react'
 import { motion, useIsPresent } from 'motion/react'
+import { ArrowBigUp } from 'lucide-react'
 
 import { formatScore } from '@/components/game/hud'
 import {
@@ -10,6 +11,10 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { Kbd } from '@/components/ui/kbd'
+import { NOTATION } from '@/game/config'
+import { keyHint } from '@/game/input/keymap'
+import { NATURAL_PCS, noteName } from '@/game/music/notes'
 import { cn } from '@/lib/utils'
 
 /*
@@ -94,5 +99,34 @@ export function Stat({ label, value }: { label: string; value: ReactNode }) {
         {value}
       </dd>
     </div>
+  )
+}
+
+/**
+ * Correspondance clavier → notes (q s d j k l m → Do … Si) et rappel de la
+ * touche Maj pour les dièses. Masquée sur écran tactile seul.
+ */
+export function KeyboardMap() {
+  return (
+    <>
+      <dl data-slot="level-overlay-keymap" className="grid grid-cols-7 gap-1 pointer-coarse:hidden">
+        {NATURAL_PCS.map((pc) => (
+          <div key={pc} className="flex flex-col items-center gap-1.5">
+            <dt>
+              <Kbd className="h-6 min-w-6 font-mono text-foreground">{keyHint(pc)}</Kbd>
+            </dt>
+            <dd className="text-xs">{noteName(pc, NOTATION)}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="pointer-coarse:hidden">
+        Maintiens{' '}
+        <Kbd>
+          <ArrowBigUp aria-hidden className="size-3.5" strokeWidth={2.25} />
+          Maj
+        </Kbd>{' '}
+        pour jouer le dièse.
+      </p>
+    </>
   )
 }

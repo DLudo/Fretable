@@ -24,9 +24,9 @@ export function useBoardFit(aspectRatio: number) {
     const element = mainRef.current
     if (!element) return
     const style = getComputedStyle(element)
-    setChrome(
-      parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + parseFloat(style.rowGap),
-    )
+    // `row-gap: normal` (aucun espacement) se lit comme 0, pas comme NaN.
+    const px = (value: string) => parseFloat(value) || 0
+    setChrome(px(style.paddingTop) + px(style.paddingBottom) + px(style.rowGap))
   }, [mainRef, main.height])
 
   const available = main.height - piano.height - chrome

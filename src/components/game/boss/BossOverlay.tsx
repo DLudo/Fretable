@@ -5,6 +5,7 @@ import { Play, RotateCcw, Skull } from 'lucide-react'
 import {
   blurThen,
   ENTER,
+  KeyboardMap,
   LEAVE,
   Panel,
   PresenceLayer,
@@ -89,11 +90,18 @@ function ReadyPanel({ onStart }: { onStart: () => void }) {
         </>
       }
     >
-      <p className="text-sm text-muted-foreground">
-        Trop tôt, la frappe ne compte pas. Une note manquée coûte de la vie, une erreur davantage ;
-        chaque réussite en rend un peu. Survis aux {BOSS_RULES.noteCount} notes pour vaincre le
-        boss.
-      </p>
+      <div className="flex flex-col gap-3 text-sm text-muted-foreground">
+        <p>
+          Trop tôt, la frappe ne compte pas. Une note manquée coûte de la vie, une erreur davantage
+          ; chaque réussite en rend un peu. Survis aux {BOSS_RULES.noteCount} notes pour vaincre le
+          boss.
+        </p>
+        <p className="pointer-coarse:hidden short:hidden">Pas de piano ici : joue au clavier.</p>
+        <p className="hidden pointer-coarse:block">
+          Le boss se joue au clavier d’ordinateur : pas de piano tactile dans ce mode.
+        </p>
+        <KeyboardMap />
+      </div>
     </Panel>
   )
 }

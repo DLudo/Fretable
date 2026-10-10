@@ -189,29 +189,20 @@ export const RATING_RULES = {
 export type RatingRules = typeof RATING_RULES
 
 /**
- * Boss final, façon StepMania (prototype) : une note aléatoire monte toutes les
- * `intervalMs` le long d'un couloir, et le joueur frappe quand le fantôme atteint
- * sa cible. Sans musique pour l'instant : le moteur de synchronisation viendra
- * plus tard, d'où une cadence fixe. Tout se règle ici pendant les tests.
+ * Boss final, façon StepMania (prototype) : les notes, tirées au hasard,
+ * s'enchaînent sans temps mort. Chacune part du bas de l'écran et monte jusqu'à
+ * sa cible en `travelMs` ; elle part à l'instant où la précédente est jugée, si
+ * bien que la cadence dérive un peu autour de `travelMs`. Le joueur frappe quand
+ * le fantôme atteint la cible. Sans musique pour l'instant : le moteur de
+ * synchronisation viendra plus tard. Tout se règle ici pendant les tests.
  */
 export const BOSS_RULES = {
   /** Notes du boss : survivre jusqu'à la dernière, c'est le vaincre. */
   noteCount: 30,
-  /** Une note toutes les… (ms). */
-  intervalMs: 4000,
-  /** Arrivée de la première note après le départ (ms). */
-  firstHitMs: 4500,
-  /** La cible et son couloir paraissent autant avant le moment de frapper (ms). */
-  leadMs: 3500,
-  /** Vitesse du fantôme le long du couloir, la même pour toutes les notes (mm/s). */
-  ghostSpeedMmPerSec: 20,
-  /** Zone de lancement : les fantômes naissent autant sous le bord bas du manche (mm). */
-  launchMm: 20,
-  /**
-   * Manche à la verticale (téléphone en portrait) : le couloir remonte la corde
-   * vers le sillet, sur cette longueur (mm), pour que le fantôme monte à l'écran.
-   */
-  portraitLaneMm: 60,
+  /** Trajet d'un fantôme, du bas de l'écran à sa cible (ms) : une note toutes les 4 s environ. */
+  travelMs: 4000,
+  /** Départ de la première note après le lancement du combat (ms). */
+  startDelayMs: 600,
   /** Fenêtres de jugement (ms) : frapper plus tôt que `earlyMs` ne fait rien. */
   windows: { earlyMs: 180, lateMs: 220, perfectMs: 50, greatMs: 110 },
   /** Barre de vie : pleine au départ ; un raté coûte, une erreur coûte plus, une réussite recharge. */

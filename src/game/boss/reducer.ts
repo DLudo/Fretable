@@ -38,7 +38,8 @@ export function nextMissAt(state: BossState, rules: BossRules = BOSS_RULES): num
  * Moteur du boss : réducteur pur, piloté par l'horloge (`tick`) et les frappes
  * (`press`), à instants injectés. Une note se juge une seule fois : la première
  * frappe dans sa fenêtre décide (une mauvaise touche est une erreur), une frappe
- * trop tôt ne fait rien, et une fenêtre close sans frappe vaut un raté.
+ * trop tôt ne fait rien, et une fenêtre close sans frappe vaut un raté. Sitôt
+ * une note jugée, la suivante part : pas de temps mort entre deux notes.
  */
 export function bossReducer(
   state: BossState,
@@ -87,6 +88,24 @@ function sweep(state: BossState, at: number, rules: BossRules): BossState {
   return next
 }
 
+/**
+ * Recale les notes à venir sur l'instant `at` : la suivante part tout de suite,
+ * les autres gardent leur espacement provisoire.
+ */
+function relaunchFrom(
+  notes: BossState['notes'],
+  next: number,
+  at: number,
+  rules: BossRules,
+): BossState['notes'] {
+  if (next >= notes.length) return notes
+  return notes.map((note, i) => {
+    if (i < next) return note
+    const launchAt = at + (i - next) * rules.travelMs
+    return { ...note, launchAt, hitAt: launchAt + rules.travelMs }
+  })
+}
+
 /** Applique le jugement de la note en cours : vie, score, combo, fin de partie. */
 function resolve(state: BossState, hit: BossHit, rules: BossRules): BossState {
   const index = state.cursor
@@ -108,6 +127,8 @@ function resolve(state: BossState, hit: BossHit, rules: BossRules): BossState {
     ...state,
     phase: lost ? 'lost' : won ? 'won' : 'playing',
     endedAt: lost || won ? hit.at : null,
+    // La note suivante part à l'instant du jugement.
+    notes: lost || won ? state.notes : relaunchFrom(state.notes, cursor, hit.at, rules),
     hits,
     cursor,
     life,

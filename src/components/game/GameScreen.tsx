@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { useAnimate, useReducedMotion, type Transition } from 'motion/react'
 
 import { RevealLayer } from '@/effects'
 import { ComboAura } from '@/effects/ambient'
 import { TRIAD_RULES } from '@/game/config'
-import type { GameEventBus } from '@/game/engine/events'
 import { endScreenAt } from '@/game/engine/selectors'
 import { useGame } from '@/game/engine/useGame'
 import { useTriadRing } from '@/game/engine/useTriadRing'
@@ -18,7 +16,6 @@ import { useKeyboardControls } from '@/game/input/useKeyboardControls'
 import type { PitchClass } from '@/game/music/notes'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { cn } from '@/lib/utils'
-import { duration, ease } from '@/theme/motion'
 import { AssistBanner } from './AssistBanner'
 import { Fretboard, type FretboardGhost } from './fretboard'
 import { LevelHud } from './hud'
@@ -29,13 +26,9 @@ import { ScaleBanner } from './ScaleBanner'
 import { TriadBanner } from './TriadBanner'
 import { TriadIntro } from './TriadIntro'
 import { PORTRAIT_QUERY, useBoardFit } from './useBoardFit'
+import { useBoardImpact } from './useBoardImpact'
 
 const NO_GHOSTS: readonly FretboardGhost[] = []
-
-/** Petit coup sec du manche sur une bonne réponse. */
-const BOARD_HIT: Transition = { duration: duration.fast, ease: ease.outQuart }
-/** Secousse latérale sur une erreur. */
-const BOARD_SHAKE: Transition = { duration: duration.base, ease: ease.outQuart }
 
 export interface GameScreenProps {
   /** Interrupteur de mode, posé en tête du HUD. */
@@ -157,7 +150,12 @@ export function GameScreen({ modeSwitch, className }: GameScreenProps) {
     }))
   }, [run, triad, locked])
 
-  const boardRef = useBoardImpact(game.events)
+  // Impact physique du manche, à chaque tentative.
+  const { ref: boardRef, impact } = useBoardImpact()
+  useEffect(
+    () => game.events.on('guess', (result) => impact(result.correct)),
+    [game.events, impact],
+  )
   const box = orientViewBox(layout.viewBox, orientation)
   const { mainRef, pianoRef, maxWidth: boardMaxWidth } = useBoardFit(box.width / box.height)
 
@@ -230,22 +228,4 @@ export function GameScreen({ modeSwitch, className }: GameScreenProps) {
       </main>
     </div>
   )
-}
-
-/**
- * Impact physique du manche : petit coup sec sur une bonne réponse,
- * secousse sur une erreur. Branché sur le bus d'événements du jeu.
- */
-function useBoardImpact(events: GameEventBus) {
-  const [scope, animate] = useAnimate<HTMLDivElement>()
-  const reduced = useReducedMotion()
-  useEffect(() => {
-    if (reduced) return
-    return events.on('guess', (result) => {
-      if (!scope.current) return
-      if (result.correct) animate(scope.current, { y: [0, 3, 0] }, BOARD_HIT)
-      else animate(scope.current, { x: [0, -7, 6, -4, 3, -1, 0] }, BOARD_SHAKE)
-    })
-  }, [events, animate, scope, reduced])
-  return scope
 }

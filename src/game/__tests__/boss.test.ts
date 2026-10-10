@@ -5,15 +5,13 @@ import {
   bossReducer,
   createBossChart,
   createBossState,
-  ghostOffset,
-  ghostPoint,
-  laneFor,
+  ghostProgress,
+  lerpPoint,
   missCheckDelay,
   nextMissAt,
   type BossNote,
   type BossState,
 } from '@/game/boss'
-import { createNeckLayout } from '@/game/fretboard/geometry'
 import { getLevel } from '@/game/levels/levels'
 import type { PitchClass } from '@/game/music/notes'
 import { pitchClassAt, STANDARD_TUNING } from '@/game/music/tuning'
@@ -21,21 +19,29 @@ import { pitchClassAt, STANDARD_TUNING } from '@/game/music/tuning'
 const level = getLevel(0)
 const { windows, life } = BOSS_RULES
 
-/** Partition d'essai : une note toutes les 4 s, La puis Do puis Mi… */
+/** Partition d'essai : arrivées provisoires toutes les 4 s dès 5 s, La puis Do puis Mi… */
 const chart = (pcs: PitchClass[]): BossNote[] =>
-  pcs.map((pc, i) => ({ id: i + 1, stringIndex: 0, fret: 5, pc, hitAt: 5000 + i * 4000 }))
+  pcs.map((pc, i) => ({
+    id: i + 1,
+    stringIndex: 0,
+    fret: 5,
+    pc,
+    launchAt: 1000 + i * BOSS_RULES.travelMs,
+    hitAt: 1000 + (i + 1) * BOSS_RULES.travelMs,
+  }))
 
 const started = (pcs: PitchClass[] = [9, 0, 4]): BossState =>
   bossReducer(createBossState(), { type: 'start', now: 0, notes: chart(pcs) })
 
 describe('partition du boss', () => {
-  it('tire des notes au hasard, à intervalle régulier, jamais deux fois la même d’affilée', () => {
+  it('tire des notes au hasard, jamais deux fois la même d’affilée, à instants provisoires', () => {
     let seed = 7
     const random = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646
     const notes = createBossChart(level, STANDARD_TUNING, random, 1000)
     expect(notes).toHaveLength(BOSS_RULES.noteCount)
     notes.forEach((note, i) => {
-      expect(note.hitAt).toBe(1000 + BOSS_RULES.firstHitMs + i * BOSS_RULES.intervalMs)
+      expect(note.launchAt).toBe(1000 + BOSS_RULES.startDelayMs + i * BOSS_RULES.travelMs)
+      expect(note.hitAt).toBe(note.launchAt + BOSS_RULES.travelMs)
       expect(note.pc).toBe(pitchClassAt(STANDARD_TUNING, note.stringIndex, note.fret))
       expect(note.fret).toBeGreaterThanOrEqual(level.frets.min)
       expect(note.fret).toBeLessThanOrEqual(level.frets.max)
@@ -72,7 +78,7 @@ describe('jugement', () => {
     const s = bossReducer(started(), { type: 'press', pc: 2, at: 5010 })
     expect(s).toMatchObject({ cursor: 1, combo: 0, score: 0, life: life.start - life.wrong })
     expect(s.lastHit).toMatchObject({ judgement: 'wrong', guess: 2, index: 0 })
-    // La bonne touche, juste après, ne rattrape rien : elle vise la note suivante, encore loin.
+    // La bonne touche, juste après, ne rattrape rien : elle vise la note suivante, tout juste partie.
     expect(bossReducer(s, { type: 'press', pc: 9, at: 5050 })).toBe(s)
   })
 
@@ -86,8 +92,11 @@ describe('jugement', () => {
   })
 
   it('rattrape les ratés en retard avant de juger une frappe', () => {
-    const s = bossReducer(started(), { type: 'press', pc: 0, at: 9000 })
-    expect(s.hits[0]).toMatchObject({ judgement: 'miss', at: 5000 + windows.lateMs })
+    // La première note, manquée, est jugée à la fermeture de sa fenêtre ; la
+    // suivante est partie à cet instant et arrive 4 s plus tard.
+    const missedAt = 5000 + windows.lateMs
+    const s = bossReducer(started(), { type: 'press', pc: 0, at: missedAt + BOSS_RULES.travelMs })
+    expect(s.hits[0]).toMatchObject({ judgement: 'miss', at: missedAt })
     expect(s.hits[1]).toMatchObject({ judgement: 'perfect' })
     expect(s.cursor).toBe(2)
   })
@@ -95,8 +104,31 @@ describe('jugement', () => {
   it('recharge la vie à chaque réussite', () => {
     let s = bossReducer(started(), { type: 'tick', at: 6000 })
     expect(s.life).toBe(life.start - life.miss)
-    s = bossReducer(s, { type: 'press', pc: 0, at: 9000 + 80 })
+    s = bossReducer(s, { type: 'press', pc: 0, at: s.notes[1].hitAt + 80 })
     expect(s.life).toBe(life.start - life.miss + life.heal.great)
+  })
+})
+
+describe('enchaînement', () => {
+  it('fait partir la note suivante à l’instant même du jugement', () => {
+    // Frappe un peu en avance : la suivante part aussitôt, sans attendre l'heure prévue.
+    const hit = bossReducer(started(), { type: 'press', pc: 9, at: 4950 })
+    expect(hit.notes[1]).toMatchObject({ launchAt: 4950, hitAt: 4950 + BOSS_RULES.travelMs })
+    // Les notes d'après gardent leur espacement provisoire.
+    expect(hit.notes[2].launchAt).toBe(4950 + BOSS_RULES.travelMs)
+    expect(nextMissAt(hit)).toBe(4950 + BOSS_RULES.travelMs + windows.lateMs)
+    // Une erreur aussi, et un raté à la fermeture de sa fenêtre.
+    const wrong = bossReducer(started(), { type: 'press', pc: 2, at: 5100 })
+    expect(wrong.notes[1].launchAt).toBe(5100)
+    const missed = bossReducer(started(), { type: 'tick', at: 5300 })
+    expect(missed.notes[1].launchAt).toBe(5000 + windows.lateMs)
+  })
+
+  it('ne touche pas aux notes déjà jugées', () => {
+    const before = started()
+    const s = bossReducer(before, { type: 'press', pc: 9, at: 4950 })
+    expect(s.notes[0]).toBe(before.notes[0])
+    expect(s.notes[0]).toMatchObject({ launchAt: 1000, hitAt: 5000 })
   })
 })
 
@@ -134,43 +166,22 @@ describe('minuterie des ratés', () => {
   })
 })
 
-describe('couloirs', () => {
-  const layout = createNeckLayout({ tuning: STANDARD_TUNING })
-
-  it('partent sous le bord bas du manche et montent jusqu’à la cible', () => {
-    for (const note of [
-      { stringIndex: 0, fret: 1 },
-      { stringIndex: 5, fret: 12 },
-    ]) {
-      const lane = laneFor(layout, note)
-      expect(lane.launch.x).toBe(lane.target.x)
-      expect(lane.launch.y).toBeCloseTo(layout.halfWidthAt(lane.target.x) + BOSS_RULES.launchMm, 6)
-      expect(lane.dir).toEqual({ x: 0, y: 1 })
-      expect(lane.length).toBeCloseTo(lane.launch.y - lane.target.y, 6)
-    }
+describe('trajet des fantômes', () => {
+  it('va du bas de l’écran (0) à la cible (1) à vitesse constante, puis la dépasse', () => {
+    const note = { launchAt: 1000, hitAt: 5000 }
+    expect(ghostProgress(note, 1000)).toBe(0)
+    expect(ghostProgress(note, 3000)).toBe(0.5)
+    expect(ghostProgress(note, 5000)).toBe(1)
+    expect(ghostProgress(note, 5400)).toBeCloseTo(1.1, 6)
+    expect(ghostProgress(note, 500)).toBeLessThan(0)
   })
 
-  it('remontent la corde quand le manche est à la verticale', () => {
-    const lane = laneFor(layout, { stringIndex: 2, fret: 3 }, 'vertical')
-    // La corde est à peine oblique : le couloir couvre `portraitLaneMm` en x.
-    expect(lane.launch.x - lane.target.x).toBeCloseTo(BOSS_RULES.portraitLaneMm, 6)
-    expect(lane.length).toBeCloseTo(BOSS_RULES.portraitLaneMm, 2)
-    // Côté caisse (x croissants), sur la corde elle-même.
-    expect(lane.launch.x).toBeGreaterThan(lane.target.x)
-    expect(lane.launch.y).toBeCloseTo(layout.stringY(2, lane.launch.x), 6)
-    // Près du bout du manche, le couloir s'arrête un peu au-delà.
-    const end = laneFor(layout, { stringIndex: 2, fret: 12 }, 'vertical')
-    expect(end.launch.x).toBeLessThanOrEqual(layout.endX + BOSS_RULES.launchMm)
-  })
-
-  it('font avancer le fantôme à vitesse constante, pile sur la cible à l’instant voulu', () => {
-    const lane = laneFor(layout, { stringIndex: 5, fret: 7 })
-    expect(ghostOffset(5000, 5000)).toBe(0)
-    expect(ghostOffset(5000, 4000)).toBeCloseTo(BOSS_RULES.ghostSpeedMmPerSec, 6)
-    expect(ghostPoint(lane, 0)).toEqual(lane.target)
-    expect(ghostPoint(lane, lane.length).y).toBeCloseTo(lane.launch.y, 6)
-    // Au-delà de l'instant voulu, il dépasse la cible.
-    expect(ghostOffset(5000, 5500)).toBeLessThan(0)
-    expect(ghostPoint(lane, ghostOffset(5000, 5500)).y).toBeLessThan(lane.target.y)
+  it('se place sur le segment départ → cible, et dans son prolongement', () => {
+    const from = { x: 100, y: 900 }
+    const to = { x: 100, y: 300 }
+    expect(lerpPoint(from, to, 0)).toEqual(from)
+    expect(lerpPoint(from, to, 1)).toEqual(to)
+    expect(lerpPoint(from, to, 0.5)).toEqual({ x: 100, y: 600 })
+    expect(lerpPoint(from, to, 1.1).y).toBeCloseTo(240, 6)
   })
 })

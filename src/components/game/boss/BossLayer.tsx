@@ -1,11 +1,10 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { useReducedMotion } from 'motion/react'
 
 import { BOSS_RULES } from '@/game/config'
 import {
-  ghostOffset,
-  ghostPoint,
-  laneFor,
+  ghostProgress,
+  lerpPoint,
   type BossHit,
   type BossJudgement,
   type BossNote,
@@ -19,9 +18,7 @@ const LINGER_MS = 900
 /** Durée de l'étiquette de jugement (ms). */
 const LABEL_MS = 700
 /** Apparition de la cible et de son couloir (ms). */
-const APPEAR_MS = 250
-/** Le fantôme s'allume sur ses premiers millimètres de couloir. */
-const IGNITE_MM = 4
+const APPEAR_MS = 200
 
 const LABEL: Record<BossJudgement, string> = {
   perfect: 'Parfait',
@@ -67,11 +64,11 @@ export interface BossLayerProps {
 }
 
 /**
- * Couloirs et fantômes du boss final, posés sur le manche (calque `overlay`,
- * en px). Chaque note paraît `leadMs` avant son instant : sa cible (un anneau)
- * et son couloir, qui part de sous le manche. Le fantôme y monte à vitesse
- * constante et touche l'anneau pile au moment de frapper ; manqué, il le
- * dépasse et s'efface. Une étiquette dit le jugement.
+ * Couloir et fantôme du boss final, posés sur le manche (calque `overlay`, en
+ * px). Une note à la fois : sitôt partie, sa cible (un anneau) paraît, et son
+ * fantôme monte du bas de l'écran le long d'un couloir vertical jusqu'à
+ * l'anneau, qu'il touche pile au moment de frapper ; manqué, il le dépasse et
+ * s'efface. Une étiquette dit le jugement, au-dessus de la révélation de la note.
  */
 export function BossLayer({ state, layout, projection }: BossLayerProps): ReactNode {
   const runUntil =
@@ -83,10 +80,23 @@ export function BossLayer({ state, layout, projection }: BossLayerProps): ReactN
   const now = useFrameClock(runUntil)
   const reduceMotion = useReducedMotion() ?? false
 
+  // Bas de l'écran, dans le repère du calque : le départ des fantômes.
+  const svgRef = useRef<SVGSVGElement>(null)
+  const [bottom, setBottom] = useState(0)
+  useLayoutEffect(() => {
+    const measure = () => {
+      const svg = svgRef.current
+      if (svg) setBottom(window.innerHeight - svg.getBoundingClientRect().top)
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [projection.width, projection.height])
+
   const shown: { note: BossNote; hit: BossHit | null }[] = []
   state.notes.forEach((note, index) => {
     const hit = state.hits[index]
-    if (now < note.hitAt - BOSS_RULES.leadMs) return
+    if (now < note.launchAt) return
     if (!hit && state.phase !== 'playing') return
     if (hit && now - hit.at > Math.max(LABEL_MS, BOSS_RULES.fadeMs)) return
     shown.push({ note, hit })
@@ -94,6 +104,7 @@ export function BossLayer({ state, layout, projection }: BossLayerProps): ReactN
 
   return (
     <svg
+      ref={svgRef}
       data-slot="boss-layer"
       aria-hidden
       className="pointer-events-none absolute inset-0 overflow-visible"
@@ -106,6 +117,7 @@ export function BossLayer({ state, layout, projection }: BossLayerProps): ReactN
           note={note}
           hit={hit}
           now={now}
+          bottom={bottom}
           layout={layout}
           projection={projection}
           reduceMotion={reduceMotion}
@@ -119,6 +131,7 @@ function BossNoteView({
   note,
   hit,
   now,
+  bottom,
   layout,
   projection,
   reduceMotion,
@@ -126,33 +139,29 @@ function BossNoteView({
   note: BossNote
   hit: BossHit | null
   now: number
+  /** Bas de l'écran, en px depuis le haut du calque. */
+  bottom: number
   layout: NeckLayout
   projection: BoardProjection
   /** Animations réduites : ni onde ni étiquette qui monte, de simples fondus. */
   reduceMotion: boolean
 }) {
-  const lane = laneFor(layout, note, projection.orientation)
-  const targetPx = projection.toPx(lane.target)
-  const launchPx = projection.toPx(lane.launch)
   const r = layout.markerRadius * projection.pxPerMm
+  const targetPx = projection.toPx(layout.position(note.stringIndex, note.fret))
+  // Départ juste sous le bord de l'écran : le fantôme y entre par le bas.
+  const launchPx = { x: targetPx.x, y: Math.max(bottom + r, targetPx.y) }
 
-  const appear = clamp01((now - (note.hitAt - BOSS_RULES.leadMs)) / APPEAR_MS)
+  const appear = clamp01((now - note.launchAt) / APPEAR_MS)
   const since = hit ? now - hit.at : 0
   // Jugée, la note s'efface : couloir et anneau en quelques dixièmes de seconde.
-  const fade = hit ? clamp01(1 - since / 350) : 1
+  const fade = hit ? clamp01(1 - since / 300) : 1
   const success = hit !== null && isSuccess(hit.judgement)
 
-  // Le fantôme : invisible sous la zone de lancement, consommé par une frappe,
-  // il poursuit sa course au-delà de la cible s'il est manqué, en s'effaçant.
-  const offset = ghostOffset(note.hitAt, now)
-  const ignite = clamp01((lane.length - offset) / IGNITE_MM)
+  // Le fantôme : consommé par une frappe ; manqué, il poursuit sa course au-delà
+  // de la cible en s'effaçant.
   const ghostOpacity =
-    hit === null
-      ? ignite
-      : hit.judgement === 'miss'
-        ? ignite * clamp01(1 - since / BOSS_RULES.fadeMs)
-        : 0
-  const ghostPx = projection.toPx(ghostPoint(lane, offset))
+    hit === null ? 1 : hit.judgement === 'miss' ? clamp01(1 - since / BOSS_RULES.fadeMs) : 0
+  const ghostPx = lerpPoint(launchPx, targetPx, ghostProgress(note, now))
 
   return (
     <g data-slot="boss-note" data-judgement={hit?.judgement}>
@@ -163,17 +172,9 @@ function BossNoteView({
         x2={targetPx.x}
         y2={targetPx.y}
         stroke="var(--boss-ghost)"
-        strokeOpacity={0.28 * appear * fade}
+        strokeOpacity={0.22 * appear * fade}
         strokeWidth={r * 0.18}
         strokeLinecap="round"
-      />
-      <circle
-        data-slot="boss-launch"
-        cx={launchPx.x}
-        cy={launchPx.y}
-        r={r * 0.28}
-        fill="var(--boss-ghost)"
-        opacity={0.4 * appear * fade}
       />
       <circle
         data-slot="boss-target"
@@ -211,7 +212,8 @@ function BossNoteView({
         <text
           data-slot="boss-label"
           x={targetPx.x}
-          y={targetPx.y - r * 2.1 - (reduceMotion ? 0 : (since / LABEL_MS) * r * 1.2)}
+          // Au-dessus de la révélation de la note (étiquette centrée sur la cible).
+          y={targetPx.y - r * 3.4 - (reduceMotion ? 0 : (since / LABEL_MS) * r * 1.2)}
           textAnchor="middle"
           fontSize={Math.max(12, r * 1.35)}
           fontWeight={800}

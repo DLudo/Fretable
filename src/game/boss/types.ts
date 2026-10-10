@@ -1,12 +1,17 @@
 import type { PitchClass } from '@/game/music/notes'
 
-/** Note du boss : une position du manche, et l'instant où la frapper. */
+/** Note du boss : une position du manche, son départ et l'instant où la frapper. */
 export interface BossNote {
   id: number
   stringIndex: number
   fret: number
   pc: PitchClass
-  /** Instant où le fantôme atteint la cible (`performance.now()`, ms). */
+  /**
+   * Départ du fantôme, en bas de l'écran (`performance.now()`, ms). Provisoire
+   * tant que la note précédente n'est pas jugée : elle part à cet instant-là.
+   */
+  launchAt: number
+  /** Instant où le fantôme atteint la cible : `launchAt + BOSS_RULES.travelMs`. */
   hitAt: number
 }
 
