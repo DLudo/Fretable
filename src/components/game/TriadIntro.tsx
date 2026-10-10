@@ -145,7 +145,7 @@ export function TriadIntro({ intro, className }: TriadIntroProps): ReactNode {
                     data-slot="triad-intro-spark"
                     className={cn(
                       'absolute -translate-1/2 rounded-full shadow-[0_0_10px_2px_var(--triad-glow)]',
-                      spark.light ? 'bg-white' : 'bg-triad',
+                      spark.light ? 'bg-reveal-highlight' : 'bg-triad',
                     )}
                     style={{
                       left: `${spark.left}%`,
@@ -184,12 +184,13 @@ export function TriadIntro({ intro, className }: TriadIntroProps): ReactNode {
                   }}
                 />
               )}
-              <div className="relative overflow-hidden rounded-2xl bg-triad px-[clamp(1.5rem,5vw,3rem)] py-[clamp(0.85rem,2.6vw,1.5rem)] text-center text-triad-ink shadow-[0_0_48px_6px_var(--triad-glow),0_14px_40px_-10px_rgb(0_0_0/0.7)]">
+              <div className="relative overflow-hidden rounded-2xl bg-triad px-[clamp(1.5rem,5vw,3rem)] py-[clamp(0.85rem,2.6vw,1.5rem)] text-center text-triad-ink shadow-[0_0_48px_6px_var(--triad-glow),0_14px_40px_-10px_color-mix(in_oklab,var(--key-border)_90%,transparent)]">
                 {!reduceMotion && (
                   <motion.span
-                    className="absolute inset-y-0 left-0 w-1/3 -skew-x-[20deg] bg-linear-to-r from-transparent via-white/60 to-transparent"
-                    initial={{ x: '-150%' }}
-                    animate={{ x: '400%' }}
+                    className="absolute inset-y-0 left-0 w-1/3 bg-linear-to-r from-transparent via-reveal-highlight/60 to-transparent"
+                    // Motion porte toute la transformation : l'inclinaison avec la translation.
+                    initial={{ x: '-150%', skewX: -20 }}
+                    animate={{ x: '400%', skewX: -20 }}
                     transition={{ duration: 0.55, ease: ease.inOut, delay: IMPACT + 0.1 }}
                   />
                 )}
