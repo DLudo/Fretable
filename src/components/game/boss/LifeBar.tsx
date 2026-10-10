@@ -32,6 +32,7 @@ export function LifeBar({ life, max, className }: LifeBarProps): ReactNode {
     <ProgressPrimitive.Root
       data-slot="life-bar"
       data-critical={critical || undefined}
+      aria-label="Vie"
       value={Math.round(life)}
       max={max}
       getValueLabel={(value, total) => `Vie : ${value} sur ${total}`}

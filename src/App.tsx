@@ -15,6 +15,8 @@ const startsInBoss =
 
 export default function App() {
   const [boss, setBoss] = useState(startsInBoss)
+  // Bascule au clavier : l'interrupteur du nouvel écran reprend le focus.
+  const [focusSwitch, setFocusSwitch] = useState(false)
   if (isLab) {
     return (
       <Suspense fallback={null}>
@@ -23,6 +25,15 @@ export default function App() {
     )
   }
   // Basculer de mode relance l'écran : la partie en cours est abandonnée.
-  const modeSwitch = <ModeSwitch checked={boss} onCheckedChange={setBoss} />
+  const modeSwitch = (
+    <ModeSwitch
+      checked={boss}
+      autoFocus={focusSwitch}
+      onCheckedChange={(next, { keyboard }) => {
+        setBoss(next)
+        setFocusSwitch(keyboard)
+      }}
+    />
+  )
   return boss ? <BossScreen modeSwitch={modeSwitch} /> : <GameScreen modeSwitch={modeSwitch} />
 }

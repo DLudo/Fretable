@@ -10,6 +10,15 @@ import type { BossAction, BossState } from './types'
 
 const now = () => performance.now()
 
+/**
+ * Attente avant de vérifier qu'une fenêtre est close (ms), ou `null` si elle
+ * l'est déjà (`now` au-delà de `missAt`). Un minuteur peut se réveiller un rien
+ * trop tôt (délai tronqué, horloge arrondie) : on revérifie alors.
+ */
+export function missCheckDelay(missAt: number, now: number): number | null {
+  return now > missAt ? null : Math.ceil(missAt - now) + 1
+}
+
 /** Réducteur aux réglages par défaut (`BOSS_RULES`), à la signature attendue par React. */
 const reduce = (state: BossState, action: BossAction): BossState => bossReducer(state, action)
 
@@ -39,14 +48,20 @@ export function useBossGame(options: BossGameOptions = {}) {
 
   const press = useCallback((pc: PitchClass) => dispatch({ type: 'press', pc, at: now() }), [])
 
-  // Fenêtre de la note en cours close sans frappe : raté, à l'instant près.
+  // Fenêtre de la note en cours close sans frappe : raté. Le minuteur revérifie
+  // tant que la fenêtre n'est pas réellement close, sans quoi un réveil précoce
+  // laisserait la note sans jugement (et la partie sans fin).
   const missAt = nextMissAt(state)
   useEffect(() => {
     if (missAt === null) return
-    const timer = window.setTimeout(
-      () => dispatch({ type: 'tick', at: now() }),
-      Math.max(0, missAt - now()) + 1,
-    )
+    let timer = 0
+    const check = () => {
+      const t = now()
+      const delay = missCheckDelay(missAt, t)
+      if (delay === null) dispatch({ type: 'tick', at: t })
+      else timer = window.setTimeout(check, delay)
+    }
+    check()
     return () => window.clearTimeout(timer)
   }, [missAt])
 

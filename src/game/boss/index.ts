@@ -1,5 +1,5 @@
 export { createBossChart } from './chart'
-export { ghostY, laneFor } from './lanes'
+export { ghostOffset, ghostPoint, laneFor, type BossLane } from './lanes'
 export { bossReducer, createBossState, gradeHit, nextMissAt, type BossRules } from './reducer'
 export type { BossAction, BossHit, BossJudgement, BossNote, BossPhase, BossState } from './types'
-export { useBossGame, type BossGameOptions } from './useBossGame'
+export { missCheckDelay, useBossGame, type BossGameOptions } from './useBossGame'

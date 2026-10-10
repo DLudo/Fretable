@@ -5,8 +5,10 @@ import {
   bossReducer,
   createBossChart,
   createBossState,
-  ghostY,
+  ghostOffset,
+  ghostPoint,
   laneFor,
+  missCheckDelay,
   nextMissAt,
   type BossNote,
   type BossState,
@@ -121,6 +123,17 @@ describe('fin du combat', () => {
   })
 })
 
+describe('minuterie des ratés', () => {
+  it('revérifie tant que la fenêtre n’est pas réellement close', () => {
+    expect(missCheckDelay(5220, 1000)).toBe(4221)
+    // Réveil un rien trop tôt, ou pile à la limite : on attend encore.
+    expect(missCheckDelay(5220, 5219.6)).toBe(2)
+    expect(missCheckDelay(5220, 5220)).toBe(1)
+    // Fenêtre close : le raté se juge tout de suite.
+    expect(missCheckDelay(5220, 5220.001)).toBeNull()
+  })
+})
+
 describe('couloirs', () => {
   const layout = createNeckLayout({ tuning: STANDARD_TUNING })
 
@@ -129,18 +142,35 @@ describe('couloirs', () => {
       { stringIndex: 0, fret: 1 },
       { stringIndex: 5, fret: 12 },
     ]) {
-      const { target, launch } = laneFor(layout, note)
-      expect(launch.x).toBe(target.x)
-      expect(launch.y).toBeCloseTo(layout.halfWidthAt(target.x) + BOSS_RULES.launchMm, 6)
-      expect(launch.y).toBeGreaterThan(target.y)
+      const lane = laneFor(layout, note)
+      expect(lane.launch.x).toBe(lane.target.x)
+      expect(lane.launch.y).toBeCloseTo(layout.halfWidthAt(lane.target.x) + BOSS_RULES.launchMm, 6)
+      expect(lane.dir).toEqual({ x: 0, y: 1 })
+      expect(lane.length).toBeCloseTo(lane.launch.y - lane.target.y, 6)
     }
   })
 
-  it('font monter le fantôme à vitesse constante, pile sur la cible à l’instant voulu', () => {
-    const target = { x: 100, y: -10 }
-    expect(ghostY(target, 5000, 5000)).toBe(-10)
-    expect(ghostY(target, 5000, 4000)).toBeCloseTo(-10 + BOSS_RULES.ghostSpeedMmPerSec, 6)
-    // Au-delà de l'instant voulu, il continue de monter.
-    expect(ghostY(target, 5000, 5500)).toBeLessThan(-10)
+  it('remontent la corde quand le manche est à la verticale', () => {
+    const lane = laneFor(layout, { stringIndex: 2, fret: 3 }, 'vertical')
+    // La corde est à peine oblique : le couloir couvre `portraitLaneMm` en x.
+    expect(lane.launch.x - lane.target.x).toBeCloseTo(BOSS_RULES.portraitLaneMm, 6)
+    expect(lane.length).toBeCloseTo(BOSS_RULES.portraitLaneMm, 2)
+    // Côté caisse (x croissants), sur la corde elle-même.
+    expect(lane.launch.x).toBeGreaterThan(lane.target.x)
+    expect(lane.launch.y).toBeCloseTo(layout.stringY(2, lane.launch.x), 6)
+    // Près du bout du manche, le couloir s'arrête un peu au-delà.
+    const end = laneFor(layout, { stringIndex: 2, fret: 12 }, 'vertical')
+    expect(end.launch.x).toBeLessThanOrEqual(layout.endX + BOSS_RULES.launchMm)
+  })
+
+  it('font avancer le fantôme à vitesse constante, pile sur la cible à l’instant voulu', () => {
+    const lane = laneFor(layout, { stringIndex: 5, fret: 7 })
+    expect(ghostOffset(5000, 5000)).toBe(0)
+    expect(ghostOffset(5000, 4000)).toBeCloseTo(BOSS_RULES.ghostSpeedMmPerSec, 6)
+    expect(ghostPoint(lane, 0)).toEqual(lane.target)
+    expect(ghostPoint(lane, lane.length).y).toBeCloseTo(lane.launch.y, 6)
+    // Au-delà de l'instant voulu, il dépasse la cible.
+    expect(ghostOffset(5000, 5500)).toBeLessThan(0)
+    expect(ghostPoint(lane, ghostOffset(5000, 5500)).y).toBeLessThan(lane.target.y)
   })
 })

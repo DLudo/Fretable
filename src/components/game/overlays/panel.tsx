@@ -1,12 +1,5 @@
-import {
-  useId,
-  useLayoutEffect,
-  useRef,
-  type ComponentProps,
-  type MouseEvent,
-  type ReactNode,
-} from 'react'
-import { motion, useIsPresent, type Transition } from 'motion/react'
+import { useId, useLayoutEffect, useRef, type ComponentProps, type ReactNode } from 'react'
+import { motion, useIsPresent } from 'motion/react'
 
 import { formatScore } from '@/components/game/hud'
 import {
@@ -18,14 +11,10 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
-import { duration, ease } from '@/theme/motion'
 
 /*
  * Briques communes aux écrans d'avant et d'après partie (niveau, boss).
  */
-
-export const ENTER: Transition = { duration: 0.25, ease: ease.outExpo }
-export const LEAVE: Transition = { duration: duration.fast, ease: ease.inQuad }
 
 /**
  * Calque animé rendu inerte dès sa sortie : plus aucun clic sur ce qui s'efface.
@@ -43,17 +32,6 @@ export function PresenceLayer(props: Omit<ComponentProps<typeof motion.div>, 're
     }
   }, [isPresent])
   return <motion.div ref={ref} inert={!isPresent} {...props} />
-}
-
-/**
- * Action de bouton qui rend d'abord le focus : la touche suivante revient aux
- * contrôles clavier du jeu au lieu de réactiver ce bouton (voir `PresenceLayer`).
- */
-export function blurThen(action: () => void) {
-  return (event: MouseEvent<HTMLButtonElement>) => {
-    event.currentTarget.blur()
-    action()
-  }
 }
 
 /** Carte de dialogue commune : titre, description, contenu et actions. */

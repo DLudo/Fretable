@@ -207,6 +207,11 @@ export const BOSS_RULES = {
   ghostSpeedMmPerSec: 20,
   /** Zone de lancement : les fantômes naissent autant sous le bord bas du manche (mm). */
   launchMm: 20,
+  /**
+   * Manche à la verticale (téléphone en portrait) : le couloir remonte la corde
+   * vers le sillet, sur cette longueur (mm), pour que le fantôme monte à l'écran.
+   */
+  portraitLaneMm: 60,
   /** Fenêtres de jugement (ms) : frapper plus tôt que `earlyMs` ne fait rien. */
   windows: { earlyMs: 180, lateMs: 220, perfectMs: 50, greatMs: 110 },
   /** Barre de vie : pleine au départ ; un raté coûte, une erreur coûte plus, une réussite recharge. */

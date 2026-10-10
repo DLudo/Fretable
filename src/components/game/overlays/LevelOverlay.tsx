@@ -13,7 +13,8 @@ import type { GameState } from '@/game/engine/types'
 import { keyHint } from '@/game/input/keymap'
 import { NATURAL_PCS, noteName } from '@/game/music/notes'
 import { cn } from '@/lib/utils'
-import { blurThen, ENTER, LEAVE, Panel, PresenceLayer, ScoreLine, Stat } from './panel'
+import { Panel, PresenceLayer, ScoreLine, Stat } from './panel'
+import { blurThen, ENTER, LEAVE } from './transitions'
 import { RatingStars } from './RatingStars'
 
 export interface LevelOverlayProps {

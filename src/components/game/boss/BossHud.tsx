@@ -38,7 +38,7 @@ export function BossHud({ state, leading, className }: BossHudProps): ReactNode 
           >
             <span className="font-medium">{state.cursor}</span>
             <span className="text-muted-foreground">/ {total}</span>
-            <span className="text-xs text-muted-foreground">notes</span>
+            <span className="text-xs text-muted-foreground max-sm:hidden">notes</span>
           </span>
         </div>
         <div className="relative short:order-1 short:min-w-16 short:flex-1">

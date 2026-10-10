@@ -46,11 +46,12 @@ src/
 │  ├─ fretboard/            géométrie réaliste du manche (mm) + projection orientable mm → px
 │  ├─ levels/               level design (données)
 │  ├─ engine/               machine à états, tirage, minuteur, sélecteurs, bus d'événements
+│  ├─ boss/                 boss final : partition, jugement, barre de vie, couloirs (moteur pur)
 │  ├─ input/                correspondance clavier et hook de contrôles
 │  └─ config.ts             réglages de « game feel », barème des points, combo, coup de pouce, notation
 ├─ components/
 │  ├─ ui/                   primitives shadcn/ui
-│  └─ game/                 manche, piano, HUD, overlays, écran de jeu
+│  └─ game/                 manche, piano, HUD, overlays, écran de jeu, boss/ (écran du boss final)
 ├─ effects/                 révélations (contrat, registre, calque, kit, presets) et aura du combo
 ├─ lab/                     banc d'essai isolé des effets (/?lab)
 ├─ hooks/                   hooks génériques (taille d'élément, media queries)
@@ -104,7 +105,7 @@ Les règles vivent dans `src/game/config.ts`, à côté du barème des points :
 
 - `COMBO_RULES` : nombre de réponses rapides, seuil de rapidité, durée, recharge, plafond et multiplicateur du combo ;
 - `TRIAD_RULES` : probabilité à chaque note (`chance`), nombre maximal par partie (`maxPerGame`, sans limite par défaut), notes ordinaires entre deux triades (`minNotesBetween`), notes qu'il doit rester à trouver (`minNotesLeft`), seuil de rapidité (`fastReactionMs`), durée de l'annonce (`introMs`, 0 pour s'en passer), écart maximal de la main (`maxFretSpan`) et qualités tirées ;
-- `BOSS_RULES` : boss final — nombre de notes, cadence (`intervalMs`), délai d'apparition (`leadMs`), vitesse des fantômes, zone de lancement, fenêtres de jugement, barre de vie (départ, coût d'un raté et d'une erreur, recharge par jugement) et points ;
+- `BOSS_RULES` : boss final — nombre de notes (`noteCount`), cadence (`intervalMs`), arrivée de la première note (`firstHitMs`), délai d'apparition de la cible (`leadMs`), vitesse des fantômes, zone de lancement sous le manche (`launchMm`) et longueur du couloir en portrait (`portraitLaneMm`), fenêtres de jugement, barre de vie (départ, plafond, coût d'un raté et d'une erreur, recharge par jugement), points et fondu d'un fantôme manqué (`fadeMs`) ;
 - `SCALE_RULES` : gammes accessibles (`kinds`, la pentatonique tant que le palier 1 n'est pas débloqué), points par note juste (`pointsPerNote`) et supplément d'un parcours sans faute (`perfectBonus`) ;
 - `ASSIST_RULES` : seuil de lenteur (`averageAboveMs`), nombre minimal de réponses avant le premier tirage (`minAnswers`), probabilité (`chance`), bonnes réponses attendues pour le cran (`repeats`), temps accordé (`bonusTimeMs`) et, avec `samePosition`, la possibilité de reposer la note au même endroit plutôt que de la promener sur le manche.
 

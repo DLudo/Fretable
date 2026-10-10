@@ -96,7 +96,10 @@ export function LevelHud({
             <span data-slot="level-count-target" className="text-muted-foreground">
               / {level.targetCount}
             </span>
-            <span data-slot="level-count-unit" className="text-xs text-muted-foreground">
+            <span
+              data-slot="level-count-unit"
+              className="text-xs text-muted-foreground max-sm:hidden"
+            >
               notes
             </span>
           </span>

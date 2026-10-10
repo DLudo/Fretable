@@ -1,8 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { useReducedMotion } from 'motion/react'
 
 import { BOSS_RULES } from '@/game/config'
 import {
-  ghostY,
+  ghostOffset,
+  ghostPoint,
   laneFor,
   type BossHit,
   type BossJudgement,
@@ -79,6 +81,7 @@ export function BossLayer({ state, layout, projection }: BossLayerProps): ReactN
         ? state.endedAt + LINGER_MS
         : 0
   const now = useFrameClock(runUntil)
+  const reduceMotion = useReducedMotion() ?? false
 
   const shown: { note: BossNote; hit: BossHit | null }[] = []
   state.notes.forEach((note, index) => {
@@ -105,6 +108,7 @@ export function BossLayer({ state, layout, projection }: BossLayerProps): ReactN
           now={now}
           layout={layout}
           projection={projection}
+          reduceMotion={reduceMotion}
         />
       ))}
     </svg>
@@ -117,16 +121,19 @@ function BossNoteView({
   now,
   layout,
   projection,
+  reduceMotion,
 }: {
   note: BossNote
   hit: BossHit | null
   now: number
   layout: NeckLayout
   projection: BoardProjection
+  /** Animations réduites : ni onde ni étiquette qui monte, de simples fondus. */
+  reduceMotion: boolean
 }) {
-  const { target, launch } = laneFor(layout, note)
-  const targetPx = projection.toPx(target)
-  const launchPx = projection.toPx(launch)
+  const lane = laneFor(layout, note, projection.orientation)
+  const targetPx = projection.toPx(lane.target)
+  const launchPx = projection.toPx(lane.launch)
   const r = layout.markerRadius * projection.pxPerMm
 
   const appear = clamp01((now - (note.hitAt - BOSS_RULES.leadMs)) / APPEAR_MS)
@@ -137,15 +144,15 @@ function BossNoteView({
 
   // Le fantôme : invisible sous la zone de lancement, consommé par une frappe,
   // il poursuit sa course au-delà de la cible s'il est manqué, en s'effaçant.
-  const y = ghostY(target, note.hitAt, now)
-  const ignite = clamp01((launch.y - y) / IGNITE_MM)
+  const offset = ghostOffset(note.hitAt, now)
+  const ignite = clamp01((lane.length - offset) / IGNITE_MM)
   const ghostOpacity =
     hit === null
       ? ignite
       : hit.judgement === 'miss'
         ? ignite * clamp01(1 - since / BOSS_RULES.fadeMs)
         : 0
-  const ghostPx = projection.toPx({ x: target.x, y })
+  const ghostPx = projection.toPx(ghostPoint(lane, offset))
 
   return (
     <g data-slot="boss-note" data-judgement={hit?.judgement}>
@@ -155,7 +162,7 @@ function BossNoteView({
         y1={launchPx.y}
         x2={targetPx.x}
         y2={targetPx.y}
-        stroke="var(--marker)"
+        stroke="var(--boss-ghost)"
         strokeOpacity={0.28 * appear * fade}
         strokeWidth={r * 0.18}
         strokeLinecap="round"
@@ -165,7 +172,7 @@ function BossNoteView({
         cx={launchPx.x}
         cy={launchPx.y}
         r={r * 0.28}
-        fill="var(--marker)"
+        fill="var(--boss-ghost)"
         opacity={0.4 * appear * fade}
       />
       <circle
@@ -173,7 +180,7 @@ function BossNoteView({
         cx={targetPx.x}
         cy={targetPx.y}
         // Réussie, la cible s'ouvre comme une onde en s'effaçant.
-        r={r * (1 + (success ? clamp01(since / LABEL_MS) * 0.9 : 0))}
+        r={r * (1 + (success && !reduceMotion ? clamp01(since / LABEL_MS) * 0.9 : 0))}
         fill="var(--marker)"
         fillOpacity={0.14 * appear * fade}
         stroke={hit ? COLOR[hit.judgement] : 'var(--marker)'}
@@ -189,14 +196,22 @@ function BossNoteView({
             fill="var(--marker-halo)"
             opacity={0.45}
           />
-          <circle cx={ghostPx.x} cy={ghostPx.y} r={r * 0.9} fill="var(--marker)" />
+          <circle
+            cx={ghostPx.x}
+            cy={ghostPx.y}
+            r={r * 0.9}
+            fill="var(--boss-ghost)"
+            // Liseré du fond de page : lisible sur la touche comme hors du manche.
+            stroke="var(--background)"
+            strokeWidth={r * 0.14}
+          />
         </g>
       )}
       {hit && since < LABEL_MS && (
         <text
           data-slot="boss-label"
           x={targetPx.x}
-          y={targetPx.y - r * 2.1 - (since / LABEL_MS) * r * 1.2}
+          y={targetPx.y - r * 2.1 - (reduceMotion ? 0 : (since / LABEL_MS) * r * 1.2)}
           textAnchor="middle"
           fontSize={Math.max(12, r * 1.35)}
           fontWeight={800}
