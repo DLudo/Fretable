@@ -22,6 +22,8 @@ const LABEL_MS = 700
 const APPEAR_MS = 200
 /** Halo du fantôme, en rayons de note : le départ se fait sous lui, hors de l'écran. */
 const GHOST_HALO = 1.7
+/** Notes en vol après celle à jouer : atténuées, pour qu'on lise l'ordre d'arrivée. */
+const UPCOMING_OPACITY = 0.45
 
 const LABEL: Record<BossJudgement, string> = {
   perfect: 'Parfait',
@@ -67,11 +69,12 @@ export interface BossLayerProps {
 }
 
 /**
- * Couloir et fantôme du boss final, posés sur le manche (calque `overlay`, en
- * px). Une note à la fois : sitôt partie, sa cible (un anneau) paraît, et son
- * fantôme monte du bas de l'écran le long d'un couloir vertical jusqu'à
- * l'anneau, qu'il touche pile au moment de frapper ; manqué, il le dépasse et
- * s'efface. Une étiquette dit le jugement, au-dessus de la révélation de la note.
+ * Couloirs et fantômes du boss final, posés sur le manche (calque `overlay`, en
+ * px). Chaque note, sitôt partie, montre sa cible (un anneau) ; son fantôme
+ * monte du bas de l'écran le long d'un couloir vertical jusqu'à l'anneau, qu'il
+ * touche pile au moment de frapper ; manqué, il le dépasse et s'efface.
+ * Plusieurs notes sont en vol à la fois : celle à jouer est au premier plan, les
+ * suivantes atténuées. Une étiquette dit le jugement, au-dessus de la révélation.
  */
 export function BossLayer({ state, layout, projection }: BossLayerProps): ReactNode {
   const runUntil =
@@ -96,8 +99,11 @@ export function BossLayer({ state, layout, projection }: BossLayerProps): ReactN
     return () => window.removeEventListener('resize', measure)
   }, [projection.width, projection.height])
 
-  // La note en cours, et les notes jugées le temps de leurs retours.
-  const shown = visibleBossNotes(state, now, Math.max(LABEL_MS, BOSS_RULES.fadeMs))
+  // Notes en vol et notes jugées le temps de leurs retours ; celle à jouer
+  // dessinée en dernier, par-dessus les autres.
+  const shown = visibleBossNotes(state, now, Math.max(LABEL_MS, BOSS_RULES.fadeMs)).sort(
+    (a, b) => Number(a.current) - Number(b.current),
+  )
 
   return (
     <svg
@@ -108,11 +114,12 @@ export function BossLayer({ state, layout, projection }: BossLayerProps): ReactN
       width={projection.width}
       height={projection.height}
     >
-      {shown.map(({ note, hit }) => (
+      {shown.map(({ note, hit, current }) => (
         <BossNoteView
           key={note.id}
           note={note}
           hit={hit}
+          current={current}
           now={now}
           bottom={bottom}
           layout={layout}
@@ -127,6 +134,7 @@ export function BossLayer({ state, layout, projection }: BossLayerProps): ReactN
 function BossNoteView({
   note,
   hit,
+  current,
   now,
   bottom,
   layout,
@@ -135,6 +143,8 @@ function BossNoteView({
 }: {
   note: BossNote
   hit: BossHit | null
+  /** La note à jouer maintenant ; les autres notes en vol sont atténuées. */
+  current: boolean
   now: number
   /** Bas de l'écran, en px depuis le haut du calque. */
   bottom: number
@@ -160,8 +170,16 @@ function BossNoteView({
     hit === null ? 1 : hit.judgement === 'miss' ? clamp01(1 - since / BOSS_RULES.fadeMs) : 0
   const ghostPx = lerpPoint(launchPx, targetPx, ghostProgress(note, now))
 
+  // En attente de leur tour, les notes suivantes restent en retrait.
+  const presence = hit === null && !current ? UPCOMING_OPACITY : 1
+
   return (
-    <g data-slot="boss-note" data-judgement={hit?.judgement}>
+    <g
+      data-slot="boss-note"
+      data-judgement={hit?.judgement}
+      data-current={current || undefined}
+      opacity={presence}
+    >
       <line
         data-slot="boss-lane"
         x1={launchPx.x}
@@ -182,7 +200,7 @@ function BossNoteView({
         fill="var(--marker)"
         fillOpacity={0.14 * appear * fade}
         stroke={hit ? COLOR[hit.judgement] : 'var(--marker)'}
-        strokeWidth={r * 0.22}
+        strokeWidth={r * (current ? 0.26 : 0.2)}
         strokeOpacity={appear * (success ? clamp01(1 - since / LABEL_MS) : fade)}
       />
       {ghostOpacity > 0 && (

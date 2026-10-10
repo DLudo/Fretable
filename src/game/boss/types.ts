@@ -6,10 +6,7 @@ export interface BossNote {
   stringIndex: number
   fret: number
   pc: PitchClass
-  /**
-   * Départ du fantôme, en bas de l'écran (`performance.now()`, ms). Provisoire
-   * tant que la note précédente n'est pas jugée : elle part à cet instant-là.
-   */
+  /** Départ du fantôme, en bas de l'écran (`performance.now()`, ms). */
   launchAt: number
   /** Instant où le fantôme atteint la cible : `launchAt + BOSS_RULES.travelMs`. */
   hitAt: number

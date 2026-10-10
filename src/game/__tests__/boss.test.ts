@@ -20,28 +20,28 @@ import { pitchClassAt, STANDARD_TUNING } from '@/game/music/tuning'
 const level = getLevel(0)
 const { windows, life } = BOSS_RULES
 
-/** Partition d'essai : arrivées provisoires toutes les 4 s dès 5 s, La puis Do puis Mi… */
+/** Partition d'essai : arrivées toutes les 4 s dès 5 s (trajet 4 s), La puis Do puis Mi… */
 const chart = (pcs: PitchClass[]): BossNote[] =>
   pcs.map((pc, i) => ({
     id: i + 1,
     stringIndex: 0,
     fret: 5,
     pc,
-    launchAt: 1000 + i * BOSS_RULES.travelMs,
-    hitAt: 1000 + (i + 1) * BOSS_RULES.travelMs,
+    launchAt: 1000 + i * 4000,
+    hitAt: 5000 + i * 4000,
   }))
 
 const started = (pcs: PitchClass[] = [9, 0, 4]): BossState =>
   bossReducer(createBossState(), { type: 'start', now: 0, notes: chart(pcs) })
 
 describe('partition du boss', () => {
-  it('tire des notes au hasard, jamais deux fois la même d’affilée, à instants provisoires', () => {
+  it('tire des notes au hasard, jamais deux fois la même d’affilée, à intervalle régulier', () => {
     let seed = 7
     const random = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646
     const notes = createBossChart(level, STANDARD_TUNING, random, 1000)
     expect(notes).toHaveLength(BOSS_RULES.noteCount)
     notes.forEach((note, i) => {
-      expect(note.launchAt).toBe(1000 + BOSS_RULES.startDelayMs + i * BOSS_RULES.travelMs)
+      expect(note.launchAt).toBe(1000 + BOSS_RULES.startDelayMs + i * BOSS_RULES.intervalMs)
       expect(note.hitAt).toBe(note.launchAt + BOSS_RULES.travelMs)
       expect(note.pc).toBe(pitchClassAt(STANDARD_TUNING, note.stringIndex, note.fret))
       expect(note.fret).toBeGreaterThanOrEqual(level.frets.min)
@@ -93,11 +93,8 @@ describe('jugement', () => {
   })
 
   it('rattrape les ratés en retard avant de juger une frappe', () => {
-    // La première note, manquée, est jugée à la fermeture de sa fenêtre ; la
-    // suivante est partie à cet instant et arrive 4 s plus tard.
-    const missedAt = 5000 + windows.lateMs
-    const s = bossReducer(started(), { type: 'press', pc: 0, at: missedAt + BOSS_RULES.travelMs })
-    expect(s.hits[0]).toMatchObject({ judgement: 'miss', at: missedAt })
+    const s = bossReducer(started(), { type: 'press', pc: 0, at: 9000 })
+    expect(s.hits[0]).toMatchObject({ judgement: 'miss', at: 5000 + windows.lateMs })
     expect(s.hits[1]).toMatchObject({ judgement: 'perfect' })
     expect(s.cursor).toBe(2)
   })
@@ -110,26 +107,22 @@ describe('jugement', () => {
   })
 })
 
-describe('enchaînement', () => {
-  it('fait partir la note suivante à l’instant même du jugement', () => {
-    // Frappe un peu en avance : la suivante part aussitôt, sans attendre l'heure prévue.
-    const hit = bossReducer(started(), { type: 'press', pc: 9, at: 4950 })
-    expect(hit.notes[1]).toMatchObject({ launchAt: 4950, hitAt: 4950 + BOSS_RULES.travelMs })
-    // Les notes d'après gardent leur espacement provisoire.
-    expect(hit.notes[2].launchAt).toBe(4950 + BOSS_RULES.travelMs)
-    expect(nextMissAt(hit)).toBe(4950 + BOSS_RULES.travelMs + windows.lateMs)
-    // Une erreur aussi, et un raté à la fermeture de sa fenêtre.
-    const wrong = bossReducer(started(), { type: 'press', pc: 2, at: 5100 })
-    expect(wrong.notes[1].launchAt).toBe(5100)
-    const missed = bossReducer(started(), { type: 'tick', at: 5300 })
-    expect(missed.notes[1].launchAt).toBe(5000 + windows.lateMs)
+describe('calendrier', () => {
+  it('ne bouge pas au fil des jugements : les notes en vol gardent leur course', () => {
+    const before = started()
+    const late = bossReducer(before, { type: 'press', pc: 9, at: 5150 })
+    const missed = bossReducer(before, { type: 'tick', at: 5300 })
+    expect(late.notes).toBe(before.notes)
+    expect(missed.notes).toBe(before.notes)
+    expect(nextMissAt(late)).toBe(9000 + windows.lateMs)
   })
 
-  it('ne touche pas aux notes déjà jugées', () => {
-    const before = started()
-    const s = bossReducer(before, { type: 'press', pc: 9, at: 4950 })
-    expect(s.notes[0]).toBe(before.notes[0])
-    expect(s.notes[0]).toMatchObject({ launchAt: 1000, hitAt: 5000 })
+  it('vise toujours la première note pas encore jugée, même avec d’autres en vol', () => {
+    // La deuxième (Do) est déjà en route : une frappe de Do pendant la fenêtre
+    // de la première (La) est une erreur sur la première.
+    const s = bossReducer(started(), { type: 'press', pc: 0, at: 5000 })
+    expect(s.hits[0]).toMatchObject({ judgement: 'wrong', guess: 0 })
+    expect(s.cursor).toBe(1)
   })
 })
 
@@ -168,28 +161,32 @@ describe('minuterie des ratés', () => {
 })
 
 describe('notes affichées', () => {
-  it('une seule en vol : la suivante attend le jugement, même après son départ provisoire', () => {
+  it('montre toutes les notes en vol, la plus avancée étant celle à jouer', () => {
     const s = started()
-    // Avant le départ de la première, rien ; ensuite, elle seule.
-    expect(visibleBossNotes(s, 900)).toEqual([])
-    expect(visibleBossNotes(s, 3000).map(({ note }) => note.id)).toEqual([1])
-    // Fenêtre de retard de la première : le départ provisoire de la suivante
-    // (5 000) est passé, mais elle n'est pas dessinée.
-    expect(visibleBossNotes(s, 5100).map(({ note }) => note.id)).toEqual([1])
-    // Jugée en retard, la première laisse place à la suivante, partie à cet instant.
-    const late = bossReducer(s, { type: 'press', pc: 9, at: 5150 })
-    expect(visibleBossNotes(late, 5160).map(({ note, hit }) => [note.id, hit?.judgement])).toEqual([
-      [1, 'good'],
-      [2, undefined],
+    const at = (now: number, state = s) =>
+      visibleBossNotes(state, now).map(({ note, hit, current }) => [
+        note.id,
+        hit?.judgement ?? null,
+        current,
+      ])
+    expect(at(900)).toEqual([])
+    expect(at(3000)).toEqual([[1, null, true]])
+    // La deuxième est partie (5 000) avant que la première n'arrive : deux en vol.
+    expect(at(5100)).toEqual([
+      [1, null, true],
+      [2, null, false],
     ])
-    expect(late.notes[1].launchAt).toBe(5150)
-    // Ses retours passés, la note jugée disparaît.
-    expect(visibleBossNotes(late, 5150 + BOSS_RULES.fadeMs + 1).map(({ note }) => note.id)).toEqual(
-      [2],
-    )
+    // La première jugée, la deuxième devient celle à jouer ; la première reste
+    // le temps de ses retours, puis disparaît.
+    const hit = bossReducer(s, { type: 'press', pc: 9, at: 5150 })
+    expect(at(5200, hit)).toEqual([
+      [1, 'good', false],
+      [2, null, true],
+    ])
+    expect(at(5150 + BOSS_RULES.fadeMs + 1, hit)).toEqual([[2, null, true]])
   })
 
-  it('n’affiche plus aucune note en attente une fois le combat fini', () => {
+  it('n’affiche plus aucune note en vol une fois le combat fini', () => {
     let s = started([9, 0])
     s = bossReducer(s, { type: 'press', pc: 2, at: 5000 })
     const ended = { ...s, phase: 'lost' as const }

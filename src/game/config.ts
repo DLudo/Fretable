@@ -189,18 +189,21 @@ export const RATING_RULES = {
 export type RatingRules = typeof RATING_RULES
 
 /**
- * Boss final, façon StepMania (prototype) : les notes, tirées au hasard,
- * s'enchaînent sans temps mort. Chacune part du bas de l'écran et monte jusqu'à
- * sa cible en `travelMs` ; elle part à l'instant où la précédente est jugée, si
- * bien que la cadence dérive un peu autour de `travelMs`. Le joueur frappe quand
- * le fantôme atteint la cible. Sans musique pour l'instant : le moteur de
- * synchronisation viendra plus tard. Tout se règle ici pendant les tests.
+ * Boss final, façon StepMania (prototype) : les notes, tirées au hasard, partent
+ * du bas de l'écran à intervalle régulier (`intervalMs`) et montent lentement
+ * jusqu'à leur cible (`travelMs`) : plusieurs sont en vol à la fois, la suivante
+ * déjà en route avant que la précédente n'arrive. On les joue une à une, dans
+ * l'ordre d'arrivée, quand chaque fantôme touche sa cible. Sans musique pour
+ * l'instant : le moteur de synchronisation viendra plus tard. Tout se règle ici
+ * pendant les tests.
  */
 export const BOSS_RULES = {
   /** Notes du boss : survivre jusqu'à la dernière, c'est le vaincre. */
   noteCount: 30,
-  /** Trajet d'un fantôme, du bas de l'écran à sa cible (ms) : une note toutes les 4 s environ. */
-  travelMs: 4000,
+  /** Trajet d'un fantôme, du bas de l'écran à sa cible (ms). */
+  travelMs: 6000,
+  /** Écart entre deux notes (ms) : `travelMs / intervalMs` notes en vol à la fois. */
+  intervalMs: 2000,
   /** Départ de la première note après le lancement du combat (ms). */
   startDelayMs: 600,
   /** Fenêtres de jugement (ms) : frapper plus tôt que `earlyMs` ne fait rien. */
