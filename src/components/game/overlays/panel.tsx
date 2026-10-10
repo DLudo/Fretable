@@ -104,12 +104,15 @@ export function Stat({ label, value }: { label: string; value: ReactNode }) {
 
 /**
  * Correspondance clavier → notes (q s d j k l m → Do … Si) et rappel de la
- * touche Maj pour les dièses. Masquée sur écran tactile seul.
+ * touche Maj pour les dièses. Masquée sur écran tactile, sauf `onTouch` : là
+ * où le clavier est la seule façon de jouer (boss final), une tablette munie
+ * d'un clavier physique doit la voir.
  */
-export function KeyboardMap() {
+export function KeyboardMap({ onTouch = false }: { onTouch?: boolean }) {
+  const hideOnTouch = onTouch ? undefined : 'pointer-coarse:hidden'
   return (
     <>
-      <dl data-slot="level-overlay-keymap" className="grid grid-cols-7 gap-1 pointer-coarse:hidden">
+      <dl data-slot="level-overlay-keymap" className={cn('grid grid-cols-7 gap-1', hideOnTouch)}>
         {NATURAL_PCS.map((pc) => (
           <div key={pc} className="flex flex-col items-center gap-1.5">
             <dt>
@@ -119,7 +122,7 @@ export function KeyboardMap() {
           </div>
         ))}
       </dl>
-      <p className="pointer-coarse:hidden">
+      <p className={hideOnTouch}>
         Maintiens{' '}
         <Kbd>
           <ArrowBigUp aria-hidden className="size-3.5" strokeWidth={2.25} />

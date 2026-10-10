@@ -9,6 +9,7 @@ import {
   lerpPoint,
   missCheckDelay,
   nextMissAt,
+  visibleBossNotes,
   type BossNote,
   type BossState,
 } from '@/game/boss'
@@ -163,6 +164,36 @@ describe('minuterie des ratés', () => {
     expect(missCheckDelay(5220, 5220)).toBe(1)
     // Fenêtre close : le raté se juge tout de suite.
     expect(missCheckDelay(5220, 5220.001)).toBeNull()
+  })
+})
+
+describe('notes affichées', () => {
+  it('une seule en vol : la suivante attend le jugement, même après son départ provisoire', () => {
+    const s = started()
+    // Avant le départ de la première, rien ; ensuite, elle seule.
+    expect(visibleBossNotes(s, 900)).toEqual([])
+    expect(visibleBossNotes(s, 3000).map(({ note }) => note.id)).toEqual([1])
+    // Fenêtre de retard de la première : le départ provisoire de la suivante
+    // (5 000) est passé, mais elle n'est pas dessinée.
+    expect(visibleBossNotes(s, 5100).map(({ note }) => note.id)).toEqual([1])
+    // Jugée en retard, la première laisse place à la suivante, partie à cet instant.
+    const late = bossReducer(s, { type: 'press', pc: 9, at: 5150 })
+    expect(visibleBossNotes(late, 5160).map(({ note, hit }) => [note.id, hit?.judgement])).toEqual([
+      [1, 'good'],
+      [2, undefined],
+    ])
+    expect(late.notes[1].launchAt).toBe(5150)
+    // Ses retours passés, la note jugée disparaît.
+    expect(visibleBossNotes(late, 5150 + BOSS_RULES.fadeMs + 1).map(({ note }) => note.id)).toEqual(
+      [2],
+    )
+  })
+
+  it('n’affiche plus aucune note en attente une fois le combat fini', () => {
+    let s = started([9, 0])
+    s = bossReducer(s, { type: 'press', pc: 2, at: 5000 })
+    const ended = { ...s, phase: 'lost' as const }
+    expect(visibleBossNotes(ended, 5100).map(({ note }) => note.id)).toEqual([1])
   })
 })
 

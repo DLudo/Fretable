@@ -5,6 +5,7 @@ import { BOSS_RULES } from '@/game/config'
 import {
   ghostProgress,
   lerpPoint,
+  visibleBossNotes,
   type BossHit,
   type BossJudgement,
   type BossNote,
@@ -19,6 +20,8 @@ const LINGER_MS = 900
 const LABEL_MS = 700
 /** Apparition de la cible et de son couloir (ms). */
 const APPEAR_MS = 200
+/** Halo du fantôme, en rayons de note : le départ se fait sous lui, hors de l'écran. */
+const GHOST_HALO = 1.7
 
 const LABEL: Record<BossJudgement, string> = {
   perfect: 'Parfait',
@@ -93,14 +96,8 @@ export function BossLayer({ state, layout, projection }: BossLayerProps): ReactN
     return () => window.removeEventListener('resize', measure)
   }, [projection.width, projection.height])
 
-  const shown: { note: BossNote; hit: BossHit | null }[] = []
-  state.notes.forEach((note, index) => {
-    const hit = state.hits[index]
-    if (now < note.launchAt) return
-    if (!hit && state.phase !== 'playing') return
-    if (hit && now - hit.at > Math.max(LABEL_MS, BOSS_RULES.fadeMs)) return
-    shown.push({ note, hit })
-  })
+  // La note en cours, et les notes jugées le temps de leurs retours.
+  const shown = visibleBossNotes(state, now, Math.max(LABEL_MS, BOSS_RULES.fadeMs))
 
   return (
     <svg
@@ -148,8 +145,8 @@ function BossNoteView({
 }) {
   const r = layout.markerRadius * projection.pxPerMm
   const targetPx = projection.toPx(layout.position(note.stringIndex, note.fret))
-  // Départ juste sous le bord de l'écran : le fantôme y entre par le bas.
-  const launchPx = { x: targetPx.x, y: Math.max(bottom + r, targetPx.y) }
+  // Départ juste sous le bord de l'écran, halo compris : le fantôme y entre par le bas.
+  const launchPx = { x: targetPx.x, y: Math.max(bottom + r * GHOST_HALO, targetPx.y) }
 
   const appear = clamp01((now - note.launchAt) / APPEAR_MS)
   const since = hit ? now - hit.at : 0
@@ -193,7 +190,7 @@ function BossNoteView({
           <circle
             cx={ghostPx.x}
             cy={ghostPx.y}
-            r={r * 1.7}
+            r={r * GHOST_HALO}
             fill="var(--marker-halo)"
             opacity={0.45}
           />
