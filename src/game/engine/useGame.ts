@@ -103,9 +103,24 @@ export function useGame(options: UseGameOptions = {}): GameController {
   // Après une tentative : on laisse vivre la révélation, puis nouvelle note —
   // imposée par la triade ou le coup de pouce en cours, ou début d'une triade.
   const { phase, locked, lastResult, challenge, assist, triad, triadsStarted, correctCount } = state
-  const { level, scaleRun, triadCooldown } = state
+  const { level, scaleRun, triadCooldown, triadIntro } = state
   useEffect(() => {
     if (phase !== 'playing' || !locked || !lastResult) return
+    if (triadIntro) {
+      // Annonce en cours : la triade s'ouvre sur sa fondamentale à son terme.
+      const { at, ...plan } = triadIntro
+      const timer = window.setTimeout(
+        () =>
+          dispatch({
+            type: 'next',
+            challenge: triadChallenge(++nextId.current, plan, 0),
+            now: now(),
+            triad: plan,
+          }),
+        Math.max(0, at + TRIAD_RULES.introMs - now()),
+      )
+      return () => window.clearTimeout(timer)
+    }
     const hold = lastResult.correct ? GAME_FEEL.holdAfterCorrectMs : GAME_FEEL.holdAfterWrongMs
     const timer = window.setTimeout(() => {
       let next: Challenge
@@ -129,6 +144,11 @@ export function useGame(options: UseGameOptions = {}): GameController {
           eligible && random() < TRIAD_RULES.chance
             ? createTriadVoicing(level, tuning, random, lastResult.challenge)
             : null
+        if (voicing && TRIAD_RULES.introMs > 0) {
+          // La triade s'annonce d'abord ; l'annonce terminée, elle s'ouvrira.
+          dispatch({ type: 'announceTriad', now: now(), triad: planTriad(voicing, level, tuning) })
+          return
+        }
         if (voicing) {
           next = triadChallenge(++nextId.current, voicing, 0)
           opening = planTriad(voicing, level, tuning)
@@ -151,6 +171,7 @@ export function useGame(options: UseGameOptions = {}): GameController {
     assist,
     triad,
     scaleRun,
+    triadIntro,
     triadsStarted,
     triadCooldown,
     correctCount,
@@ -195,6 +216,7 @@ export function useGame(options: UseGameOptions = {}): GameController {
       lastResult,
       combo,
       assist,
+      triadIntro,
       triad,
       lastTriad,
       scaleRun,
@@ -209,6 +231,7 @@ export function useGame(options: UseGameOptions = {}): GameController {
     lastResult,
     combo,
     assist,
+    triadIntro,
     triad,
     lastTriad,
     scaleRun,

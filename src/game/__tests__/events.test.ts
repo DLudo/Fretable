@@ -45,6 +45,7 @@ describe('ordre des événements', () => {
         lastResult: state.lastResult,
         combo: state.combo,
         assist: state.assist,
+        triadIntro: state.triadIntro,
         triad: state.triad,
         lastTriad: state.lastTriad,
         scaleRun: state.scaleRun,
@@ -74,6 +75,8 @@ describe('ordre des événements', () => {
         return `combo:${event.payload ? 'on' : 'off'}`
       case 'assist':
         return `assist:${event.payload ? event.payload.remaining : 'off'}`
+      case 'triadIntro':
+        return `triadIntro:${event.payload ? 'on' : 'off'}`
       case 'triad':
         return `triad:${event.payload ? event.payload.step : 'off'}`
       case 'triadResult':
@@ -167,6 +170,31 @@ describe('ordre des événements', () => {
     ])
   })
 
+  it('annonce la triade avant de l’ouvrir', () => {
+    const voicing = {
+      root: 9 as PitchClass,
+      quality: 'minor' as const,
+      notes: [
+        { stringIndex: 0, fret: 5, pc: 9 as PitchClass },
+        { stringIndex: 1, fret: 3, pc: 0 as PitchClass },
+        { stringIndex: 2, fret: 2, pc: 4 as PitchClass },
+      ] as const,
+      scale: null,
+    }
+    const log = record([
+      { type: 'start', now: 0, challenge: challenge(1, 2) },
+      { type: 'guess', pc: 2, now: 1000 },
+      { type: 'announceTriad', now: 1400, triad: voicing },
+      {
+        type: 'next',
+        challenge: { ...voicing.notes[0], id: 2, triad: true },
+        now: 2700,
+        triad: voicing,
+      },
+    ])
+    expect(log.slice(4)).toEqual(['triadIntro:on', 'triadIntro:off', 'triad:0', 'challenge:2'])
+  })
+
   it('ne rediffuse rien quand rien ne change', () => {
     const snapshot: GameEventSnapshot = {
       phase: 'playing',
@@ -174,6 +202,7 @@ describe('ordre des événements', () => {
       lastResult: null,
       combo: null,
       assist: null,
+      triadIntro: null,
       triad: null,
       lastTriad: null,
       scaleRun: null,

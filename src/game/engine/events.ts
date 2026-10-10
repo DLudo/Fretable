@@ -6,6 +6,7 @@ import type {
   GuessResult,
   ScaleRunOutcome,
   ScaleRunState,
+  TriadIntro,
   TriadOutcome,
   TriadState,
 } from './types'
@@ -22,6 +23,8 @@ export interface GameEventMap {
   combo: ComboState | null
   /** Coup de pouce offert, entamé (`remaining` décroît) ou terminé (`null`). */
   assist: AssistState | null
+  /** Triade annoncée (pause « Trouve Fa majeur ») ou annonce terminée (`null`). */
+  triadIntro: TriadIntro | null
   /** Triade commencée, avancée d'une note (`step`) ou terminée (`null`). */
   triad: TriadState | null
   /** Issue d'une triade, à sa dernière note : réussie ou manquée. */
@@ -66,6 +69,7 @@ export interface GameEventSnapshot {
   lastResult: GuessResult | null
   combo: ComboState | null
   assist: AssistState | null
+  triadIntro: TriadIntro | null
   triad: TriadState | null
   lastTriad: TriadOutcome | null
   scaleRun: ScaleRunState | null
@@ -78,6 +82,7 @@ export const EMPTY_EVENT_SNAPSHOT: GameEventSnapshot = {
   lastResult: null,
   combo: null,
   assist: null,
+  triadIntro: null,
   triad: null,
   lastTriad: null,
   scaleRun: null,
@@ -86,7 +91,7 @@ export const EMPTY_EVENT_SNAPSHOT: GameEventSnapshot = {
 
 /**
  * Événements à diffuser pour passer de `prev` à `next`, dans un ordre fixe :
- * tentative → combo → coup de pouce → triade → issue de la triade → parcours
+ * tentative → combo → coup de pouce → annonce de triade → triade → issue de la triade → parcours
  * de gamme → issue du parcours → phase → note. D'où, au démarrage :
  * phase puis première note ; sur la dernière réponse ou à la fin du temps :
  * révélation, extinction du combo, puis phase. Une valeur inchangée n'est
@@ -98,6 +103,8 @@ export function diffGameEvents(prev: GameEventSnapshot, next: GameEventSnapshot)
     list.push({ type: 'guess', payload: next.lastResult })
   if (next.combo !== prev.combo) list.push({ type: 'combo', payload: next.combo })
   if (next.assist !== prev.assist) list.push({ type: 'assist', payload: next.assist })
+  if (next.triadIntro !== prev.triadIntro)
+    list.push({ type: 'triadIntro', payload: next.triadIntro })
   if (next.triad !== prev.triad) list.push({ type: 'triad', payload: next.triad })
   if (next.lastTriad && next.lastTriad !== prev.lastTriad)
     list.push({ type: 'triadResult', payload: next.lastTriad })

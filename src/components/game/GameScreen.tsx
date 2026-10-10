@@ -28,6 +28,7 @@ import { Piano, type PianoFeedback } from './piano'
 import { StartCountdown } from './StartCountdown'
 import { ScaleBanner } from './ScaleBanner'
 import { TriadBanner } from './TriadBanner'
+import { TriadIntro } from './TriadIntro'
 
 /** Largeur maximale du manche sur grand écran. */
 const BOARD_MAX_WIDTH = '72rem'
@@ -221,6 +222,8 @@ export function GameScreen({ className }: GameScreenProps) {
           <TriadBanner outcome={playing ? state.lastTriad : null} />
           <ScaleBanner outcome={playing ? state.lastScaleRun : null} />
         </div>
+        {/* Annonce d'une triade : la partie est en pause le temps qu'elle passe. */}
+        <TriadIntro intro={playing ? state.triadIntro : null} />
         <LevelOverlay
           state={state}
           visible={overlayVisible}

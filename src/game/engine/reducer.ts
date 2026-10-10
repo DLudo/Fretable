@@ -35,6 +35,7 @@ export function createInitialState(levelIndex = 0): GameState {
     triadsStarted: 0,
     triadSlots: [],
     triadCooldown: 0,
+    triadIntro: null,
     lastTriad: null,
     scaleRun: null,
     lastScaleRun: null,
@@ -223,6 +224,20 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       }
     }
 
+    case 'announceTriad': {
+      if (state.phase !== 'playing' || !state.locked || state.triadIntro || !canStartTriad(state)) {
+        return state
+      }
+      // Pause d'annonce : le temps se fige, le combo s'éteint dès maintenant.
+      return {
+        ...state,
+        triadIntro: { ...action.triad, at: action.now },
+        pausedAt: action.now,
+        combo: null,
+        fastStreak: 0,
+      }
+    }
+
     case 'next': {
       if (state.phase !== 'playing' || !state.locked) return state
       const shown: GameState = {
@@ -230,6 +245,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         challenge: action.challenge,
         challengeShownAt: action.now,
         locked: false,
+        // Fin d'une annonce de triade : le temps reprend, la pause est décomptée.
+        ...(state.triadIntro
+          ? {
+              triadIntro: null,
+              pausedAt: null,
+              pausedMs: state.pausedMs + (action.now - (state.pausedAt ?? action.now)),
+            }
+          : {}),
       }
       if (!action.triad) return shown
       if (!canStartTriad(state)) {
@@ -281,6 +304,7 @@ function timeUp(state: GameState, now: number): GameState {
     assist: null,
     triad: null,
     scaleRun: null,
+    triadIntro: null,
     pausedAt: null,
   }
   if (state.locked || !state.challenge) return ended

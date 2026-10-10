@@ -74,6 +74,11 @@ export interface TriadPlan extends TriadVoicing {
   scale: { shape: ScaleShape; accents: readonly number[] } | null
 }
 
+/** Triade annoncée (pause « Trouve Fa majeur »), depuis `at` (`performance.now()`). */
+export interface TriadIntro extends TriadPlan {
+  at: number
+}
+
 /** Triade en cours : ses trois notes sont demandées l'une après l'autre. */
 export interface TriadState extends TriadPlan {
   /** Notes déjà trouvées quand la triade s'est ouverte : sa place dans la partie. */
@@ -176,6 +181,11 @@ export interface GameState {
   triadSlots: readonly number[]
   /** Notes ordinaires à jouer encore avant qu'une triade puisse recommencer. */
   triadCooldown: number
+  /**
+   * Triade annoncée, pas encore ouverte : la partie est en pause le temps de
+   * l'annonce (`TRIAD_RULES.introMs`), depuis `at`. `null` hors annonce.
+   */
+  triadIntro: TriadIntro | null
   /** Issue de la dernière triade, ou `null`. */
   lastTriad: TriadOutcome | null
   /** Parcours de gamme en cours, ou `null`. */
@@ -211,5 +221,11 @@ export type GameAction =
    * fondamentale) ; ignorée si une triade ne peut pas commencer (`canStartTriad`).
    */
   | { type: 'next'; challenge: Challenge; now: number; triad?: TriadPlan }
+  /**
+   * Annonce la triade qui va s'ouvrir : pause du temps, combo éteint, aucune
+   * réponse possible ; le `next` qui ouvre la triade reprend le temps.
+   * Ignorée si une triade ne peut pas commencer (`canStartTriad`).
+   */
+  | { type: 'announceTriad'; now: number; triad: TriadPlan }
   | { type: 'timeUp'; now: number }
   | { type: 'comboExpire'; now: number }

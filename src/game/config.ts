@@ -121,6 +121,11 @@ export const TRIAD_RULES = {
   minNotesLeft: 4,
   /** Temps de réaction maximal, par note, pour réussir la triade (ms). */
   fastReactionMs: 5000,
+  /**
+   * Annonce de la triade (« Trouve Fa majeur ») : durée de la pause qui la
+   * précède (ms), temps de partie suspendu. 0 : la triade s'ouvre sans annonce.
+   */
+  introMs: 1300,
   /** Écart maximal entre la plus basse et la plus haute case de la triade. */
   maxFretSpan: 3,
   /** Qualités tirées au sort (le palier 1 ajoutera les autres). */

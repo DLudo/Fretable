@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { TRIAD_RULES } from '@/game/config'
 import { averageReactionMs } from '@/game/engine/assist'
 import { gameReducer } from '@/game/engine/reducer'
+import { deadlineAt } from '@/game/engine/selectors'
 import { canStartTriad, createTriadVoicing, triadChallenge } from '@/game/engine/triad'
 import type { Challenge, GameState, TriadPlan } from '@/game/engine/types'
 import { chordName, triadPitchClasses, triadVoicings, type TriadQuality } from '@/game/music/chords'
@@ -235,6 +236,48 @@ describe('triade en partie', () => {
     expect(s.triad).toMatchObject({ step: 0, clean: true, slot: 7 })
     expect(s.triadsStarted).toBe(2)
     expect(s.triadSlots).toEqual([1, 7])
+  })
+
+  describe('annonce', () => {
+    const withCombo = { ...answered, combo: { startedAt: 0, endsAt: 99_999 }, fastStreak: 2 }
+    const announced = gameReducer(withCombo, { type: 'announceTriad', now: 1400, triad: voicing })
+
+    it('met la partie en pause, sans note à trouver, et éteint le combo', () => {
+      expect(announced.triadIntro).toMatchObject({ root: 9, quality: 'minor', at: 1400 })
+      expect(announced).toMatchObject({ pausedAt: 1400, locked: true, combo: null, fastStreak: 0 })
+      expect(deadlineAt(announced)).toBeNull()
+      // Aucune réponse n'est prise pendant l'annonce.
+      expect(gameReducer(announced, { type: 'guess', pc: 9, now: 1500 })).toBe(announced)
+      // Rien n'est compté tant que la triade n'est pas ouverte.
+      expect(announced).toMatchObject({ triad: null, triadsStarted: 0 })
+    })
+
+    it('n’est possible qu’entre deux notes, quand une triade peut commencer', () => {
+      expect(gameReducer(started, { type: 'announceTriad', now: 500, triad: voicing })).toBe(
+        started,
+      )
+      const cooling = { ...answered, triadCooldown: 2 }
+      expect(gameReducer(cooling, { type: 'announceTriad', now: 1400, triad: voicing })).toBe(
+        cooling,
+      )
+      expect(gameReducer(announced, { type: 'announceTriad', now: 1500, triad: voicing })).toBe(
+        announced,
+      )
+    })
+
+    it('reprend le temps à l’ouverture de la triade, délai de la note compris', () => {
+      const s = gameReducer(announced, {
+        type: 'next',
+        challenge: triadChallenge(2, voicing, 0),
+        now: 1400 + TRIAD_RULES.introMs,
+        triad: voicing,
+      })
+      expect(s).toMatchObject({ triadIntro: null, pausedAt: null, pausedMs: TRIAD_RULES.introMs })
+      expect(s.triad).toMatchObject({ step: 0, clean: true, slot: 1 })
+      // L'anneau part à l'ouverture, pas à l'annonce.
+      expect(s.challengeShownAt).toBe(1400 + TRIAD_RULES.introMs)
+      expect(deadlineAt(s)).toBe(s.startedAt! + level.durationMs + TRIAD_RULES.introMs)
+    })
   })
 
   it('s’efface à la fin du temps', () => {
