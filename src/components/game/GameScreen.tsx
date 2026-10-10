@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useAnimate, useReducedMotion, type Transition } from 'motion/react'
 
 import { RevealLayer } from '@/effects'
@@ -16,7 +16,6 @@ import {
 } from '@/game/fretboard/projection'
 import { useKeyboardControls } from '@/game/input/useKeyboardControls'
 import type { PitchClass } from '@/game/music/notes'
-import { useElementSize } from '@/hooks/useElementSize'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { cn } from '@/lib/utils'
 import { duration, ease } from '@/theme/motion'
@@ -29,12 +28,7 @@ import { StartCountdown } from './StartCountdown'
 import { ScaleBanner } from './ScaleBanner'
 import { TriadBanner } from './TriadBanner'
 import { TriadIntro } from './TriadIntro'
-
-/** Largeur maximale du manche sur grand écran. */
-const BOARD_MAX_WIDTH = '72rem'
-
-/** Téléphone tenu en portrait : le manche passe à la verticale (sillet en haut). */
-const PORTRAIT_QUERY = '(orientation: portrait) and (max-width: 639px)'
+import { PORTRAIT_QUERY, useBoardFit } from './useBoardFit'
 
 const NO_GHOSTS: readonly FretboardGhost[] = []
 
@@ -44,6 +38,8 @@ const BOARD_HIT: Transition = { duration: duration.fast, ease: ease.outQuart }
 const BOARD_SHAKE: Transition = { duration: duration.base, ease: ease.outQuart }
 
 export interface GameScreenProps {
+  /** Interrupteur de mode, posé en tête du HUD. */
+  modeSwitch?: ReactNode
   className?: string
 }
 
@@ -51,7 +47,7 @@ export interface GameScreenProps {
  * Écran de jeu : assemble HUD, manche, piano, révélations et overlays.
  * Toute la logique vit dans `useGame` ; ce composant ne fait que du câblage.
  */
-export function GameScreen({ className }: GameScreenProps) {
+export function GameScreen({ modeSwitch, className }: GameScreenProps) {
   const game = useGame()
   const { state } = game
   const layout = useMemo(() => createNeckLayout({ tuning: game.tuning }), [game.tuning])
@@ -179,7 +175,7 @@ export function GameScreen({ className }: GameScreenProps) {
 
   return (
     <div data-slot="game-screen" className={cn('flex h-dvh flex-col overflow-hidden', className)}>
-      <LevelHud state={state} triadBoost={ringRunning} className="shrink-0" />
+      <LevelHud state={state} triadBoost={ringRunning} leading={modeSwitch} className="shrink-0" />
       <main
         ref={mainRef}
         data-slot="game-stage"
@@ -234,35 +230,6 @@ export function GameScreen({ className }: GameScreenProps) {
       </main>
     </div>
   )
-}
-
-/**
- * Le manche est dimensionné par la largeur, mais jamais plus haut que l'espace
- * laissé par le HUD et le piano (proportions conservées). `aspectRatio` est
- * celui du manche orienté : à la verticale, c'est donc la hauteur disponible
- * qui fixe sa taille.
- */
-function useBoardFit(aspectRatio: number) {
-  const [mainRef, main] = useElementSize<HTMLElement>()
-  const [pianoRef, piano] = useElementSize<HTMLDivElement>()
-  const [chrome, setChrome] = useState(0)
-
-  // Marges verticales et espacement du conteneur, relus avant affichage quand sa taille change.
-  useLayoutEffect(() => {
-    const element = mainRef.current
-    if (!element) return
-    const style = getComputedStyle(element)
-    setChrome(
-      parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + parseFloat(style.rowGap),
-    )
-  }, [mainRef, main.height])
-
-  const available = main.height - piano.height - chrome
-  const maxWidth =
-    main.height > 0 && available > 0
-      ? `min(${BOARD_MAX_WIDTH}, ${Math.floor(available * aspectRatio)}px)`
-      : BOARD_MAX_WIDTH
-  return { mainRef, pianoRef, maxWidth }
 }
 
 /**

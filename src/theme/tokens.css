@@ -46,6 +46,9 @@
   --hud-time: color-mix(in oklab, var(--foreground) 35%, transparent);
   --hud-time-critical: var(--feedback-error);
   --hud-tick: var(--background);
+  /* Barre de vie du boss : rouge, et la tranche perdue qui s'efface après coup */
+  --hud-life: var(--feedback-error);
+  --hud-life-trail: color-mix(in oklab, var(--foreground) 55%, transparent);
 
   /* — Révélations — blanc « chauffé » des étincelles, éclats et flashs */
   --reveal-highlight: oklch(0.985 0 0);
@@ -141,6 +144,8 @@
   --color-hud-time: var(--hud-time);
   --color-hud-time-critical: var(--hud-time-critical);
   --color-hud-tick: var(--hud-tick);
+  --color-hud-life: var(--hud-life);
+  --color-hud-life-trail: var(--hud-life-trail);
   --color-reveal-highlight: var(--reveal-highlight);
   --color-combo: var(--combo);
   --color-combo-glow: var(--combo-glow);

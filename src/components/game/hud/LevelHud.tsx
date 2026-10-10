@@ -15,6 +15,8 @@ export interface LevelHudProps {
   state: GameState
   /** Anneau d'une note de triade en cours : pastille « ×2 » en vert acide. */
   triadBoost?: boolean
+  /** Élément posé en tête de la ligne, à gauche du titre (interrupteur de mode). */
+  leading?: ReactNode
   className?: string
 }
 
@@ -39,7 +41,12 @@ function useRisePulse(value: number): number {
  * pour laisser la hauteur au manche. L'ordre du DOM ne change pas : la ligne
  * du haut s'efface (`display: contents`) et la barre se glisse au milieu (`order`).
  */
-export function LevelHud({ state, triadBoost = false, className }: LevelHudProps): ReactNode {
+export function LevelHud({
+  state,
+  triadBoost = false,
+  leading,
+  className,
+}: LevelHudProps): ReactNode {
   const { level, correctCount, phase, score, combo, assist, scaleRun } = state
   const pulseId = useRisePulse(correctCount)
   const reduceMotion = useReducedMotion()
@@ -58,6 +65,7 @@ export function LevelHud({ state, triadBoost = false, className }: LevelHudProps
           data-slot="level-hud-row"
           className="flex items-center gap-2 text-sm leading-none sm:gap-3 short:contents"
         >
+          {leading}
           <span data-slot="level-title" className="truncate font-medium short:shrink-0">
             {level.title}
           </span>

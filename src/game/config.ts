@@ -187,3 +187,32 @@ export const RATING_RULES = {
 }
 
 export type RatingRules = typeof RATING_RULES
+
+/**
+ * Boss final, façon StepMania (prototype) : une note aléatoire monte toutes les
+ * `intervalMs` le long d'un couloir, et le joueur frappe quand le fantôme atteint
+ * sa cible. Sans musique pour l'instant : le moteur de synchronisation viendra
+ * plus tard, d'où une cadence fixe. Tout se règle ici pendant les tests.
+ */
+export const BOSS_RULES = {
+  /** Notes du boss : survivre jusqu'à la dernière, c'est le vaincre. */
+  noteCount: 30,
+  /** Une note toutes les… (ms). */
+  intervalMs: 4000,
+  /** Arrivée de la première note après le départ (ms). */
+  firstHitMs: 4500,
+  /** La cible et son couloir paraissent autant avant le moment de frapper (ms). */
+  leadMs: 3500,
+  /** Vitesse du fantôme le long du couloir, la même pour toutes les notes (mm/s). */
+  ghostSpeedMmPerSec: 20,
+  /** Zone de lancement : les fantômes naissent autant sous le bord bas du manche (mm). */
+  launchMm: 20,
+  /** Fenêtres de jugement (ms) : frapper plus tôt que `earlyMs` ne fait rien. */
+  windows: { earlyMs: 180, lateMs: 220, perfectMs: 50, greatMs: 110 },
+  /** Barre de vie : pleine au départ ; un raté coûte, une erreur coûte plus, une réussite recharge. */
+  life: { start: 100, max: 100, miss: 6, wrong: 9, heal: { perfect: 3, great: 2.5, good: 2 } },
+  /** Points par jugement réussi. */
+  points: { perfect: 1000, great: 600, good: 300 },
+  /** Fondu d'un fantôme manqué, une fois la cible dépassée (ms). */
+  fadeMs: 400,
+} as const
