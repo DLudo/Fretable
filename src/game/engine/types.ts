@@ -37,7 +37,7 @@ export interface GuessResult {
   reactionMs: number | null
   /** Points du barème, avant multiplicateur (0 sur une erreur). */
   basePoints: number
-  /** Multiplicateur appliqué (2 pendant un combo, sinon 1). */
+  /** Multiplicateur appliqué : 2 pendant un combo ou sur une note de triade jouée à temps, sinon 1. */
   multiplier: number
   /** Points marqués : `basePoints × multiplier`. */
   points: number
@@ -46,8 +46,9 @@ export interface GuessResult {
   /** Réponse à une note du coup de pouce (jamais multipliée, sans effet sur le combo). */
   assisted: boolean
   /**
-   * Réponse à une note de bonus (`triad`, `scale`) : jamais multipliée, elle ne
-   * nourrit ni le combo ni le coup de pouce. Celles du parcours de gamme ne
+   * Réponse à une note de bonus (`triad`, `scale`) : elle ne nourrit ni le combo
+   * ni le coup de pouce. Une note de triade est doublée si elle arrive avant la
+   * fin de son anneau ; celles du parcours de gamme, jamais multipliées, ne
    * comptent pas non plus pour la progression.
    */
   bonus?: 'triad' | 'scale'

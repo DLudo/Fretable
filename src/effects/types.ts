@@ -61,7 +61,10 @@ export interface RevealEffectProps {
   reactionMs: number | null
   /** Points marqués par cette réponse, multiplicateur compris (0 sur une erreur). */
   points: number
-  /** Multiplicateur appliqué : 2 pendant un combo, sinon 1. La pastille `RevealCombo` l'affiche. */
+  /**
+   * Multiplicateur appliqué : 2 pendant un combo ou sur une note de triade jouée
+   * à temps, sinon 1. La pastille `RevealCombo` l'affiche.
+   */
   multiplier: number
   /** Graine déterministe propre à la révélation, pour varier les détails (`seededRandom`). */
   seed: number

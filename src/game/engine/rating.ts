@@ -37,8 +37,8 @@ export function ratingRulesFor(level: LevelConfig): RatingRules {
  * `triadSlots` : la partie a connu des triades, ouvertes après autant de notes
  * trouvées. Le joueur de référence les vit comme le moteur l'impose : combo
  * éteint à leur ouverture, trois notes hors série, doublées quand il bat leur
- * anneau. Sans quoi un bonus tiré au sort ferait gagner ou perdre des étoiles
- * à performance égale.
+ * anneau. Sans quoi, à allure régulière égale, un bonus tiré au sort ferait
+ * gagner ou perdre des étoiles.
  */
 export function referenceScore(
   level: LevelConfig,

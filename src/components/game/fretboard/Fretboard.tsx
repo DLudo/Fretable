@@ -30,6 +30,8 @@ export interface FretboardMarker {
   variant?: 'default' | 'assist' | 'triad'
   /** Temps imparti pour répondre (ms) : un anneau se vide autour du point. */
   countdownMs?: number
+  /** Échéance de ce délai, sur l'horloge `performance.now()` (défaut : au montage + `countdownMs`). */
+  countdownEndsAt?: number
   /** Délai écoulé : l'anneau, vide, passe au gris. */
   countdownSpent?: boolean
 }
@@ -118,8 +120,8 @@ export function Fretboard({
   const triadGlowId = `${uid}-triad-glow`
 
   // Repère recouvert par le point à deviner : estompé, puis rétabli quand il
-  // repart. Les notes en filigrane, petits cercles posés sur les cordes, n'en
-  // recouvrent aucun. La clé ne change qu'avec la position.
+  // repart. Les notes en filigrane, petits cercles évidés posés sur les cordes,
+  // l'effleurent tout au plus sans le masquer. La clé ne change qu'avec la position.
   const spot = marker ? `${marker.stringIndex}:${marker.fret}` : null
   const covered = useMemo(() => {
     if (!spot) return NO_INLAY
@@ -195,6 +197,7 @@ export function Fretboard({
                 triadGlowId={triadGlowId}
                 variant={marker.variant}
                 countdownMs={marker.countdownMs}
+                countdownEndsAt={marker.countdownEndsAt}
                 countdownSpent={marker.countdownSpent}
                 orientation={orientation}
                 reduceMotion={reduceMotion}

@@ -118,7 +118,11 @@ export function GameScreen({ className }: GameScreenProps) {
           // Chaque note de la triade, à son tour, égrène son délai autour du point ;
           // l'anneau vide passe au gris : le « ×2 » est perdu pour cette note.
           ...(state.challenge.triad && state.triad
-            ? { countdownMs: TRIAD_RULES.fastReactionMs, countdownSpent: !ringRunning }
+            ? {
+                countdownMs: TRIAD_RULES.fastReactionMs,
+                countdownEndsAt: (state.challengeShownAt ?? 0) + TRIAD_RULES.fastReactionMs,
+                countdownSpent: !ringRunning,
+              }
             : {}),
         }
       : null

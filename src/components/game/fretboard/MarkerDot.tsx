@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { motion, type Transition } from 'motion/react'
 
 import type { BoardOrientation } from '@/game/fretboard/projection'
@@ -37,6 +38,12 @@ interface MarkerDotProps {
    * donc il s'écoule aussi quand les animations sont réduites.
    */
   countdownMs?: number
+  /**
+   * Échéance du délai, sur l'horloge `performance.now()` : l'anneau part de la
+   * part qui reste (le point apparaît un rendu après le départ du moteur) et
+   * se vide pile à l'échéance. Défaut : au montage + `countdownMs`.
+   */
+  countdownEndsAt?: number
   /** Délai écoulé : l'anneau, vide, passe au gris (le « ×2 » est perdu). */
   countdownSpent?: boolean
   /**
@@ -83,12 +90,19 @@ export function MarkerDot({
   triadGlowId,
   variant = 'default',
   countdownMs,
+  countdownEndsAt,
   countdownSpent = false,
   orientation = 'horizontal',
   reduceMotion,
 }: MarkerDotProps) {
   // Midi à l'écran : en haut du point, ou à sa gauche sur le manche tourné
   // (`rotate(90)` envoie la gauche en haut).
+  // Part du délai qui reste au montage, figée : l'anneau s'en vide jusqu'à l'échéance.
+  const [remaining] = useState(() =>
+    countdownMs && countdownEndsAt !== undefined
+      ? Math.min(1, Math.max(0, (countdownEndsAt - performance.now()) / countdownMs))
+      : 1,
+  )
   const ring = r * 1.5
   const vertical = orientation === 'vertical'
   const top = vertical ? { x: cx - ring, y: cy } : { x: cx, y: cy - ring }
@@ -188,9 +202,9 @@ export function MarkerDot({
             fill="none"
             className="stroke-triad"
             strokeWidth={r * 0.24}
-            initial={{ pathLength: 1 }}
+            initial={{ pathLength: remaining }}
             animate={{ pathLength: 0 }}
-            transition={{ duration: countdownMs / 1000, ease: 'linear' }}
+            transition={{ duration: (remaining * countdownMs) / 1000, ease: 'linear' }}
           />
         </g>
       )}

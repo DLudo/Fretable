@@ -194,8 +194,8 @@ export type RevealComboProps = Omit<HTMLMotionProps<'span'>, 'children' | 'color
 }
 
 /**
- * Pastille du multiplicateur de points (« ×2 » pendant un combo), rien hors
- * combo. À placer dans le conteneur de l'étiquette ; `className` règle son
+ * Pastille du multiplicateur de points (« ×2 » pendant un combo ou sur une note
+ * de triade jouée à temps), rien sans multiplicateur. À placer dans le conteneur de l'étiquette ; `className` règle son
  * décalage, les props Motion son entrée. `streak` n'agit que sur l'échelle.
  */
 export function RevealCombo({

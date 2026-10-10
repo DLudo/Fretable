@@ -59,12 +59,13 @@ export function ScoreCounter({
       </span>
       <AnimatePresence>
         {boost && (
+          // Une seule pastille : passer du combo à la triade change sa couleur, sans
+          // en monter une seconde à côté de celle qui s'efface.
           <motion.span
-            key={boost}
             data-slot="level-score-multiplier"
             data-boost={boost}
             className={cn(
-              'rounded-full px-1.5 py-0.5 text-[0.7rem] leading-none font-bold',
+              'rounded-full px-1.5 py-0.5 text-[0.7rem] leading-none font-bold transition-[background-color,color,box-shadow] duration-200',
               boost === 'combo'
                 ? 'bg-combo text-combo-foreground shadow-[0_0_12px_var(--combo-glow)]'
                 : 'bg-triad text-triad-foreground shadow-[0_0_12px_var(--triad-glow)]',
