@@ -11,7 +11,10 @@ export interface ComboAuraProps {
   active: boolean
   layout: NeckLayout
   projection: BoardProjection
-  /** Réglages (par défaut `COMBO_AURA`). */
+  /**
+   * Réglages (par défaut `COMBO_AURA`). En changer pendant le combo (passage au
+   * combo enflammé) ravive l'aura : nouvel éclat et nouvelle gerbe.
+   */
   config?: ComboAuraConfig
 }
 
@@ -186,7 +189,8 @@ function renderDot(color: [number, number, number, number]): HTMLCanvasElement {
 }
 
 /**
- * Aura de combo : halo bleu et particules qui s'échappent du pourtour du manche.
+ * Aura de combo : halo bleu et particules qui s'échappent du pourtour du manche
+ * (orangé et flammes montantes avec `COMBO_FIRE_AURA`).
  *
  * Rendu procédural sur un canvas posé sur le calque du manche, débordant de
  * `bleedPx`. Le halo est pré-rendu à chaque changement de taille ; seules les
@@ -219,11 +223,14 @@ export function ComboAura({
     particles: [] as Particle[],
   })
   const activeRef = useRef(false)
+  // Réglages avec lesquels l'aura s'est allumée (`null` éteinte) : en changer la ravive.
+  const ignitedWith = useRef<ComboAuraConfig | null>(null)
   useEffect(() => {
-    if (active && !activeRef.current) {
+    if (active && ignitedWith.current !== config) {
       engine.current.introAt = performance.now()
       engine.current.pendingBurst = config.particles.burst
     }
+    ignitedWith.current = active ? config : null
     activeRef.current = active
   }, [active, config])
 
@@ -336,6 +343,7 @@ export function ComboAura({
           }
           p.vx *= drag
           p.vy *= drag
+          p.vy -= config.particles.lift * dt
           p.x += p.vx * dt
           p.y += p.vy * dt
           const t = p.age / p.life

@@ -4,8 +4,16 @@ import { Fretboard } from '@/components/game/fretboard'
 import { PORTRAIT_QUERY, useBoardFit } from '@/components/game/useBoardFit'
 import { useBoardImpact } from '@/components/game/useBoardImpact'
 import { RevealLayer } from '@/effects'
+import { COMBO_AURA, COMBO_FIRE_AURA, ComboAura } from '@/effects/ambient'
 import { BOSS_RULES } from '@/game/config'
-import { useBossGame, type BossJudgement, type BossNote, type BossState } from '@/game/boss'
+import {
+  bossComboTier,
+  useBossGame,
+  type BossComboTier,
+  type BossJudgement,
+  type BossNote,
+  type BossState,
+} from '@/game/boss'
 import type { GuessResult } from '@/game/engine/types'
 import { createNeckLayout } from '@/game/fretboard/geometry'
 import {
@@ -52,7 +60,6 @@ function revealResultOf({
   if (!hit) return null
   const { id, stringIndex, fret, pc } = notes[hit.index]
   const correct = isSuccess(hit.judgement)
-  const points = correct ? BOSS_RULES.points[hit.judgement as 'perfect' | 'great' | 'good'] : 0
   return {
     id: Math.round(hit.at),
     challenge: { id, stringIndex, fret, pc },
@@ -61,10 +68,11 @@ function revealResultOf({
     streak: correct ? combo : 0,
     at: hit.at,
     reactionMs: REVEAL_REACTION_MS[hit.judgement],
-    basePoints: points,
-    multiplier: 1,
-    points,
-    comboTriggered: false,
+    basePoints: hit.points / hit.multiplier,
+    // La pastille « ×2 » ou « ×3 » de la révélation suit le combo, comme en partie classique.
+    multiplier: hit.multiplier,
+    points: hit.points,
+    comboTriggered: correct && combo === BOSS_RULES.combo.triggerCount,
     assisted: false,
   }
 }
@@ -116,14 +124,27 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
   const { notes, combo } = state
   const reveal = useMemo(() => revealResultOf({ lastHit, notes, combo }), [lastHit, notes, combo])
 
+  // Combo : l'aura bleue du mode classique, puis enflammée. Elle garde la couleur
+  // de son dernier palier le temps de s'éteindre, et passe sous fantômes et révélations.
+  const tier = playing ? bossComboTier(combo) : null
+  const [auraTier, setAuraTier] = useState<BossComboTier>('combo')
+  if (tier && tier !== auraTier) setAuraTier(tier)
+  const auraConfig = auraTier === 'fire' ? COMBO_FIRE_AURA : COMBO_AURA
+
   const overlay = useCallback(
     (projection: BoardProjection) => (
       <>
+        <ComboAura
+          active={tier !== null}
+          config={auraConfig}
+          layout={layout}
+          projection={projection}
+        />
         <BossLayer state={state} layout={layout} projection={projection} />
         <RevealLayer result={reveal} layout={layout} projection={projection} />
       </>
     ),
-    [state, reveal, layout],
+    [tier, auraConfig, state, reveal, layout],
   )
 
   // Annonce de chaque note à son départ, au moment où elle paraît à l'écran (soit
@@ -154,13 +175,26 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
         data-orientation={orientation}
         className="relative flex min-h-0 flex-1 flex-col items-center justify-center px-4 pt-2 pb-[clamp(0.75rem,3vh,1.5rem)]"
       >
-        <div ref={boardRef} data-slot="game-board" className="relative w-full" style={{ maxWidth }}>
+        <div
+          ref={boardRef}
+          data-slot="game-board"
+          data-combo={tier ?? undefined}
+          className="relative w-full"
+          style={{ maxWidth }}
+        >
           <Fretboard layout={layout} marker={null} overlay={overlay} orientation={orientation} />
         </div>
         <p className="sr-only" aria-live="polite">
           {announced
             ? `Ensuite : corde ${stringNumber(boss.tuning, announced.stringIndex)}, case ${announced.fret}`
             : ''}
+        </p>
+        <p className="sr-only" aria-live="polite">
+          {tier === 'fire'
+            ? 'Combo en feu : points triplés'
+            : tier === 'combo'
+              ? 'Combo : points doublés'
+              : ''}
         </p>
         <BossOverlay state={state} visible={overlayVisible} onStart={start} />
       </main>

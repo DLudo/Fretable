@@ -3,7 +3,7 @@ import { Heart, Skull } from 'lucide-react'
 
 import { ScoreCounter } from '@/components/game/hud/ScoreCounter'
 import { BOSS_RULES } from '@/game/config'
-import type { BossState } from '@/game/boss'
+import { bossComboTier, bossMultiplier, type BossState } from '@/game/boss'
 import { cn } from '@/lib/utils'
 import { LifeBar } from './LifeBar'
 
@@ -23,6 +23,8 @@ export interface BossHudProps {
  */
 export function BossHud({ state, leading, className }: BossHudProps): ReactNode {
   const total = state.notes.length || BOSS_RULES.noteCount
+  // Palier du combo pour la prochaine note : la pastille du score en affiche le multiplicateur.
+  const tier = state.phase === 'playing' ? bossComboTier(state.combo) : null
   return (
     <div
       data-slot="boss-hud"
@@ -35,7 +37,13 @@ export function BossHud({ state, leading, className }: BossHudProps): ReactNode 
           <span data-slot="boss-title" className="truncate font-medium short:shrink-0">
             Boss final
           </span>
-          <ScoreCounter score={state.score} comboActive={false} className="short:shrink-0" />
+          <ScoreCounter
+            score={state.score}
+            comboActive={tier !== null}
+            comboFire={tier === 'fire'}
+            multiplier={bossMultiplier(state.combo)}
+            className="short:shrink-0"
+          />
           <span
             data-slot="boss-count"
             className="ml-auto inline-flex items-baseline gap-1 tabular-nums whitespace-nowrap short:order-2 short:ml-0"

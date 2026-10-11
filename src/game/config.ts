@@ -212,6 +212,13 @@ export const BOSS_RULES = {
   life: { start: 100, max: 100, miss: 6, wrong: 9, heal: { perfect: 3, great: 2.5, good: 2 } },
   /** Points par jugement réussi. */
   points: { perfect: 1000, great: 600, good: 300 },
+  /**
+   * Combo : après `triggerCount` réussites d'affilée, les notes suivantes valent
+   * double, comme le combo classique (même multiplicateur, même bleu) ; après
+   * `fireCount`, le combo s'enflamme et elles valent `fireMultiplier`. Pas de
+   * jauge ici : seule une erreur ou un raté l'éteint.
+   */
+  combo: { triggerCount: 5, multiplier: COMBO_RULES.multiplier, fireCount: 10, fireMultiplier: 3 },
   /** Fondu d'un fantôme manqué, une fois la cible dépassée (ms). */
   fadeMs: 400,
 } as const

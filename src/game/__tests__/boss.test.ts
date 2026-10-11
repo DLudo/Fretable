@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { BOSS_RULES } from '@/game/config'
+import { BOSS_RULES, COMBO_RULES } from '@/game/config'
 import {
+  bossComboTier,
+  bossMultiplier,
   bossReducer,
   createBossChart,
   createBossState,
@@ -105,6 +107,70 @@ describe('jugement', () => {
     expect(s.life).toBe(life.start - life.miss)
     s = bossReducer(s, { type: 'press', pc: 0, at: s.notes[1].hitAt + 80 })
     expect(s.life).toBe(life.start - life.miss + life.heal.great)
+  })
+})
+
+describe('combo', () => {
+  const { triggerCount, multiplier, fireCount, fireMultiplier } = BOSS_RULES.combo
+  /** Partition de 30 La, dont les `n` premières notes sont jouées selon `play` : justes, fausses ou manquées. */
+  const played = (n: number, play: (i: number) => 'hit' | 'wrong' | 'miss' = () => 'hit') => {
+    let s = started(Array.from({ length: 30 }, () => 9 as PitchClass))
+    for (let i = 0; i < n; i++) {
+      const hitAt = 5000 + i * 4000
+      const how = play(i)
+      if (how === 'hit') s = bossReducer(s, { type: 'press', pc: 9, at: hitAt })
+      else if (how === 'wrong') s = bossReducer(s, { type: 'press', pc: 2, at: hitAt })
+      else s = bossReducer(s, { type: 'tick', at: hitAt + windows.lateMs + 1 })
+    }
+    return s
+  }
+
+  it('s’allume en bleu après 5 réussites, puis s’enflamme après 10', () => {
+    expect([0, 4, 5, 9, 10, 25].map((n) => bossComboTier(n))).toEqual([
+      null,
+      null,
+      'combo',
+      'combo',
+      'fire',
+      'fire',
+    ])
+    expect([4, 5, 9, 10].map((n) => bossMultiplier(n))).toEqual([1, 2, 2, 3])
+    expect(multiplier).toBe(COMBO_RULES.multiplier)
+    expect([triggerCount, fireCount, fireMultiplier]).toEqual([5, 10, 3])
+  })
+
+  it('double les notes après la 5e réussite et triple après la 10e, sans les précédentes', () => {
+    const s = played(12)
+    expect(s.hits.slice(0, 12).map((h) => h?.multiplier)).toEqual([
+      1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3,
+    ])
+    expect(s.hits[5]).toMatchObject({ points: 2000, multiplier: 2 })
+    expect(s.hits[10]).toMatchObject({ points: 3000, multiplier: 3 })
+    expect(s.score).toBe(5 * 1000 + 5 * 2000 + 2 * 3000)
+    expect(s).toMatchObject({ combo: 12, bestCombo: 12 })
+  })
+
+  it('multiplie chaque précision, pas seulement les frappes parfaites', () => {
+    let s = played(5)
+    s = bossReducer(s, { type: 'press', pc: 9, at: 5000 + 5 * 4000 + 80 })
+    expect(s.lastHit).toMatchObject({ judgement: 'great', multiplier: 2, points: 1200 })
+  })
+
+  it('s’éteint à la première erreur ou au premier raté, et il faut tout recommencer', () => {
+    for (const fail of ['wrong', 'miss'] as const) {
+      const s = played(18, (i) => (i === 11 ? fail : 'hit'))
+      expect(s.hits[11]).toMatchObject({ judgement: fail, multiplier: 1, points: 0 })
+      // Après l'échec, cinq réussites sans bonus avant que le combo ne revienne.
+      expect(s.hits.slice(12, 18).map((h) => h?.multiplier)).toEqual([1, 1, 1, 1, 1, 2])
+      expect(s).toMatchObject({ combo: 6, bestCombo: 11 })
+    }
+  })
+
+  it('n’a pas de jauge : seul un échec l’éteint, le temps ne fait rien', () => {
+    const s = played(6)
+    // Longtemps après, sans note en attente : le combo tient toujours.
+    expect(bossReducer(s, { type: 'tick', at: 5000 + 5 * 4000 + windows.lateMs })).toBe(s)
+    expect(bossComboTier(s.combo)).toBe('combo')
   })
 })
 

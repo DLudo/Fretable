@@ -55,6 +55,8 @@ export interface ComboAuraConfig {
     drag: number
     /** Proportion d'étincelles claires. */
     sparkRatio: number
+    /** Poussée vers le haut de l'écran (px/s²), 0 : aucune. Les flammes montent. */
+    lift: number
     /** Texture des particules (`/fx/combo/particule.png`), sinon un point lumineux généré. */
     sprite: string | null
   }
@@ -91,7 +93,45 @@ export const COMBO_AURA: ComboAuraConfig = {
     drift: 0.45,
     drag: 0.55,
     sparkRatio: 0.25,
+    lift: 0,
     sprite: null,
   },
   bleedPx: 40,
+}
+
+/**
+ * Aura du combo enflammé (boss final, dès 10 réussites d'affilée) : halo orangé
+ * qui vacille plus vite, et des particules plus nombreuses qui montent comme
+ * des flammes. Passer de `COMBO_AURA` à celle-ci, combo allumé, ravive l'aura.
+ */
+export const COMBO_FIRE_AURA: ComboAuraConfig = {
+  colors: {
+    glow: 'var(--combo-fire-glow)',
+    rim: 'var(--combo-fire-spark)',
+    particle: 'var(--combo-fire)',
+    spark: 'var(--combo-fire-spark)',
+  },
+  glow: {
+    ...COMBO_AURA.glow,
+    blurPx: 20,
+    passes: 5,
+    pulseHz: 2.6,
+    pulseDepth: 0.25,
+    introBoost: 1.8,
+    introDecayMs: 520,
+  },
+  particles: {
+    ...COMBO_AURA.particles,
+    ratePerSecond: 95,
+    max: 260,
+    burst: 96,
+    lifeMs: [450, 1100],
+    speedPxPerSecond: [18, 64],
+    radiusPx: [1.3, 3.8],
+    drift: 0.35,
+    drag: 0.7,
+    sparkRatio: 0.35,
+    lift: 140,
+  },
+  bleedPx: 48,
 }

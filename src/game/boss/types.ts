@@ -24,7 +24,14 @@ export interface BossHit {
   deltaMs: number | null
   /** Touche jouée ; `null` pour un raté. */
   guess: PitchClass | null
+  /** Multiplicateur du combo appliqué (1 hors combo, et sur un échec). */
+  multiplier: number
+  /** Points rapportés, multiplicateur compris (0 sur un échec). */
+  points: number
 }
+
+/** Jugement d'une note, avant que le combo n'en fixe les points. */
+export type BossJudged = Omit<BossHit, 'multiplier' | 'points'>
 
 export type BossPhase = 'ready' | 'playing' | 'won' | 'lost'
 
@@ -39,7 +46,7 @@ export interface BossState {
   /** Vie restante, de 0 à `BOSS_RULES.life.max`. */
   life: number
   score: number
-  /** Réussites d'affilée. */
+  /** Réussites d'affilée : à partir de `BOSS_RULES.combo.triggerCount`, le combo multiplie les points. */
   combo: number
   bestCombo: number
   startedAt: number | null

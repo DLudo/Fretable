@@ -1,5 +1,6 @@
 import { BOSS_RULES } from '@/game/config'
-import type { BossAction, BossHit, BossJudgement, BossState } from './types'
+import { bossMultiplier } from './combo'
+import type { BossAction, BossJudged, BossJudgement, BossState } from './types'
 
 export type BossRules = typeof BOSS_RULES
 
@@ -40,7 +41,9 @@ export function nextMissAt(state: BossState, rules: BossRules = BOSS_RULES): num
  * frappe dans sa fenêtre décide (une mauvaise touche est une erreur), une frappe
  * trop tôt ne fait rien, et une fenêtre close sans frappe vaut un raté. Les
  * notes se jouent dans l'ordre d'arrivée : une frappe vise toujours la première
- * note pas encore jugée, même si les suivantes sont déjà en vol.
+ * note pas encore jugée, même si les suivantes sont déjà en vol. Le combo
+ * (voir `bossComboTier`) multiplie les points des réussites qui suivent une
+ * série, et retombe à la première erreur ou au premier raté.
  */
 export function bossReducer(
   state: BossState,
@@ -90,9 +93,9 @@ function sweep(state: BossState, at: number, rules: BossRules): BossState {
 }
 
 /** Applique le jugement de la note en cours : vie, score, combo, fin de partie. */
-function resolve(state: BossState, hit: BossHit, rules: BossRules): BossState {
+function resolve(state: BossState, judged: BossJudged, rules: BossRules): BossState {
   const index = state.cursor
-  const { judgement } = hit
+  const { judgement } = judged
   const success = judgement === 'perfect' || judgement === 'great' || judgement === 'good'
   const change = success
     ? rules.life.heal[judgement]
@@ -100,6 +103,10 @@ function resolve(state: BossState, hit: BossHit, rules: BossRules): BossState {
       ? -rules.life.wrong
       : -rules.life.miss
   const life = Math.min(rules.life.max, Math.max(0, state.life + change))
+  // La série d'avant cette note fixe son multiplicateur ; un échec rompt le combo.
+  const multiplier = success ? bossMultiplier(state.combo, rules) : 1
+  const points = success ? rules.points[judgement] * multiplier : 0
+  const hit = { ...judged, multiplier, points }
   const combo = success ? state.combo + 1 : 0
   const hits = state.hits.slice()
   hits[index] = hit
@@ -113,7 +120,7 @@ function resolve(state: BossState, hit: BossHit, rules: BossRules): BossState {
     hits,
     cursor,
     life,
-    score: state.score + (success ? rules.points[judgement] : 0),
+    score: state.score + points,
     combo,
     bestCombo: Math.max(state.bestCombo, combo),
     lastHit: { ...hit, index },
