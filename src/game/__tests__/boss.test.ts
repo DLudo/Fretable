@@ -256,15 +256,18 @@ describe('fin du combat', () => {
         Math.min(miss, wrong),
     )
     expect(bossChartLength()).toBe(BOSS_RULES.bossLife + failures)
-    // Simulation : 29 réussites, puis que des ratés ; K.O. avant la fin de la partition.
+    // Pire cas joué : un raté, une réussite, et ainsi de suite (la vie ne bute jamais sur son
+    // plafond) jusqu'à 29 réussites, puis plus que des ratés : K.O. à la 61e note sur 62.
     let s = started(Array.from({ length: bossChartLength() }, () => 9 as PitchClass))
-    let i = 0
-    for (; i < BOSS_RULES.bossLife - 1; i++)
-      s = bossReducer(s, { type: 'press', pc: 9, at: 5000 + i * 4000 })
-    while (s.phase === 'playing')
-      s = bossReducer(s, { type: 'press', pc: 2, at: 5000 + i++ * 4000 })
-    expect(s.phase).toBe('lost')
-    expect(s.life).toBe(0)
+    let landed = 0
+    for (let i = 0; s.phase === 'playing'; i++) {
+      const hitAt = 5000 + i * 4000
+      if (i % 2 === 1 && landed < BOSS_RULES.bossLife - 1) {
+        s = bossReducer(s, { type: 'press', pc: 9, at: hitAt })
+        landed++
+      } else s = bossReducer(s, { type: 'tick', at: hitAt + windows.lateMs + 1 })
+    }
+    expect(s).toMatchObject({ phase: 'lost', life: 0, cursor: 61, bossLife: 1 })
     expect(s.cursor).toBeLessThan(bossChartLength())
   })
 })

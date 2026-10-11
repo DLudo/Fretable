@@ -39,7 +39,7 @@ export interface LifeBarProps {
   life: number
   max: number
   tone?: LifeBarTone
-  /** Découpe la barre en autant de segments égaux (une note par segment pour le boss). */
+  /** Découpe la barre en autant de segments égaux (pour le boss, un par coup à lui porter). */
   segments?: number
   /** Nom lu par les lecteurs d'écran. */
   label?: string
@@ -52,7 +52,8 @@ export interface LifeBarProps {
  * Barre de vie du boss final, ancrée à gauche : elle se vide de droite à gauche
  * à chaque coup reçu, et la tranche perdue s'attarde, plus claire, avant de
  * disparaître. Celle du joueur est rouge et pulse sous un quart de vie ; celle
- * du boss est violette et découpée en un segment par note.
+ * du boss est violette et découpée en un segment par coup à lui porter
+ * (`BOSS_RULES.bossLife`).
  */
 export function LifeBar({
   life,
