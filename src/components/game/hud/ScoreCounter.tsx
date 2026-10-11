@@ -8,7 +8,7 @@ import { formatScore } from './format'
 
 export interface ScoreCounterProps {
   score: number
-  /** Combo en cours : la pastille « ×2 » s'affiche à côté du score. */
+  /** Combo en cours : la pastille du multiplicateur (« ×2 ») s'affiche à côté du score. */
   comboActive: boolean
   /**
    * Note de triade dont l'anneau tourne : une bonne réponse vaut double, la

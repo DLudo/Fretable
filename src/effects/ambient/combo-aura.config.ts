@@ -55,12 +55,18 @@ export interface ComboAuraConfig {
     drag: number
     /** Proportion d'étincelles claires. */
     sparkRatio: number
-    /** Poussée vers le haut de l'écran (px/s²), 0 : aucune. Les flammes montent. */
+    /**
+     * Poussée vers le haut de l'écran (px/s²), 0 : aucune. Les flammes montent :
+     * pleine sur le bord du haut, à moitié sur les côtés, nulle sur le bord du bas.
+     */
     lift: number
     /** Texture des particules (`/fx/combo/particule.png`), sinon un point lumineux généré. */
     sprite: string | null
   }
-  /** Marge autour du manche où halo et particules peuvent déborder (px). */
+  /**
+   * Marge autour du manche où halo et particules peuvent déborder (px) ; les
+   * particules s'effacent en l'approchant.
+   */
   bleedPx: number
 }
 
@@ -133,5 +139,6 @@ export const COMBO_FIRE_AURA: ComboAuraConfig = {
     sparkRatio: 0.35,
     lift: 140,
   },
-  bleedPx: 48,
+  // Plus de marge : les braises montent jusqu'à une centaine de px au-dessus du manche.
+  bleedPx: 96,
 }

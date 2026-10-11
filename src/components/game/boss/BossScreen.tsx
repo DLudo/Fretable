@@ -33,6 +33,17 @@ import { BossOverlay } from './BossOverlay'
 const END_SCREEN_DELAY_MS = 900
 
 /**
+ * Le palier du combo s'annonce une seconde après son déclenchement : à cet
+ * instant précis part une nouvelle note, annoncée elle aussi (ms).
+ */
+const COMBO_ANNOUNCE_DELAY_MS = 1000
+
+const COMBO_ANNOUNCEMENT: Record<BossComboTier, string> = {
+  combo: 'Combo : points doublés',
+  fire: 'Combo en feu : points triplés',
+}
+
+/**
  * Temps de réaction prêté à chaque jugement pour la révélation : les effets du
  * mode classique s'emballent sur les réponses rapides (coup critique sous 0,5 s).
  */
@@ -131,6 +142,15 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
   if (tier && tier !== auraTier) setAuraTier(tier)
   const auraConfig = auraTier === 'fire' ? COMBO_FIRE_AURA : COMBO_AURA
 
+  const [comboAnnouncement, setComboAnnouncement] = useState('')
+  useEffect(() => {
+    const timer = window.setTimeout(
+      () => setComboAnnouncement(tier ? COMBO_ANNOUNCEMENT[tier] : ''),
+      tier ? COMBO_ANNOUNCE_DELAY_MS : 0,
+    )
+    return () => window.clearTimeout(timer)
+  }, [tier])
+
   const overlay = useCallback(
     (projection: BoardProjection) => (
       <>
@@ -190,11 +210,7 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
             : ''}
         </p>
         <p className="sr-only" aria-live="polite">
-          {tier === 'fire'
-            ? 'Combo en feu : points triplés'
-            : tier === 'combo'
-              ? 'Combo : points doublés'
-              : ''}
+          {comboAnnouncement}
         </p>
         <BossOverlay state={state} visible={overlayVisible} onStart={start} />
       </main>

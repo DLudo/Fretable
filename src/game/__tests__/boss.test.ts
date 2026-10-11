@@ -167,10 +167,19 @@ describe('combo', () => {
   })
 
   it('n’a pas de jauge : seul un échec l’éteint, le temps ne fait rien', () => {
-    const s = played(6)
-    // Longtemps après, sans note en attente : le combo tient toujours.
-    expect(bossReducer(s, { type: 'tick', at: 5000 + 5 * 4000 + windows.lateMs })).toBe(s)
-    expect(bossComboTier(s.combo)).toBe('combo')
+    // Six notes à la file, puis une septième qui n'arrive que près d'une minute plus tard.
+    const notes = chart(Array.from({ length: 7 }, () => 9 as PitchClass))
+    notes[6] = { ...notes[6], launchAt: 80_000, hitAt: 84_000 }
+    let s = bossReducer(createBossState(), { type: 'start', now: 0, notes })
+    for (let i = 0; i < 6; i++) s = bossReducer(s, { type: 'press', pc: 9, at: notes[i].hitAt })
+    // Une minute sans rien à jouer : le combo tient toujours.
+    const later = bossReducer(s, { type: 'tick', at: 83_000 })
+    expect(later.combo).toBe(6)
+    expect(bossComboTier(later.combo)).toBe('combo')
+    expect(bossReducer(later, { type: 'press', pc: 9, at: 84_000 }).lastHit).toMatchObject({
+      multiplier: 2,
+      points: 2000,
+    })
   })
 })
 

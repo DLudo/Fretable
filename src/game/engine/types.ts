@@ -37,7 +37,10 @@ export interface GuessResult {
   reactionMs: number | null
   /** Points du barème, avant multiplicateur (0 sur une erreur). */
   basePoints: number
-  /** Multiplicateur appliqué : 2 pendant un combo ou sur une note de triade jouée à temps, sinon 1. */
+  /**
+   * Multiplicateur appliqué : 2 pendant un combo ou sur une note de triade jouée
+   * à temps (3 pendant le combo enflammé du boss), sinon 1.
+   */
   multiplier: number
   /** Points marqués : `basePoints × multiplier`. */
   points: number
