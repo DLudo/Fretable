@@ -18,7 +18,8 @@ export interface BossHudProps {
  * Bandeau du boss final : même gabarit que celui des niveaux (ligne unique sur
  * écran bas), avec deux barres à la place de la progression : la vie du joueur
  * (rouge, cœur) et celle du boss (violette, tête de mort), qui perd un segment
- * à chaque note jouée et tombe à zéro quand le boss est vaincu.
+ * à chaque note jugée (réussie, erronée ou ratée) et tombe à zéro quand le boss
+ * est vaincu.
  */
 export function BossHud({ state, leading, className }: BossHudProps): ReactNode {
   const total = state.notes.length || BOSS_RULES.noteCount
@@ -44,7 +45,7 @@ export function BossHud({ state, leading, className }: BossHudProps): ReactNode 
             <span className="text-xs text-muted-foreground max-sm:hidden">notes</span>
           </span>
         </div>
-        {/* Vie du joueur, puis celle du boss : un segment par note, qui tombe à chaque note jouée. */}
+        {/* Vie du joueur, puis celle du boss : un segment par note, qui tombe à chaque note jugée. */}
         <div
           data-slot="boss-bars"
           className="relative flex flex-col gap-1.5 short:order-1 short:min-w-16 short:flex-1 short:gap-1"
@@ -61,7 +62,9 @@ export function BossHud({ state, leading, className }: BossHudProps): ReactNode 
               max={total}
               segments={total}
               label="Vie du boss"
-              valueLabel={(value, max) => `Boss : ${value} notes restantes sur ${max}`}
+              valueLabel={(value, max) =>
+                `Boss : ${value} ${value > 1 ? 'notes restantes' : 'note restante'} sur ${max}`
+              }
             />
           </div>
         </div>

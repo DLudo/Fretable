@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { motion, useReducedMotion, type Transition } from 'motion/react'
 import { Progress as ProgressPrimitive } from 'radix-ui'
 
@@ -17,6 +17,22 @@ export type LifeBarTone = 'player' | 'boss'
 const FILL_CLASS: Record<LifeBarTone, string> = {
   player: 'bg-hud-life shadow-[0_0_10px_var(--hud-life)]',
   boss: 'bg-boss-life shadow-[0_0_10px_var(--boss-life)]',
+}
+
+/**
+ * Entailles entre les segments, de la couleur du fond : le calque s'arrête au
+ * dernier segment, pour qu'aucune entaille ne vienne rogner le bout de la
+ * barre, et chaque entaille finit sur une frontière. Large de 2 px, elle
+ * s'amincit jusqu'au quart du segment quand la barre se resserre, au lieu de
+ * la masquer tout entière.
+ */
+function segmentNotches(notches: number): CSSProperties {
+  const period = 100 / notches
+  const notch = `min(2px, ${period / 4}%)`
+  return {
+    width: `${(notches / (notches + 1)) * 100}%`,
+    backgroundImage: `repeating-linear-gradient(to right, transparent 0 calc(${period}% - ${notch}), var(--hud-tick) calc(${period}% - ${notch}) ${period}%)`,
+  }
 }
 
 export interface LifeBarProps {
@@ -51,7 +67,7 @@ export function LifeBar({
   const ratio = max > 0 ? Math.min(1, Math.max(0, life / max)) : 0
   const offset = `${(ratio - 1) * 100}%`
   const critical = tone === 'player' && ratio > 0 && ratio < 0.25
-  const segment = segments && segments > 1 ? 100 / segments : null
+  const notches = segments && segments > 1 ? segments - 1 : 0
   return (
     <ProgressPrimitive.Root
       data-slot="life-bar"
@@ -84,15 +100,12 @@ export function LifeBar({
           transition={reduceMotion ? NONE : FILL}
         />
       </ProgressPrimitive.Indicator>
-      {segment !== null && (
-        // Entailles entre les segments, de la couleur du fond.
+      {notches > 0 && (
         <span
           data-slot="life-bar-segments"
           aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{
-            backgroundImage: `repeating-linear-gradient(to right, transparent 0 calc(${segment}% - 2px), var(--hud-tick) calc(${segment}% - 2px) ${segment}%)`,
-          }}
+          className="pointer-events-none absolute inset-y-0 left-0"
+          style={segmentNotches(notches)}
         />
       )}
     </ProgressPrimitive.Root>
