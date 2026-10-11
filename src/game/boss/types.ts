@@ -45,6 +45,8 @@ export interface BossState {
   cursor: number
   /** Vie restante, de 0 à `BOSS_RULES.life.max`. */
   life: number
+  /** Vie du boss : réussites qu'il peut encore encaisser ; à zéro, il est vaincu. */
+  bossLife: number
   score: number
   /** Réussites d'affilée : à partir de `BOSS_RULES.combo.triggerCount`, le combo multiplie les points. */
   combo: number

@@ -198,8 +198,12 @@ export type RatingRules = typeof RATING_RULES
  * pendant les tests.
  */
 export const BOSS_RULES = {
-  /** Notes du boss : survivre jusqu'à la dernière, c'est le vaincre. */
-  noteCount: 30,
+  /**
+   * Vie du boss : réussites qu'il encaisse avant de tomber. Seules les
+   * réussites le blessent ; une erreur ou un raté ne l'entame pas, et les notes
+   * continuent d'arriver tant qu'il tient debout (voir `bossChartLength`).
+   */
+  bossLife: 30,
   /** Trajet d'un fantôme, du bas de l'écran à sa cible (ms). */
   travelMs: 6000,
   /** Écart entre deux notes (ms) : `travelMs / intervalMs` notes en vol à la fois. */

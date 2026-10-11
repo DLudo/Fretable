@@ -92,9 +92,9 @@ function ReadyPanel({ onStart }: { onStart: () => void }) {
     >
       <div className="flex flex-col gap-3 text-sm text-muted-foreground">
         <p>
-          Trop tôt, la frappe ne compte pas. Une note manquée coûte de la vie, une erreur davantage
-          ; chaque réussite en rend un peu. Survis aux {BOSS_RULES.noteCount} notes pour vaincre le
-          boss.
+          Trop tôt, la frappe ne compte pas. Chaque réussite blesse le boss et te rend un peu de vie
+          : touche-le {BOSS_RULES.bossLife} fois pour le vaincre. Une note manquée ne l'entame pas
+          et te coûte de la vie, une erreur davantage ; le combat dure tant qu'il tient debout.
         </p>
         <p className="pointer-coarse:hidden short:hidden">Pas de piano ici : joue au clavier.</p>
         <p className="hidden pointer-coarse:block">
@@ -118,7 +118,7 @@ function EndPanel({ state, onStart }: { state: BossState; onStart: () => void })
       description={
         won
           ? `Vie restante : ${Math.round(state.life)} sur ${BOSS_RULES.life.max}`
-          : `Le boss t'a eu à la note ${state.cursor} sur ${state.notes.length}.`
+          : `Le boss tenait encore : ${state.bossLife} ${state.bossLife > 1 ? 'coups' : 'coup'} à lui porter sur ${BOSS_RULES.bossLife}.`
       }
       actions={
         <Button size="lg" className="w-full" autoFocus onClick={blurThen(onStart)}>

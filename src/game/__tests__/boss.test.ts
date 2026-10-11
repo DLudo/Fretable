@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { BOSS_RULES, COMBO_RULES } from '@/game/config'
 import {
+  bossChartLength,
   bossComboTier,
   bossMultiplier,
   bossReducer,
@@ -42,7 +43,7 @@ describe('partition du boss', () => {
     let seed = 7
     const random = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646
     const notes = createBossChart(level, STANDARD_TUNING, random, 1000)
-    expect(notes).toHaveLength(BOSS_RULES.noteCount)
+    expect(notes).toHaveLength(bossChartLength())
     notes.forEach((note, i) => {
       expect(note.launchAt).toBe(1000 + BOSS_RULES.startDelayMs + i * BOSS_RULES.intervalMs)
       expect(note.hitAt).toBe(note.launchAt + BOSS_RULES.travelMs)
@@ -203,15 +204,25 @@ describe('calendrier', () => {
 })
 
 describe('fin du combat', () => {
-  it('est vaincu quand la dernière note est jouée, vie restante', () => {
-    let s = started([9, 0])
+  it('est vaincu à la réussite qui épuise sa vie, même avec des notes encore en vol', () => {
+    let s: BossState = { ...started([9, 0, 4]), bossLife: 2 }
     s = bossReducer(s, { type: 'press', pc: 9, at: 5000 })
-    expect(nextMissAt(s)).toBe(9000 + windows.lateMs)
-    s = bossReducer(s, { type: 'tick', at: 20_000 })
-    expect(s).toMatchObject({ phase: 'won', endedAt: 9000 + windows.lateMs, cursor: 2 })
+    expect(s).toMatchObject({ phase: 'playing', bossLife: 1 })
+    s = bossReducer(s, { type: 'press', pc: 0, at: 9000 })
+    expect(s).toMatchObject({ phase: 'won', endedAt: 9000, cursor: 2, bossLife: 0 })
     expect(nextMissAt(s)).toBeNull()
     // Plus rien ne bouge ensuite.
-    expect(bossReducer(s, { type: 'press', pc: 0, at: 20_100 })).toBe(s)
+    expect(bossReducer(s, { type: 'press', pc: 4, at: 13_000 })).toBe(s)
+  })
+
+  it('n’est pas blessé par une erreur ni par un raté : le combat se prolonge', () => {
+    let s: BossState = { ...started([9, 0, 4, 9]), bossLife: 2 }
+    s = bossReducer(s, { type: 'press', pc: 2, at: 5000 })
+    s = bossReducer(s, { type: 'tick', at: 9000 + windows.lateMs + 1 })
+    expect(s).toMatchObject({ phase: 'playing', cursor: 2, bossLife: 2 })
+    s = bossReducer(s, { type: 'press', pc: 4, at: 13_000 })
+    s = bossReducer(s, { type: 'press', pc: 9, at: 17_000 })
+    expect(s).toMatchObject({ phase: 'won', cursor: 4, bossLife: 0 })
   })
 
   it('met le joueur K.O. quand sa vie tombe à zéro', () => {
@@ -220,8 +231,41 @@ describe('fin du combat', () => {
     for (let i = 0; i < errors; i++) {
       s = bossReducer(s, { type: 'press', pc: 11, at: 5000 + i * 4000 })
     }
-    expect(s).toMatchObject({ phase: 'lost', life: 0, cursor: errors })
+    expect(s).toMatchObject({
+      phase: 'lost',
+      life: 0,
+      cursor: errors,
+      bossLife: BOSS_RULES.bossLife,
+    })
     expect(s.endedAt).toBe(5000 + (errors - 1) * 4000)
+  })
+
+  it('perd si la partition s’épuise avant le boss (garde-fou)', () => {
+    let s = started([9, 0])
+    s = bossReducer(s, { type: 'press', pc: 9, at: 5000 })
+    s = bossReducer(s, { type: 'press', pc: 0, at: 9000 })
+    expect(s).toMatchObject({ phase: 'lost', life: life.max, bossLife: BOSS_RULES.bossLife - 2 })
+  })
+
+  it('taille la partition pour que le combat finisse toujours avant elle', () => {
+    const { start, miss, wrong, heal } = life
+    expect(bossChartLength()).toBe(62)
+    // Pire cas : chaque réussite rend le plus de vie possible, chaque échec en coûte le moins.
+    const failures = Math.ceil(
+      (start + BOSS_RULES.bossLife * Math.max(heal.perfect, heal.great, heal.good)) /
+        Math.min(miss, wrong),
+    )
+    expect(bossChartLength()).toBe(BOSS_RULES.bossLife + failures)
+    // Simulation : 29 réussites, puis que des ratés ; K.O. avant la fin de la partition.
+    let s = started(Array.from({ length: bossChartLength() }, () => 9 as PitchClass))
+    let i = 0
+    for (; i < BOSS_RULES.bossLife - 1; i++)
+      s = bossReducer(s, { type: 'press', pc: 9, at: 5000 + i * 4000 })
+    while (s.phase === 'playing')
+      s = bossReducer(s, { type: 'press', pc: 2, at: 5000 + i++ * 4000 })
+    expect(s.phase).toBe('lost')
+    expect(s.life).toBe(0)
+    expect(s.cursor).toBeLessThan(bossChartLength())
   })
 })
 

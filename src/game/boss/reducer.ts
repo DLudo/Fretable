@@ -11,6 +11,7 @@ export function createBossState(rules: BossRules = BOSS_RULES): BossState {
     hits: [],
     cursor: 0,
     life: rules.life.start,
+    bossLife: rules.bossLife,
     score: 0,
     combo: 0,
     bestCombo: 0,
@@ -41,7 +42,9 @@ export function nextMissAt(state: BossState, rules: BossRules = BOSS_RULES): num
  * frappe dans sa fenêtre décide (une mauvaise touche est une erreur), une frappe
  * trop tôt ne fait rien, et une fenêtre close sans frappe vaut un raté. Les
  * notes se jouent dans l'ordre d'arrivée : une frappe vise toujours la première
- * note pas encore jugée, même si les suivantes sont déjà en vol. Le combo
+ * note pas encore jugée, même si les suivantes sont déjà en vol. Seules les
+ * réussites blessent le boss : il tombe à la `bossLife`-ième, et les échecs
+ * ne font qu'allonger le combat, au prix de la vie du joueur. Le combo
  * (voir `bossComboTier`) multiplie les points des réussites qui suivent une
  * série, et retombe à la première erreur ou au premier raté.
  */
@@ -111,8 +114,11 @@ function resolve(state: BossState, judged: BossJudged, rules: BossRules): BossSt
   const hits = state.hits.slice()
   hits[index] = hit
   const cursor = index + 1
-  const lost = life <= 0
-  const won = !lost && cursor >= state.notes.length
+  const bossLife = success ? Math.max(0, state.bossLife - 1) : state.bossLife
+  const won = life > 0 && bossLife <= 0
+  // K.O., ou partition épuisée sans que le boss tombe (garde-fou : la partition
+  // est taillée pour que le combat se termine avant, voir `bossChartLength`).
+  const lost = !won && (life <= 0 || cursor >= state.notes.length)
   return {
     ...state,
     phase: lost ? 'lost' : won ? 'won' : 'playing',
@@ -120,6 +126,7 @@ function resolve(state: BossState, judged: BossJudged, rules: BossRules): BossSt
     hits,
     cursor,
     life,
+    bossLife,
     score: state.score + points,
     combo,
     bestCombo: Math.max(state.bestCombo, combo),
