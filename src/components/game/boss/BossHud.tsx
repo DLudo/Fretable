@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Heart, Skull } from 'lucide-react'
 
 import { ScoreCounter } from '@/components/game/hud/ScoreCounter'
 import { BOSS_RULES } from '@/game/config'
@@ -15,7 +16,9 @@ export interface BossHudProps {
 
 /**
  * Bandeau du boss final : même gabarit que celui des niveaux (ligne unique sur
- * écran bas), avec la barre de vie à la place de la progression.
+ * écran bas), avec deux barres à la place de la progression : la vie du joueur
+ * (rouge, cœur) et celle du boss (violette, tête de mort), qui perd un segment
+ * à chaque note jouée et tombe à zéro quand le boss est vaincu.
  */
 export function BossHud({ state, leading, className }: BossHudProps): ReactNode {
   const total = state.notes.length || BOSS_RULES.noteCount
@@ -41,8 +44,26 @@ export function BossHud({ state, leading, className }: BossHudProps): ReactNode 
             <span className="text-xs text-muted-foreground max-sm:hidden">notes</span>
           </span>
         </div>
-        <div className="relative short:order-1 short:min-w-16 short:flex-1">
-          <LifeBar life={state.life} max={BOSS_RULES.life.max} />
+        {/* Vie du joueur, puis celle du boss : un segment par note, qui tombe à chaque note jouée. */}
+        <div
+          data-slot="boss-bars"
+          className="relative flex flex-col gap-1.5 short:order-1 short:min-w-16 short:flex-1 short:gap-1"
+        >
+          <div className="flex items-center gap-2">
+            <Heart aria-hidden className="size-3 shrink-0 fill-hud-life text-hud-life" />
+            <LifeBar life={state.life} max={BOSS_RULES.life.max} />
+          </div>
+          <div className="flex items-center gap-2">
+            <Skull aria-hidden className="size-3 shrink-0 text-boss-life" />
+            <LifeBar
+              tone="boss"
+              life={total - state.cursor}
+              max={total}
+              segments={total}
+              label="Vie du boss"
+              valueLabel={(value, max) => `Boss : ${value} notes restantes sur ${max}`}
+            />
+          </div>
         </div>
       </div>
     </div>
