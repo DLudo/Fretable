@@ -5,6 +5,7 @@ import { BOSS_RULES } from '@/game/config'
 import {
   ghostProgress,
   lerpPoint,
+  targetOpacity,
   visibleBossNotes,
   type BossHit,
   type BossJudgement,
@@ -22,8 +23,10 @@ const LABEL_MS = 700
 const APPEAR_MS = 200
 /** Halo du fantôme, en rayons de note : le départ se fait sous lui, hors de l'écran. */
 const GHOST_HALO = 1.7
-/** Notes en vol après celle à jouer : atténuées, pour qu'on lise l'ordre d'arrivée. */
+/** Fantômes et couloirs des notes en vol après celle à jouer : atténués. */
 const UPCOMING_OPACITY = 0.45
+/** Montée d'un cran des anneaux d'arrivée, à chaque jugement (ms). */
+const RANK_EASE_MS = 200
 
 const LABEL: Record<BossJudgement, string> = {
   perfect: 'Parfait',
@@ -114,12 +117,15 @@ export function BossLayer({ state, layout, projection }: BossLayerProps): ReactN
       width={projection.width}
       height={projection.height}
     >
-      {shown.map(({ note, hit, current }) => (
+      {shown.map(({ note, hit, current, rank }) => (
         <BossNoteView
           key={note.id}
           note={note}
           hit={hit}
           current={current}
+          rank={rank}
+          // Depuis le dernier jugement, chaque anneau en vol monte d'un cran.
+          sinceAdvance={state.lastHit ? now - state.lastHit.at : Number.POSITIVE_INFINITY}
           now={now}
           bottom={bottom}
           layout={layout}
@@ -135,6 +141,8 @@ function BossNoteView({
   note,
   hit,
   current,
+  rank,
+  sinceAdvance,
   now,
   bottom,
   layout,
@@ -145,6 +153,10 @@ function BossNoteView({
   hit: BossHit | null
   /** La note à jouer maintenant ; les autres notes en vol sont atténuées. */
   current: boolean
+  /** Rang dans la file des notes en vol (0 : à jouer) ; -1 si jugée. */
+  rank: number
+  /** Temps écoulé depuis le dernier jugement, qui a fait monter la file d'un cran (ms). */
+  sinceAdvance: number
   now: number
   /** Bas de l'écran, en px depuis le haut du calque. */
   bottom: number
@@ -170,15 +182,24 @@ function BossNoteView({
     hit === null ? 1 : hit.judgement === 'miss' ? clamp01(1 - since / BOSS_RULES.fadeMs) : 0
   const ghostPx = lerpPoint(launchPx, targetPx, ghostProgress(note, now))
 
-  // En attente de leur tour, les notes suivantes restent en retrait.
+  // En attente de leur tour, fantôme et couloir des notes suivantes restent en retrait.
   const presence = hit === null && !current ? UPCOMING_OPACITY : 1
+  // Anneau d'arrivée : opacité dégressive selon le rang (100, 50, 25 %), qui
+  // passe en un bref fondu au cran supérieur à chaque jugement.
+  const ringRank =
+    rank < 0
+      ? 1
+      : targetOpacity(rank + 1) +
+        (targetOpacity(rank) - targetOpacity(rank + 1)) * clamp01(sinceAdvance / RANK_EASE_MS)
 
   return (
     <g
       data-slot="boss-note"
       data-judgement={hit?.judgement}
       data-current={current || undefined}
-      opacity={presence}
+      data-rank={rank >= 0 ? rank : undefined}
+      data-string={note.stringIndex}
+      data-fret={note.fret}
     >
       <line
         data-slot="boss-lane"
@@ -187,7 +208,7 @@ function BossNoteView({
         x2={targetPx.x}
         y2={targetPx.y}
         stroke="var(--boss-ghost)"
-        strokeOpacity={0.22 * appear * fade}
+        strokeOpacity={0.22 * appear * fade * presence}
         strokeWidth={r * 0.18}
         strokeLinecap="round"
       />
@@ -198,13 +219,13 @@ function BossNoteView({
         // Réussie, la cible s'ouvre comme une onde en s'effaçant.
         r={r * (1 + (success && !reduceMotion ? clamp01(since / LABEL_MS) * 0.9 : 0))}
         fill="var(--marker)"
-        fillOpacity={0.14 * appear * fade}
+        fillOpacity={0.14 * appear * fade * ringRank}
         stroke={hit ? COLOR[hit.judgement] : 'var(--marker)'}
         strokeWidth={r * (current ? 0.26 : 0.2)}
-        strokeOpacity={appear * (success ? clamp01(1 - since / LABEL_MS) : fade)}
+        strokeOpacity={appear * ringRank * (success ? clamp01(1 - since / LABEL_MS) : fade)}
       />
       {ghostOpacity > 0 && (
-        <g data-slot="boss-ghost" opacity={ghostOpacity}>
+        <g data-slot="boss-ghost" opacity={ghostOpacity * presence}>
           <circle
             cx={ghostPx.x}
             cy={ghostPx.y}

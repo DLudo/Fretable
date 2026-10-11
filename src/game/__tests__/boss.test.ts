@@ -9,6 +9,7 @@ import {
   lerpPoint,
   missCheckDelay,
   nextMissAt,
+  targetOpacity,
   visibleBossNotes,
   type BossNote,
   type BossState,
@@ -184,6 +185,30 @@ describe('notes affichées', () => {
       [2, null, true],
     ])
     expect(at(5150 + BOSS_RULES.fadeMs + 1, hit)).toEqual([[2, null, true]])
+  })
+
+  it('range les notes en vol dans la file : 0 pour celle à jouer, puis 1, 2…', () => {
+    const s = started([9, 0, 4, 5])
+    const ranks = (state: BossState, now: number) =>
+      visibleBossNotes(state, now).map(({ note, rank }) => [note.id, rank])
+    // À 9 100, trois notes sont parties (1 000, 5 000, 9 000).
+    expect(ranks(s, 9100)).toEqual([
+      [1, 0],
+      [2, 1],
+      [3, 2],
+    ])
+    // La première jugée, chacune monte d'un cran ; la jugée n'a plus de rang.
+    const hit = bossReducer(s, { type: 'press', pc: 9, at: 5000 })
+    expect(ranks(hit, 9100)).toEqual([
+      [2, 0],
+      [3, 1],
+    ])
+  })
+
+  it('donne aux anneaux d’arrivée une opacité dégressive selon leur rang', () => {
+    expect([0, 1, 2, 3, 6].map(targetOpacity)).toEqual([1, 0.5, 0.25, 0.25, 0.25])
+    // Une note jugée garde son anneau plein le temps de ses retours.
+    expect(targetOpacity(-1)).toBe(1)
   })
 
   it('n’affiche plus aucune note en vol une fois le combat fini', () => {

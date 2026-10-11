@@ -7,6 +7,20 @@ export interface VisibleBossNote {
   hit: BossHit | null
   /** La note à jouer maintenant : la première pas encore jugée. */
   current: boolean
+  /** Rang dans la file des notes en vol : 0 pour celle à jouer, 1 pour la suivante… ; -1 si jugée. */
+  rank: number
+}
+
+/**
+ * Opacité de l'anneau d'arrivée selon le rang dans la file : pleine pour la note
+ * à jouer, puis 50 %, puis 25 % pour les suivantes. À chaque jugement, chaque
+ * anneau monte d'un cran.
+ */
+export const TARGET_OPACITY_BY_RANK = [1, 0.5, 0.25] as const
+
+export function targetOpacity(rank: number): number {
+  if (rank < 0) return 1
+  return TARGET_OPACITY_BY_RANK[Math.min(rank, TARGET_OPACITY_BY_RANK.length - 1)]
 }
 
 /**
@@ -24,11 +38,12 @@ export function visibleBossNotes(
   state.notes.forEach((note, index) => {
     const hit = state.hits[index] ?? null
     if (hit) {
-      if (now - hit.at <= feedbackMs) shown.push({ note, hit, current: false })
+      if (now - hit.at <= feedbackMs) shown.push({ note, hit, current: false, rank: -1 })
       return
     }
     if (state.phase === 'playing' && now >= note.launchAt) {
-      shown.push({ note, hit, current: index === state.cursor })
+      const rank = index - state.cursor
+      shown.push({ note, hit, current: rank === 0, rank })
     }
   })
   return shown
