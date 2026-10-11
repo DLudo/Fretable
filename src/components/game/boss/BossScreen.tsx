@@ -5,7 +5,7 @@ import { PORTRAIT_QUERY, useBoardFit } from '@/components/game/useBoardFit'
 import { useBoardImpact } from '@/components/game/useBoardImpact'
 import { RevealLayer } from '@/effects'
 import { BOSS_RULES } from '@/game/config'
-import { useBossGame, type BossJudgement, type BossState } from '@/game/boss'
+import { useBossGame, type BossJudgement, type BossNote, type BossState } from '@/game/boss'
 import type { GuessResult } from '@/game/engine/types'
 import { createNeckLayout } from '@/game/fretboard/geometry'
 import {
@@ -126,7 +126,24 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
     [state, reveal, layout],
   )
 
-  const next = playing ? state.notes[state.cursor] : undefined
+  // Annonce de chaque note à son départ, au moment où elle paraît à l'écran (soit
+  // `travelMs` avant de la jouer) : les notes s'annoncent dans leur ordre d'arrivée.
+  const [launched, setLaunched] = useState<{ notes: readonly BossNote[]; index: number } | null>(
+    null,
+  )
+  const launchedIndex = playing && launched?.notes === state.notes ? launched.index : -1
+  useEffect(() => {
+    if (!playing) return
+    const index = launchedIndex + 1
+    const note = state.notes[index]
+    if (!note) return
+    const timer = window.setTimeout(
+      () => setLaunched({ notes: state.notes, index }),
+      Math.max(0, note.launchAt - performance.now()),
+    )
+    return () => window.clearTimeout(timer)
+  }, [playing, state.notes, launchedIndex])
+  const announced = launchedIndex >= 0 ? state.notes[launchedIndex] : undefined
 
   return (
     <div data-slot="boss-screen" className={cn('flex h-dvh flex-col overflow-hidden', className)}>
@@ -141,8 +158,8 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
           <Fretboard layout={layout} marker={null} overlay={overlay} orientation={orientation} />
         </div>
         <p className="sr-only" aria-live="polite">
-          {next
-            ? `Note suivante : corde ${stringNumber(boss.tuning, next.stringIndex)}, case ${next.fret}`
+          {announced
+            ? `Ensuite : corde ${stringNumber(boss.tuning, announced.stringIndex)}, case ${announced.fret}`
             : ''}
         </p>
         <BossOverlay state={state} visible={overlayVisible} onStart={start} />
