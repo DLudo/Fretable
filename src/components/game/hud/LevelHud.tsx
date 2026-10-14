@@ -13,7 +13,10 @@ import { ScoreCounter } from './ScoreCounter'
 
 export interface LevelHudProps {
   state: GameState
-  /** Anneau d'une note de triade en cours : pastille « ×2 » en vert acide. */
+  /**
+   * Anneau d'une note de triade en cours : pastille « ×2 » en vert acide, sauf
+   * pendant un combo, qui la garde bleue (les deux ×2 ne s'additionnent pas).
+   */
   triadBoost?: boolean
   /** Élément posé en tête de la ligne, à gauche du titre (interrupteur de mode). */
   leading?: ReactNode

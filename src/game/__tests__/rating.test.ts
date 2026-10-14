@@ -139,8 +139,8 @@ describe('triade', () => {
     expect(s.lastTriad).toMatchObject({ success: true, slot: 1 })
     const withTriad = rateGame({ ...s, level })
     const without = rateGame(play(pace(1500)))
-    // Combo éteint, notes de la triade doublées : la référence vit la triade
-    // exactement comme le joueur, d'où la même note.
+    // Le combo traverse la triade et ses notes le nourrissent : la référence vit
+    // la triade exactement comme le joueur, d'où la même note.
     expect(withTriad.stars).toBe(without.stars)
     expect(withTriad.scoreRatio).toBe(1)
     expect(referenceScore(level, 1500, [1])).toBe(s.score)

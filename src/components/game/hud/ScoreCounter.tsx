@@ -8,7 +8,11 @@ import { formatScore } from './format'
 
 export interface ScoreCounterProps {
   score: number
-  /** Combo en cours : la pastille du multiplicateur (« ×2 ») s'affiche à côté du score. */
+  /**
+   * Le combo multiplie la prochaine réponse : la pastille du multiplicateur
+   * (« ×2 ») s'affiche à côté du score. Faux pendant le parcours de gamme, que
+   * le combo traverse sans rien multiplier.
+   */
   comboActive: boolean
   /**
    * Note de triade dont l'anneau tourne : une bonne réponse vaut double, la

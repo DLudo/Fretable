@@ -18,7 +18,7 @@ export function isFastReaction(reactionMs: number): boolean {
   return reactionMs < COMBO_RULES.fastReactionMs
 }
 
-/** Le combo court encore à l'instant `now`. */
+/** Le combo court encore à l'instant `now` (en pause, passer `pausedAt` : la jauge y est figée). */
 export function isComboLive(combo: ComboState | null, now: number): combo is ComboState {
   return combo !== null && now < combo.endsAt
 }

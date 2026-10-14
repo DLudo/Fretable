@@ -158,7 +158,8 @@ describe('triade en partie', () => {
       slowestMs: LIMIT - 1,
     })
     expect(s.lastTriad?.reason).toBeUndefined()
-    // Les trois notes comptent pour la progression, doublées (anneau battu), sans combo.
+    // Les trois notes comptent pour la progression, doublées : anneau battu, puis combo,
+    // allumé en route, sans cumul des deux.
     expect(s.correctCount).toBe(4)
     const triadResults = s.results.filter((r) => r.bonus === 'triad')
     expect(triadResults).toHaveLength(3)

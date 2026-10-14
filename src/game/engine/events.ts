@@ -19,7 +19,12 @@ export interface GameEventMap {
   challenge: Challenge
   guess: GuessResult
   phase: GamePhase
-  /** Combo déclenché, rechargé (nouvel `endsAt`) ou éteint (`null`). */
+  /**
+   * Combo déclenché, rechargé (nouvel `endsAt`) ou éteint (`null`). La reprise
+   * après une pause (annonce de triade, parcours de gamme) recule aussi `endsAt`,
+   * de la durée de la pause, sans être une recharge : pour l'en distinguer,
+   * regarder si l'état précédent était en pause (`pausedAt`).
+   */
   combo: ComboState | null
   /** Coup de pouce offert, entamé (`remaining` décroît) ou terminé (`null`). */
   assist: AssistState | null

@@ -44,15 +44,19 @@ export interface GuessResult {
   multiplier: number
   /** Points marqués : `basePoints × multiplier`. */
   points: number
-  /** Cette réponse a déclenché le combo (elle-même n'est pas multipliée). */
+  /**
+   * Cette réponse a déclenché le combo : le combo ne la multiplie pas encore,
+   * mais l'anneau d'une note de triade peut la doubler.
+   */
   comboTriggered: boolean
   /** Réponse à une note du coup de pouce (jamais multipliée, sans effet sur le combo). */
   assisted: boolean
   /**
-   * Réponse à une note de bonus (`triad`, `scale`) : elle ne nourrit ni le combo
-   * ni le coup de pouce. Une note de triade est doublée si elle arrive avant la
-   * fin de son anneau ; celles du parcours de gamme, jamais multipliées, ne
-   * comptent pas non plus pour la progression.
+   * Réponse à une note de bonus (`triad`, `scale`), qui ne compte pas pour le
+   * coup de pouce. Une note de triade nourrit le combo comme les autres et vaut
+   * double si elle arrive avant la fin de son anneau ou pendant un combo (sans
+   * cumul : ×2 au plus) ; celles du parcours de gamme ne touchent pas au combo,
+   * ne sont jamais multipliées et ne comptent pas pour la progression.
    */
   bonus?: 'triad' | 'scale'
 }
@@ -143,11 +147,19 @@ export interface ScaleRunOutcome {
   perfect: boolean
 }
 
-/** Combo en cours : actif tant que `performance.now() < endsAt`. */
+/**
+ * Combo en cours : actif tant que le temps de jeu n'a pas atteint `endsAt`.
+ * Pendant une pause (`GameState.pausedAt`), sa jauge est figée : `endsAt`
+ * recule de la durée de la pause à la reprise. En pause, c'est donc `pausedAt`
+ * qui tient lieu d'« instant présent » pour juger s'il court encore.
+ */
 export interface ComboState {
   /** Instant du déclenchement. */
   startedAt: number
-  /** Fin prévue, repoussée par chaque bonne réponse rapide (plafonnée, voir `COMBO_RULES`). */
+  /**
+   * Fin prévue, repoussée par chaque bonne réponse rapide (plafonnée, voir
+   * `COMBO_RULES`) et, à la reprise, de la durée d'une pause.
+   */
   endsAt: number
 }
 

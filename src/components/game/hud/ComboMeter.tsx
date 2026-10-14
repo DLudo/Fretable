@@ -15,17 +15,23 @@ export interface ComboMeterProps {
 }
 
 /**
- * Compteur incrémenté à chaque recharge (`endsAt` repoussé) : rejoue l'éclat de
- * la jauge. La reprise après une pause repousse aussi l'échéance, sans recharger.
+ * Compteur des recharges du combo en cours (`endsAt` repoussé) : rejoue l'éclat
+ * de la jauge. Il repart de zéro à chaque nouveau combo, dont la jauge apparaît
+ * sans éclat ; la reprise après une pause repousse aussi l'échéance, sans
+ * recharger.
  */
-function useRecharge(endsAt: number | null, paused: boolean): number {
-  const [tracked, setTracked] = useState({ endsAt, paused, pulse: 0 })
-  if (endsAt !== tracked.endsAt || paused !== tracked.paused) {
+function useRecharge(combo: ComboState | null, paused: boolean): number {
+  const startedAt = combo?.startedAt ?? null
+  const endsAt = combo?.endsAt ?? null
+  const [tracked, setTracked] = useState({ startedAt, endsAt, paused, pulse: 0 })
+  if (startedAt !== tracked.startedAt) {
+    setTracked({ startedAt, endsAt, paused, pulse: 0 })
+  } else if (endsAt !== tracked.endsAt || paused !== tracked.paused) {
     const recharged =
       !tracked.paused && endsAt !== null && tracked.endsAt !== null && endsAt > tracked.endsAt
-    setTracked({ endsAt, paused, pulse: recharged ? tracked.pulse + 1 : tracked.pulse })
+    setTracked({ startedAt, endsAt, paused, pulse: recharged ? tracked.pulse + 1 : tracked.pulse })
   }
-  return tracked.pulse
+  return startedAt === tracked.startedAt ? tracked.pulse : 0
 }
 
 /**
@@ -41,7 +47,7 @@ export function ComboMeter({ combo, pausedAt = null, className }: ComboMeterProp
   const reduceMotion = useReducedMotion()
   const fill = useRef<HTMLSpanElement>(null)
   const endsAt = combo?.endsAt ?? null
-  const recharge = useRecharge(endsAt, pausedAt !== null)
+  const recharge = useRecharge(combo, pausedAt !== null)
 
   useAnimationFrame(() => {
     const el = fill.current
