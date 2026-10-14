@@ -156,9 +156,11 @@ describe('triades', () => {
     // Au-delà du délai de l'anneau, plus rien n'est doublé.
     const slow = TRIAD_RULES.fastReactionMs
     expect(referenceScore(long, slow, [0, 3, 6, 9])).toBe(12 * single(slow))
-    // Chaque triade éteint le combo de la référence, comme celui du joueur :
-    // trois notes doublées, puis trois à reconstruire le combo.
-    expect(referenceScore(long, 800, [0, 6])).toBe((3 * 2 + 3 + 3 * 2 + 3) * single(800))
+    // Le combo traverse les triades, comme celui du joueur, et leurs notes le
+    // nourrissent : tout est doublé, sans cumul entre anneau et combo.
+    expect(referenceScore(long, 800, [0, 6])).toBe(12 * 2 * single(800))
+    // Sans triade, les trois premières notes construisent le combo, sans bonus.
+    expect(referenceScore(long, 800)).toBe((3 + 9 * 2) * single(800))
   })
 })
 

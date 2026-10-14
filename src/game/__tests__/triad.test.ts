@@ -108,7 +108,7 @@ describe('triade en partie', () => {
     return next
   }
 
-  it('s’ouvre sur la fondamentale et éteint un combo en cours', () => {
+  it('s’ouvre sur la fondamentale sans éteindre le combo en cours', () => {
     expect(opened.triad).toMatchObject({ root: 9, quality: 'minor', step: 0, clean: true })
     expect(opened.triadsStarted).toBe(1)
     expect(opened.challenge).toMatchObject({ pc: 9, triad: true })
@@ -119,7 +119,32 @@ describe('triade en partie', () => {
       now: 1400,
       triad: voicing,
     })
-    expect(s).toMatchObject({ combo: null, fastStreak: 0 })
+    expect(s).toMatchObject({ combo: { startedAt: 0, endsAt: 99_999 }, fastStreak: 2 })
+  })
+
+  it('garde le combo allumé à travers la triade : ses notes le nourrissent, sans cumul des ×2', () => {
+    const live = { startedAt: 0, endsAt: 3000 }
+    let s = gameReducer(
+      { ...answered, combo: live, fastStreak: 0 },
+      { type: 'next', challenge: triadChallenge(2, voicing, 0), now: 1400, triad: voicing },
+    )
+    s = answer(answer(answer(s, 900), 900), 900)
+    const triadResults = s.results.filter((r) => r.bonus === 'triad')
+    // Combo (×2) et anneau battu (×2) : ×2, pas ×4.
+    expect(triadResults.map((r) => r.multiplier)).toEqual([2, 2, 2])
+    // Chaque réponse rapide a rechargé la jauge : le combo tourne toujours après la triade.
+    expect(s.combo).not.toBeNull()
+    expect(s.combo!.startedAt).toBe(0)
+    expect(s.combo!.endsAt).toBeGreaterThan(live.endsAt)
+  })
+
+  it('peut allumer le combo pendant la triade, notes rapides comprises', () => {
+    // Première note en 1 s, puis deux notes de triade rapides : la troisième réponse rapide l'allume.
+    const s = answer(answer(opened, 900), 900)
+    const [first, second] = s.results.filter((r) => r.bonus === 'triad')
+    expect(first.comboTriggered).toBe(false)
+    expect(second).toMatchObject({ comboTriggered: true, multiplier: 2 })
+    expect(s.combo).not.toBeNull()
   })
 
   it('est réussie quand les trois notes sont justes, chacune sous le seuil de rapidité', () => {
@@ -139,8 +164,8 @@ describe('triade en partie', () => {
     expect(triadResults).toHaveLength(3)
     expect(triadResults.map((r) => r.multiplier)).toEqual([2, 2, 2])
     expect(triadResults.every((r) => r.points === r.basePoints * 2)).toBe(true)
-    expect(s.combo).toBeNull()
-    expect(s.fastStreak).toBe(0)
+    // Les deux premières, rapides, ont allumé le combo (avec la note d'avant la triade).
+    expect(s.combo).not.toBeNull()
   })
 
   it('double chaque note trouvée avant la fin de son anneau, même la triade perdue', () => {
@@ -152,7 +177,7 @@ describe('triade en partie', () => {
     expect(inTime).toMatchObject({ correct: true, multiplier: 2, points: inTime.basePoints * 2 })
     // Pile à la fin de l'anneau : trop tard, la note n'est plus doublée.
     expect(late).toMatchObject({ correct: true, multiplier: 1, points: late.basePoints })
-    // Le combo reste éteint : les deux bonus ne se cumulent pas.
+    // Une erreur, puis une réponse lente : pas assez de réponses rapides d'affilée pour un combo.
     expect(s.combo).toBeNull()
     expect(s.results.some((r) => r.comboTriggered)).toBe(false)
   })
@@ -242,14 +267,39 @@ describe('triade en partie', () => {
     const withCombo = { ...answered, combo: { startedAt: 0, endsAt: 99_999 }, fastStreak: 2 }
     const announced = gameReducer(withCombo, { type: 'announceTriad', now: 1400, triad: voicing })
 
-    it('met la partie en pause, sans note à trouver, et éteint le combo', () => {
+    it('met la partie en pause, sans note à trouver, et fige le combo sans l’éteindre', () => {
       expect(announced.triadIntro).toMatchObject({ root: 9, quality: 'minor', at: 1400 })
-      expect(announced).toMatchObject({ pausedAt: 1400, locked: true, combo: null, fastStreak: 0 })
+      expect(announced).toMatchObject({
+        pausedAt: 1400,
+        locked: true,
+        combo: { startedAt: 0, endsAt: 99_999 },
+        fastStreak: 2,
+      })
       expect(deadlineAt(announced)).toBeNull()
       // Aucune réponse n'est prise pendant l'annonce.
       expect(gameReducer(announced, { type: 'guess', pc: 9, now: 1500 })).toBe(announced)
       // Rien n'est compté tant que la triade n'est pas ouverte.
       expect(announced).toMatchObject({ triad: null, triadsStarted: 0 })
+    })
+
+    it('reprend la jauge du combo où elle s’était figée, sans l’épuiser pendant la pause', () => {
+      // Le minuteur ne peut rien éteindre pendant l'annonce, même échéance passée.
+      expect(gameReducer(announced, { type: 'comboExpire', now: 200_000 })).toBe(announced)
+      const resumed = gameReducer(announced, {
+        type: 'next',
+        challenge: triadChallenge(2, voicing, 0),
+        now: 2700,
+        triad: voicing,
+      })
+      // 1,3 s de pause : l'échéance recule d'autant.
+      expect(resumed).toMatchObject({ pausedAt: null, pausedMs: 1300 })
+      expect(resumed.combo).toEqual({ startedAt: 0, endsAt: 99_999 + 1300 })
+    })
+
+    it('éteint à l’annonce un combo déjà échu, dont le minuteur n’a pas encore sonné', () => {
+      const stale = { ...answered, combo: { startedAt: 0, endsAt: 1399 }, fastStreak: 0 }
+      const s = gameReducer(stale, { type: 'announceTriad', now: 1400, triad: voicing })
+      expect(s).toMatchObject({ pausedAt: 1400, combo: null, fastStreak: 0 })
     })
 
     it('n’est possible qu’entre deux notes, quand une triade peut commencer', () => {

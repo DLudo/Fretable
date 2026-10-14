@@ -10,8 +10,8 @@ import type { Challenge, GameState, ScaleRunState, TriadPlan, TriadState } from 
 /**
  * Multiplicateur d'une bonne réponse sur une note de triade : celui du combo si
  * elle arrive avant la fin de son anneau (`TRIAD_RULES.fastReactionMs`), même
- * quand la triade est déjà perdue ; 1 sinon. Le combo, lui, reste éteint : les
- * deux ne se cumulent jamais.
+ * quand la triade est déjà perdue ; 1 sinon. Le combo, lui, continue de tourner
+ * pendant la triade : les deux ×2 ne s'additionnent pas, le plus grand l'emporte.
  */
 export function triadMultiplier(reactionMs: number): number {
   return reactionMs < TRIAD_RULES.fastReactionMs ? COMBO_RULES.multiplier : 1

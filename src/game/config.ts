@@ -101,8 +101,8 @@ export const NOTATION = 'solfege' as const
  * Bonus de mode, première étape : à tout moment de la partie, trois notes
  * peuvent former une triade jouable (fondamentale, tierce, quinte sur trois cordes voisines).
  * Trouvées toutes trois, chacune en moins de `fastReactionMs`, elles ouvrent le
- * parcours de gamme. Les notes de la triade ne nourrissent ni le combo ni le
- * coup de pouce.
+ * parcours de gamme. Le combo traverse la triade sans s'éteindre, et ses notes
+ * le nourrissent comme les autres ; elles ne comptent pas pour le coup de pouce.
  */
 export const TRIAD_RULES = {
   /** Chance, à chaque nouvelle note où c'est possible, qu'une triade commence. */

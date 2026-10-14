@@ -70,9 +70,10 @@ export function LevelHud({
             {level.title}
           </span>
 
+          {/* Le parcours de gamme ne multiplie rien : la pastille du combo s'y retire. */}
           <ScoreCounter
             score={score}
-            comboActive={combo !== null}
+            comboActive={combo !== null && scaleRun === null}
             triadBoost={triadBoost}
             className="short:shrink-0"
           />
@@ -121,7 +122,7 @@ export function LevelHud({
             pulseId={pulseId}
             pending={assist && { done: assist.total - assist.remaining, total: assist.total }}
           />
-          <ComboMeter combo={combo} />
+          <ComboMeter combo={combo} pausedAt={state.pausedAt} />
         </div>
       </div>
     </div>

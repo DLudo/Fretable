@@ -155,6 +155,8 @@ describe('ordre des événements', () => {
       { type: 'next', challenge: triadNote(4, 2), now: 3400 },
       { type: 'guess', pc: 4, now: 4000 },
     ])
+    // Les notes de la triade nourrissent le combo : la troisième réponse rapide
+    // l'allume, la suivante le recharge, toujours entre la tentative et la triade.
     expect(log.slice(4)).toEqual([
       'triad:0',
       'challenge:2',
@@ -162,9 +164,11 @@ describe('ordre des événements', () => {
       'triad:1',
       'challenge:3',
       'guess:true',
+      'combo:on',
       'triad:2',
       'challenge:4',
       'guess:true',
+      'combo:on',
       'triad:off',
       'triadResult:success',
     ])

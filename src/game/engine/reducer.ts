@@ -1,7 +1,7 @@
 import { ASSIST_RULES, SCALE_RULES, TRIAD_RULES } from '@/game/config'
 import { getLevel } from '@/game/levels/levels'
 import { shouldOfferAssist } from './assist'
-import { basePoints, stepCombo, type ComboStep } from './scoring'
+import { basePoints, isComboLive, resumeCombo, stepCombo, type ComboStep } from './scoring'
 import { deadlineAt } from './selectors'
 import { canStartTriad, triadMultiplier } from './triad'
 import type {
@@ -70,9 +70,12 @@ function isExpired(state: GameState, now: number): boolean {
  * il ajoute du temps et impose la même note jusqu'à `ASSIST_RULES.repeats`
  * bonnes réponses, qui ne valent ensemble qu'un cran. La triade (voir
  * `canStartTriad`) arrive avec une note (`next`) : ses trois notes comptent
- * normalement, sans nourrir ni combo ni coup de pouce. Réussie, elle ouvre le
- * parcours de gamme (`scaleRun`) : le temps se suspend (`pausedAt`) jusqu'à sa
- * dernière note. Combo et bonus ne se cumulent jamais.
+ * normalement et nourrissent le combo, sans le coup de pouce ; le combo la
+ * traverse sans s'éteindre. Réussie, elle ouvre le parcours de gamme
+ * (`scaleRun`) : le temps se suspend (`pausedAt`) jusqu'à sa dernière note.
+ * Pendant toute pause (annonce de triade, parcours), la jauge du combo est
+ * figée, puis reprend où elle s'était arrêtée (`resumeCombo`). Les
+ * multiplicateurs ne se cumulent jamais.
  */
 export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
@@ -115,19 +118,18 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       // seule la dernière bonne réponse attendue fait avancer la progression.
       const assisted = state.challenge.assist === true && state.assist !== null
       const completesAssist = assisted && correct && state.assist!.remaining <= 1
-      // Note de la triade : comptée normalement, hors combo et hors coup de pouce,
-      // mais doublée si elle est trouvée avant la fin de son anneau.
+      // Note de la triade : comptée normalement et pour le combo, hors coup de pouce,
+      // et doublée si elle est trouvée avant la fin de son anneau. Combo et anneau
+      // valent chacun ×2 : ils ne s'additionnent pas.
       const triadNote = state.challenge.triad === true && state.triad !== null
       const correctCount = state.correctCount + (correct && (!assisted || completesAssist) ? 1 : 0)
-      const step: ComboStep =
-        assisted || triadNote
-          ? {
-              combo: null,
-              fastStreak: 0,
-              multiplier: triadNote && correct ? triadMultiplier(reactionMs) : 1,
-              triggered: false,
-            }
-          : stepCombo(state.combo, state.fastStreak, { now: action.now, correct, reactionMs })
+      const step: ComboStep = assisted
+        ? { combo: null, fastStreak: 0, multiplier: 1, triggered: false }
+        : stepCombo(state.combo, state.fastStreak, { now: action.now, correct, reactionMs })
+      const multiplier =
+        triadNote && correct
+          ? Math.max(step.multiplier, triadMultiplier(reactionMs))
+          : step.multiplier
       const base = correct ? basePoints(reactionMs) : 0
       const result: GuessResult = {
         id: state.challenge.id,
@@ -138,8 +140,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         at: action.now,
         reactionMs,
         basePoints: base,
-        multiplier: step.multiplier,
-        points: base * step.multiplier,
+        multiplier,
+        points: base * multiplier,
         comboTriggered: step.triggered,
         assisted,
         ...(triadNote ? { bonus: 'triad' as const } : {}),
@@ -158,7 +160,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             state.lastTriad,
           )
         : { triad: state.triad, lastTriad: state.lastTriad }
-      // Triade réussie : la forme de gamme qui la prolonge s'ouvre, le temps se suspend.
+      // Triade réussie : la forme de gamme qui la prolonge s'ouvre, le temps (et la
+      // jauge du combo) se suspend.
       let scaleRun = state.scaleRun
       let pausedAt = state.pausedAt
       const plan = triadNote ? state.triad!.scale : null
@@ -228,29 +231,34 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (state.phase !== 'playing' || !state.locked || state.triadIntro || !canStartTriad(state)) {
         return state
       }
-      // Pause d'annonce : le temps se fige, le combo s'éteint dès maintenant.
+      // Pause d'annonce : le temps se fige, et la jauge du combo avec lui. Un combo
+      // tout juste échu (son minuteur n'a pas encore sonné) s'éteint maintenant.
+      const live = isComboLive(state.combo, action.now)
       return {
         ...state,
         triadIntro: { ...action.triad, at: action.now },
         pausedAt: action.now,
-        combo: null,
-        fastStreak: 0,
+        combo: live ? state.combo : null,
+        fastStreak: live || state.combo === null ? state.fastStreak : 0,
       }
     }
 
     case 'next': {
       if (state.phase !== 'playing' || !state.locked) return state
+      // Fin d'une annonce de triade : le temps reprend, la pause est décomptée, et
+      // la jauge du combo repart où elle s'était figée.
+      const pausedFor = state.triadIntro ? action.now - (state.pausedAt ?? action.now) : 0
       const shown: GameState = {
         ...state,
         challenge: action.challenge,
         challengeShownAt: action.now,
         locked: false,
-        // Fin d'une annonce de triade : le temps reprend, la pause est décomptée.
         ...(state.triadIntro
           ? {
               triadIntro: null,
               pausedAt: null,
-              pausedMs: state.pausedMs + (action.now - (state.pausedAt ?? action.now)),
+              pausedMs: state.pausedMs + pausedFor,
+              combo: resumeCombo(state.combo, pausedFor),
             }
           : {}),
       }
@@ -260,7 +268,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         const { triad: _ignored, ...plain } = action.challenge
         return { ...shown, challenge: plain }
       }
-      // Triade engagée : combo éteint (un bonus ne se cumule pas avec lui).
+      // Triade engagée : le combo continue de tourner.
       return {
         ...shown,
         triad: {
@@ -273,8 +281,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         },
         triadsStarted: state.triadsStarted + 1,
         triadSlots: [...state.triadSlots, state.correctCount],
-        combo: null,
-        fastStreak: 0,
       }
     }
 
@@ -284,7 +290,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'comboExpire':
       // Jauge vide : le combo s'éteint, il faudra à nouveau trois réponses rapides.
-      if (!state.combo || action.now < state.combo.endsAt) return state
+      // En pause, la jauge est figée : rien ne s'épuise.
+      if (!state.combo || state.pausedAt !== null || action.now < state.combo.endsAt) return state
       return { ...state, combo: null, fastStreak: 0 }
   }
 }
@@ -360,7 +367,7 @@ function advanceTriad(
 /**
  * Réponse à une note du parcours de gamme : des points si elle est juste, rien
  * sinon, et le parcours continue jusqu'au bout. Ni progression, ni série, ni
- * erreur comptée pour la partie. À la dernière note, le supplément d'un
+ * erreur comptée pour la partie, ni combo : sa jauge reste figée. À la dernière note, le supplément d'un
  * parcours sans faute s'ajoute et le temps reprend.
  */
 function guessScaleNote(
@@ -401,6 +408,7 @@ function guessScaleNote(
   const hits = outcomes.filter((o) => o === 'hit').length
   const perfect = hits === run.notes.length
   const total = run.points + points + (perfect ? SCALE_RULES.perfectBonus : 0)
+  const pausedFor = Math.max(0, now - (state.pausedAt ?? now))
   return {
     ...state,
     ...common,
@@ -416,8 +424,9 @@ function guessScaleNote(
       points: total,
       perfect,
     },
-    // Fin de la pause : le temps reprend où il s'était arrêté.
-    pausedMs: state.pausedMs + Math.max(0, now - (state.pausedAt ?? now)),
+    // Fin de la pause : le temps, et la jauge du combo, reprennent où ils s'étaient arrêtés.
+    pausedMs: state.pausedMs + pausedFor,
     pausedAt: null,
+    combo: resumeCombo(state.combo, pausedFor),
   }
 }

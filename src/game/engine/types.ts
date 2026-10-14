@@ -225,8 +225,9 @@ export type GameAction =
    */
   | { type: 'next'; challenge: Challenge; now: number; triad?: TriadPlan }
   /**
-   * Annonce la triade qui va s'ouvrir : pause du temps, combo éteint, aucune
-   * réponse possible ; le `next` qui ouvre la triade reprend le temps.
+   * Annonce la triade qui va s'ouvrir : pause du temps (la jauge du combo se
+   * fige avec lui), aucune réponse possible ; le `next` qui ouvre la triade
+   * reprend le temps.
    * Ignorée si une triade ne peut pas commencer (`canStartTriad`).
    */
   | { type: 'announceTriad'; now: number; triad: TriadPlan }

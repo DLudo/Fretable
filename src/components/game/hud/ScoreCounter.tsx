@@ -12,7 +12,8 @@ export interface ScoreCounterProps {
   comboActive: boolean
   /**
    * Note de triade dont l'anneau tourne : une bonne réponse vaut double, la
-   * pastille s'affiche en vert acide (le combo est alors toujours éteint).
+   * pastille s'affiche en vert acide, sauf pendant un combo : elle reste alors
+   * bleue, les deux ×2 ne s'additionnant pas.
    */
   triadBoost?: boolean
   /** Combo enflammé (boss final) : la pastille passe à l'orangé de flamme. */

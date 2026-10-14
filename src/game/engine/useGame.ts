@@ -194,15 +194,17 @@ export function useGame(options: UseGameOptions = {}): GameController {
 
   // Épuisement du combo. Le minuteur peut sonner une poignée de ms trop tôt :
   // l'instant transmis ne précède jamais l'échéance, sans quoi le combo resterait allumé.
+  // En pause (annonce de triade, parcours de gamme), la jauge est figée : rien à guetter.
   const comboEndsAt = state.combo?.endsAt ?? null
+  const paused = state.pausedAt !== null
   useEffect(() => {
-    if (phase !== 'playing' || comboEndsAt === null) return
+    if (phase !== 'playing' || comboEndsAt === null || paused) return
     const timer = window.setTimeout(
       () => dispatch({ type: 'comboExpire', now: Math.max(now(), comboEndsAt) }),
       Math.max(0, comboEndsAt - now()),
     )
     return () => window.clearTimeout(timer)
-  }, [phase, comboEndsAt])
+  }, [phase, comboEndsAt, paused])
 
   // Diffusion des événements, dans un ordre défini (voir `diffGameEvents`).
   // Le ref mémorise ce qui a déjà été publié : rien n'est émis deux fois,

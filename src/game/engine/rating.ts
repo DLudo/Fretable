@@ -35,10 +35,11 @@ export function ratingRulesFor(level: LevelConfig): RatingRules {
  * le moteur, mêmes temps de révélation entre deux notes.
  *
  * `triadSlots` : la partie a connu des triades, ouvertes après autant de notes
- * trouvées. Le joueur de référence les vit comme le moteur l'impose : combo
- * éteint à leur ouverture, trois notes hors série, doublées quand il bat leur
- * anneau. Sans quoi, à allure régulière égale, un bonus tiré au sort ferait
- * gagner ou perdre des étoiles.
+ * trouvées. Le joueur de référence les vit comme le moteur l'impose : le combo
+ * les traverse (annonce et parcours de gamme le figent sans l'entamer), et
+ * leurs notes, qui le nourrissent, valent double quand il bat leur anneau, sans
+ * cumul avec lui. Sans quoi, à allure régulière égale, un bonus tiré au sort
+ * ferait gagner ou perdre des étoiles.
  */
 export function referenceScore(
   level: LevelConfig,
@@ -51,18 +52,12 @@ export function referenceScore(
   for (let i = 0; i < level.targetCount; i++) {
     now += paceMs
     const inTriad = triadSlots.some((slot) => i >= slot && i < slot + 3)
-    if (inTriad) {
-      step = { combo: null, fastStreak: 0 }
-      score += basePoints(paceMs) * triadMultiplier(paceMs)
-    } else {
-      const next = stepCombo(step.combo, step.fastStreak, {
-        now,
-        correct: true,
-        reactionMs: paceMs,
-      })
-      score += basePoints(paceMs) * next.multiplier
-      step = next
-    }
+    const next = stepCombo(step.combo, step.fastStreak, { now, correct: true, reactionMs: paceMs })
+    const multiplier = inTriad
+      ? Math.max(next.multiplier, triadMultiplier(paceMs))
+      : next.multiplier
+    score += basePoints(paceMs) * multiplier
+    step = next
     now += GAME_FEEL.holdAfterCorrectMs
   }
   return score

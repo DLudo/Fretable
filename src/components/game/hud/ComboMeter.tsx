@@ -9,15 +9,21 @@ import { duration, ease } from '@/theme/motion'
 export interface ComboMeterProps {
   /** Combo en cours ; `null` : la jauge s'efface. */
   combo: ComboState | null
+  /** Début de la pause en cours (annonce de triade, parcours de gamme) : la jauge s'y fige. */
+  pausedAt?: number | null
   className?: string
 }
 
-/** Compteur incrémenté à chaque recharge (`endsAt` repoussé) : rejoue l'éclat de la jauge. */
-function useRecharge(endsAt: number | null): number {
-  const [tracked, setTracked] = useState({ endsAt, pulse: 0 })
-  if (endsAt !== tracked.endsAt) {
-    const recharged = endsAt !== null && tracked.endsAt !== null && endsAt > tracked.endsAt
-    setTracked({ endsAt, pulse: recharged ? tracked.pulse + 1 : tracked.pulse })
+/**
+ * Compteur incrémenté à chaque recharge (`endsAt` repoussé) : rejoue l'éclat de
+ * la jauge. La reprise après une pause repousse aussi l'échéance, sans recharger.
+ */
+function useRecharge(endsAt: number | null, paused: boolean): number {
+  const [tracked, setTracked] = useState({ endsAt, paused, pulse: 0 })
+  if (endsAt !== tracked.endsAt || paused !== tracked.paused) {
+    const recharged =
+      !tracked.paused && endsAt !== null && tracked.endsAt !== null && endsAt > tracked.endsAt
+    setTracked({ endsAt, paused, pulse: recharged ? tracked.pulse + 1 : tracked.pulse })
   }
   return tracked.pulse
 }
@@ -25,21 +31,23 @@ function useRecharge(endsAt: number | null): number {
 /**
  * Jauge de combo, façon barre de mana : bleue, sous la barre de progression.
  * Elle se vide en temps réel sur `COMBO_RULES.maxMs` et regagne du terrain à
- * chaque réponse rapide. Positionnée en absolu sous son parent (qui doit être
+ * chaque réponse rapide ; elle se fige pendant les pauses (annonce de triade,
+ * parcours de gamme). Positionnée en absolu sous son parent (qui doit être
  * `relative`) : son apparition ne décale pas la mise en page.
  *
  * Le remplissage est écrit dans le DOM à chaque frame, sans rendu React.
  */
-export function ComboMeter({ combo, className }: ComboMeterProps): ReactNode {
+export function ComboMeter({ combo, pausedAt = null, className }: ComboMeterProps): ReactNode {
   const reduceMotion = useReducedMotion()
   const fill = useRef<HTMLSpanElement>(null)
   const endsAt = combo?.endsAt ?? null
-  const recharge = useRecharge(endsAt)
+  const recharge = useRecharge(endsAt, pausedAt !== null)
 
   useAnimationFrame(() => {
     const el = fill.current
     if (!el || endsAt === null) return
-    const ratio = Math.min(1, Math.max(0, (endsAt - performance.now()) / COMBO_RULES.maxMs))
+    const at = pausedAt ?? performance.now()
+    const ratio = Math.min(1, Math.max(0, (endsAt - at) / COMBO_RULES.maxMs))
     el.style.transform = `scaleX(${ratio})`
   })
 

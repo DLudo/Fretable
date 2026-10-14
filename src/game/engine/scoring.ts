@@ -23,6 +23,14 @@ export function isComboLive(combo: ComboState | null, now: number): combo is Com
   return combo !== null && now < combo.endsAt
 }
 
+/**
+ * Reprise après une pause (annonce de triade, parcours de gamme) : la jauge
+ * était figée, son échéance recule d'autant. Un combo déjà échu le reste.
+ */
+export function resumeCombo(combo: ComboState | null, pausedForMs: number): ComboState | null {
+  return combo && pausedForMs > 0 ? { ...combo, endsAt: combo.endsAt + pausedForMs } : combo
+}
+
 export interface ComboStep {
   combo: ComboState | null
   fastStreak: number

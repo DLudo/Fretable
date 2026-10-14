@@ -149,9 +149,14 @@ describe('parcours de gamme en partie', () => {
     expect(s.pausedAt).toBeNull()
     expect(s.pausedMs).toBeGreaterThan(0)
     expect(deadlineAt(s)).toBe(s.startedAt! + level.durationMs + s.pausedMs)
-    // Ni combo ni coup de pouce pendant le parcours.
-    expect(s.combo).toBeNull()
+    // Pas de coup de pouce ; le combo, allumé pendant la triade, a traversé le parcours
+    // jauge figée : son échéance recule de la durée de la pause, sans recharge.
     expect(s.assist).toBeNull()
+    expect(running.combo).not.toBeNull()
+    expect(s.combo).toEqual({
+      ...running.combo!,
+      endsAt: running.combo!.endsAt + s.pausedMs - running.pausedMs,
+    })
   })
 
   it('récompense un parcours sans faute', () => {
