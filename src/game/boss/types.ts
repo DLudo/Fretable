@@ -60,6 +60,11 @@ export interface BossState {
   endedAt: number | null
   /** Dernière note jugée, pour les retours (piano, étiquette). */
   lastHit: (BossHit & { index: number }) | null
+  /**
+   * Dernière frappe restée sans jugement, pour un retour sur la note visée :
+   * trop tôt (avant sa fenêtre), ou fausse sur une note bonus, qui se retente.
+   */
+  lastIgnored: { at: number; index: number; reason: 'early' | 'wrong' } | null
 }
 
 export type BossAction =

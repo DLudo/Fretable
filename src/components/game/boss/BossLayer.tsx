@@ -19,6 +19,16 @@ import type { BoardProjection } from '@/game/fretboard/projection'
 const LINGER_MS = 900
 /** Durée de l'étiquette de jugement (ms). */
 const LABEL_MS = 700
+/** Durée du rappel d'une frappe sans effet (« Trop tôt », « Erreur » sur une note bonus) (ms). */
+const HINT_MS = 600
+
+/** Frappe sans jugement : sa raison, et le temps écoulé depuis (ms). */
+type Hint = { reason: 'early' | 'wrong'; since: number }
+const HINT_LABEL: Record<Hint['reason'], string> = { early: 'Trop tôt', wrong: 'Erreur' }
+const HINT_COLOR: Record<Hint['reason'], string> = {
+  early: 'var(--muted-foreground)',
+  wrong: 'var(--feedback-error)',
+}
 /** Apparition de la cible et de son couloir (ms). */
 const APPEAR_MS = 200
 /** Halo du fantôme, en rayons de note : le départ se fait sous lui, hors de l'écran. */
@@ -83,8 +93,9 @@ export interface BossLayerProps {
  * touche pile au moment de frapper ; manqué, il le dépasse et s'efface.
  * Plusieurs notes sont en vol à la fois : celle à jouer est au premier plan, les
  * suivantes atténuées. Une étiquette dit le jugement, au-dessus de la révélation.
- * Les notes bonus, plus rapides, sont jaunes ; manquées, elles s'effacent sans
- * étiquette, puisqu'elles ne coûtent rien.
+ * Les notes bonus, plus rapides, sont jaunes. Une frappe sans effet le dit sur
+ * la note visée : « Trop tôt » avant sa fenêtre, « Erreur » sur une note bonus,
+ * qui se retente.
  */
 export function BossLayer({ state, layout, projection }: BossLayerProps): ReactNode {
   const runUntil =
@@ -114,6 +125,10 @@ export function BossLayer({ state, layout, projection }: BossLayerProps): ReactN
   const shown = visibleBossNotes(state, now, Math.max(LABEL_MS, BOSS_RULES.fadeMs)).sort(
     (a, b) => Number(a.current) - Number(b.current),
   )
+  // Dernière frappe sans effet, rappelée un instant sur la note qu'elle visait.
+  const ignored = state.lastIgnored
+  const hintFor =
+    ignored && now - ignored.at < HINT_MS ? (state.notes[ignored.index]?.id ?? null) : null
 
   return (
     <svg
@@ -133,6 +148,11 @@ export function BossLayer({ state, layout, projection }: BossLayerProps): ReactN
           rank={rank}
           // Depuis le dernier jugement, chaque anneau en vol monte d'un cran.
           sinceAdvance={state.lastHit ? now - state.lastHit.at : Number.POSITIVE_INFINITY}
+          hint={
+            note.id === hintFor && ignored && hit === null
+              ? { reason: ignored.reason, since: now - ignored.at }
+              : null
+          }
           now={now}
           bottom={bottom}
           layout={layout}
@@ -150,6 +170,7 @@ function BossNoteView({
   current,
   rank,
   sinceAdvance,
+  hint,
   now,
   bottom,
   layout,
@@ -164,6 +185,8 @@ function BossNoteView({
   rank: number
   /** Temps écoulé depuis le dernier jugement, qui a fait monter la file d'un cran (ms). */
   sinceAdvance: number
+  /** Frappe sans effet sur cette note, à rappeler (`null` sinon). */
+  hint: Hint | null
   now: number
   /** Bas de l'écran, en px depuis le haut du calque. */
   bottom: number
@@ -263,7 +286,26 @@ function BossNoteView({
           />
         </g>
       )}
-      {hit && since < LABEL_MS && (!bonus || success) && (
+      {hint && (
+        <text
+          data-slot="boss-hint"
+          data-reason={hint.reason}
+          x={targetPx.x}
+          y={targetPx.y - r * 2.2 - (reduceMotion ? 0 : (hint.since / HINT_MS) * r * 0.8)}
+          textAnchor="middle"
+          fontSize={Math.max(11, r * 1.05)}
+          fontWeight={700}
+          fill={HINT_COLOR[hint.reason]}
+          opacity={clamp01(1 - hint.since / HINT_MS)}
+          stroke="var(--background)"
+          strokeWidth={Math.max(2, r * 0.25)}
+          paintOrder="stroke"
+          strokeLinejoin="round"
+        >
+          {HINT_LABEL[hint.reason]}
+        </text>
+      )}
+      {hit && since < LABEL_MS && (
         <text
           data-slot="boss-label"
           x={targetPx.x}
@@ -272,14 +314,14 @@ function BossNoteView({
           textAnchor="middle"
           fontSize={Math.max(12, r * 1.35)}
           fontWeight={800}
-          fill={bonus ? BONUS_COLOR : COLOR[hit.judgement]}
+          fill={bonus && success ? BONUS_COLOR : COLOR[hit.judgement]}
           opacity={clamp01(1 - since / LABEL_MS)}
           stroke="var(--background)"
           strokeWidth={Math.max(2, r * 0.3)}
           paintOrder="stroke"
           strokeLinejoin="round"
         >
-          {bonus ? `Bonus ×${hit.multiplier}` : LABEL[hit.judgement]}
+          {bonus && success ? `Bonus ×${hit.multiplier}` : LABEL[hit.judgement]}
         </text>
       )}
     </g>

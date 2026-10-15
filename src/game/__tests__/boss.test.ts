@@ -132,16 +132,22 @@ describe('notes bonus', () => {
     expect(s).toMatchObject({ ...before, cursor: 2, score: 1000 + 1800 })
   })
 
-  it('ne coûte rien, manquée ou fausse, et le combo continue', () => {
+  it('ne coûte rien, manquée, et le combo continue', () => {
     const played = bossReducer(withBonus(), { type: 'press', pc: 9, at: 5000 })
     const missed = bossReducer(played, { type: 'tick', at: 7000 + BOSS_RULES.bonus.lateMs + 1 })
-    const wrong = bossReducer(played, { type: 'press', pc: 2, at: 7000 })
-    for (const s of [missed, wrong]) {
-      expect(s).toMatchObject({ life: played.life, combo: 1, score: 1000, cursor: 2 })
-      expect(s.lastHit).toMatchObject({ multiplier: 1, points: 0, index: 1 })
-    }
+    expect(missed).toMatchObject({ life: played.life, combo: 1, score: 1000, cursor: 2 })
+    expect(missed.lastHit).toMatchObject({ judgement: 'miss', multiplier: 1, points: 0, index: 1 })
     // La note suivante se joue normalement, série comprise.
     expect(bossReducer(missed, { type: 'press', pc: 4, at: 9000 })).toMatchObject({ combo: 2 })
+  })
+
+  it('ne se consomme pas sur une mauvaise touche : on peut retenter', () => {
+    const played = bossReducer(withBonus(), { type: 'press', pc: 9, at: 5000 })
+    const wrong = bossReducer(played, { type: 'press', pc: 2, at: 7000 })
+    // Rien n'est jugé : la note bonus reste à jouer, l'erreur est seulement signalée.
+    expect(wrong).toEqual({ ...played, lastIgnored: { at: 7000, index: 1, reason: 'wrong' } })
+    const retried = bossReducer(wrong, { type: 'press', pc: 0, at: 7100 })
+    expect(retried.lastHit).toMatchObject({ judgement: 'great', index: 1, points: 1800 })
   })
 
   it('se juge plus large que les autres : plus rapide, elle tolère plus d’avance et de retard', () => {
@@ -154,7 +160,10 @@ describe('notes bonus', () => {
       judgement: 'good',
       index: 1,
     })
-    expect(bossReducer(played, { type: 'press', pc: 0, at: 7000 - earlyMs - 1 })).toBe(played)
+    expect(bossReducer(played, { type: 'press', pc: 0, at: 7000 - earlyMs - 1 })).toMatchObject({
+      cursor: 1,
+      lastIgnored: { reason: 'early', index: 1 },
+    })
     // Pas encore manquée 300 ms après sa cible, manquée passé sa fenêtre.
     expect(nextMissAt(played)).toBe(7000 + lateMs)
     expect(bossReducer(played, { type: 'tick', at: 7000 + lateMs })).toBe(played)
@@ -166,8 +175,11 @@ describe('notes bonus', () => {
 
   it('ne vise que sa fenêtre : une frappe pour la note suivante attend son tour', () => {
     const played = bossReducer(withBonus(), { type: 'press', pc: 9, at: 5000 })
-    // Trop tôt pour la note bonus : rien ne se passe.
-    expect(bossReducer(played, { type: 'press', pc: 0, at: 6000 })).toBe(played)
+    // Trop tôt pour la note bonus : rien n'est jugé, la frappe est seulement signalée.
+    expect(bossReducer(played, { type: 'press', pc: 0, at: 6000 })).toEqual({
+      ...played,
+      lastIgnored: { at: 6000, index: 1, reason: 'early' },
+    })
     // Bonus laissé filer, la frappe suivante vise la note d'après.
     const s = bossReducer(played, { type: 'press', pc: 4, at: 9000 })
     expect(s.hits[1]).toMatchObject({ judgement: 'miss' })
@@ -176,10 +188,14 @@ describe('notes bonus', () => {
 })
 
 describe('jugement', () => {
-  it('ne fait rien sur une frappe trop tôt, même fausse', () => {
+  it('ne juge rien sur une frappe trop tôt, même fausse, mais la signale', () => {
     const s = started()
-    expect(bossReducer(s, { type: 'press', pc: 9, at: 5000 - windows.earlyMs - 1 })).toBe(s)
-    expect(bossReducer(s, { type: 'press', pc: 2, at: 3000 })).toBe(s)
+    const early = (pc: PitchClass, at: number) => bossReducer(s, { type: 'press', pc, at })
+    expect(early(9, 5000 - windows.earlyMs - 1)).toEqual({
+      ...s,
+      lastIgnored: { at: 5000 - windows.earlyMs - 1, index: 0, reason: 'early' },
+    })
+    expect(early(2, 3000)).toEqual({ ...s, lastIgnored: { at: 3000, index: 0, reason: 'early' } })
   })
 
   it('note la précision d’une bonne frappe', () => {
@@ -204,7 +220,11 @@ describe('jugement', () => {
     expect(s).toMatchObject({ cursor: 1, combo: 0, score: 0, life: life.start - life.wrong })
     expect(s.lastHit).toMatchObject({ judgement: 'wrong', guess: 2, index: 0 })
     // La bonne touche, juste après, ne rattrape rien : elle vise la note suivante, tout juste partie.
-    expect(bossReducer(s, { type: 'press', pc: 9, at: 5050 })).toBe(s)
+    expect(bossReducer(s, { type: 'press', pc: 9, at: 5050 })).toMatchObject({
+      cursor: 1,
+      hits: s.hits,
+      lastIgnored: { reason: 'early', index: 1 },
+    })
   })
 
   it('juge un raté à la fermeture de la fenêtre, moins coûteux qu’une erreur', () => {

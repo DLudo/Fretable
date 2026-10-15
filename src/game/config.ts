@@ -235,10 +235,12 @@ export const BOSS_RULES = {
    * ses points multipliés par `multiplier` ; manquée ou fausse, elle ne coûte
    * rien. Elle ne blesse pas le boss, ne rend pas de vie et laisse le combo
    * tel quel. Son trajet (`travelMs`) est plus court que celui des autres.
-   * Plus rapide, elle se juge plus large (`earlyMs`, `lateMs`) : à 2,4 fois la
-   * vitesse des autres, 180 ms d'avance suffisaient à ignorer une frappe.
+   * Plus rapide, elle se juge plus large (`earlyMs`, `lateMs`) : elle arrive
+   * une seconde à peine après la note précédente, et l'on doit encore lire sa
+   * position. Une mauvaise touche ne la consomme pas : on peut retenter tant
+   * que sa fenêtre est ouverte.
    */
-  bonus: { chance: 0.3, travelMs: 2500, multiplier: 3, earlyMs: 350, lateMs: 350 },
+  bonus: { chance: 0.3, travelMs: 2500, multiplier: 3, earlyMs: 350, lateMs: 600 },
   /**
    * Étoiles d'une victoire, selon la vie restante quand le boss tombe, en
    * `parts` de la vie maximale : plus de `threeStarsAbove` parts (2/3), trois

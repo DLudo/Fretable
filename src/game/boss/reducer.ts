@@ -18,6 +18,7 @@ export function createBossState(rules: BossRules = BOSS_RULES): BossState {
     startedAt: null,
     endedAt: null,
     lastHit: null,
+    lastIgnored: null,
   }
 }
 
@@ -52,8 +53,10 @@ export function nextMissAt(state: BossState, rules: BossRules = BOSS_RULES): num
 /**
  * Moteur du boss : réducteur pur, piloté par l'horloge (`tick`) et les frappes
  * (`press`), à instants injectés. Une note se juge une seule fois : la première
- * frappe dans sa fenêtre décide (une mauvaise touche est une erreur), une frappe
- * trop tôt ne fait rien, et une fenêtre close sans frappe vaut un raté. Les
+ * frappe dans sa fenêtre décide (une mauvaise touche est une erreur, sauf sur
+ * une note bonus, qui se retente), une frappe trop tôt ne compte pas, et une
+ * fenêtre close sans frappe vaut un raté. Une frappe sans effet est notée
+ * (`lastIgnored`) pour en montrer la raison. Les
  * notes se jouent dans l'ordre d'arrivée : une frappe vise toujours la première
  * note pas encore jugée, même si les suivantes sont déjà en vol. Seules les
  * réussites blessent le boss : il tombe à la `bossLife`-ième, et les échecs
@@ -88,11 +91,19 @@ export function bossReducer(
       const note = swept.notes[swept.cursor]
       if (!note) return swept
       const deltaMs = action.at - note.hitAt
-      if (deltaMs < -windowOf(note, rules).earlyMs) return swept
+      // Trop tôt : la frappe ne compte pas (un retour le signale sur la note).
+      if (deltaMs < -windowOf(note, rules).earlyMs) return ignore(swept, action.at, 'early')
+      // Note bonus : une mauvaise touche ne la consomme pas, on peut retenter.
+      if (note.bonus && action.pc !== note.pc) return ignore(swept, action.at, 'wrong')
       const judgement = action.pc === note.pc ? gradeHit(deltaMs, rules) : 'wrong'
       return resolve(swept, { judgement, at: action.at, deltaMs, guess: action.pc }, rules)
     }
   }
+}
+
+/** Frappe sans effet sur le jugement de la note à jouer : seul son retour est noté. */
+function ignore(state: BossState, at: number, reason: 'early' | 'wrong'): BossState {
+  return { ...state, lastIgnored: { at, index: state.cursor, reason } }
 }
 
 /** Juge « raté » chaque note dont la fenêtre s'est close avant `at`. */
