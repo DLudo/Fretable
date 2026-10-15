@@ -3,8 +3,10 @@ import { AnimatePresence, useReducedMotion } from 'motion/react'
 import { ArrowRight, Play, RotateCcw } from 'lucide-react'
 
 import { clockResolutionOf, formatClock, formatDurationWords } from '@/components/game/hud'
+import { CoinBalance, CoinConversion } from '@/components/game/coins'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
+import type { CoinReceipt } from '@/game/coins'
 import { NOTATION } from '@/game/config'
 import { rateGame } from '@/game/engine/rating'
 import { playedMs } from '@/game/engine/selectors'
@@ -20,6 +22,8 @@ export interface LevelOverlayProps {
   state: GameState
   /** `false` tant que la dernière révélation se joue (délai de fin géré par le parent). */
   visible: boolean
+  /** Pièces créditées pour la partie finie (conversion du score, prime d'étoiles). */
+  coins?: CoinReceipt | null
   /** Affiche « Niveau suivant » sur l'écran de victoire. */
   hasNextLevel: boolean
   /** Lance ou relance le niveau courant. */
@@ -36,6 +40,7 @@ export interface LevelOverlayProps {
 export function LevelOverlay({
   state,
   visible,
+  coins = null,
   hasNextLevel,
   onStart,
   onNextLevel,
@@ -78,12 +83,13 @@ export function LevelOverlay({
               {phase === 'won' ? (
                 <WonPanel
                   state={state}
+                  coins={coins}
                   hasNextLevel={hasNextLevel}
                   onStart={onStart}
                   onNextLevel={onNextLevel}
                 />
               ) : phase === 'lost' ? (
-                <LostPanel state={state} onStart={onStart} />
+                <LostPanel state={state} coins={coins} onStart={onStart} />
               ) : (
                 <ReadyPanel state={state} onStart={onStart} />
               )}
@@ -99,6 +105,14 @@ interface PanelProps {
   state: GameState
   onStart: () => void
 }
+
+interface EndPanelProps extends PanelProps {
+  coins: CoinReceipt | null
+}
+
+/** Conversion en pièces : après les étoiles sur une victoire, d'emblée sinon (s). */
+const COINS_AFTER_STARS = 1
+const COINS_AFTER_PANEL = 0.45
 
 function ReadyPanel({ state, onStart }: PanelProps) {
   const { level } = state
@@ -127,6 +141,7 @@ function ReadyPanel({ state, onStart }: PanelProps) {
         </p>
         <p className="hidden pointer-coarse:block">Touche le piano pour répondre.</p>
         <KeyboardMap />
+        <CoinBalance className="mt-1" />
       </div>
     </Panel>
   )
@@ -134,10 +149,11 @@ function ReadyPanel({ state, onStart }: PanelProps) {
 
 function WonPanel({
   state,
+  coins,
   hasNextLevel,
   onStart,
   onNextLevel,
-}: PanelProps & { hasNextLevel: boolean; onNextLevel: () => void }) {
+}: EndPanelProps & { hasNextLevel: boolean; onNextLevel: () => void }) {
   const { level, endedAt } = state
   // Temps de jeu, pauses déduites, à la précision du minuteur figé du HUD :
   // les deux totalisent la durée du niveau (temps accordé en plus).
@@ -173,11 +189,15 @@ function WonPanel({
       {/* Étoiles au-dessus du score ; sur écran peu haut, à sa droite pour gagner une ligne. */}
       <div
         data-slot="level-overlay-result"
-        className="mb-4 flex flex-col gap-4 compact:flex-row-reverse compact:items-center compact:justify-between"
+        className={cn(
+          'flex flex-col gap-4 compact:flex-row-reverse compact:items-center compact:justify-between',
+          !coins && 'mb-4',
+        )}
       >
         <RatingStars rating={rateGame(state)} />
         <ScoreLine score={state.score} />
       </div>
+      {coins && <CoinConversion receipt={coins} delay={COINS_AFTER_STARS} className="mt-3 mb-4" />}
       <dl data-slot="level-overlay-stats" className="grid grid-cols-3 divide-x rounded-lg border">
         {/* Tronqué : avec le minuteur du HUD (arrondi au-dessus), le total fait la durée du niveau. */}
         <Stat label="Temps" value={formatClock(elapsed, 'floor', resolution)} />
@@ -188,7 +208,7 @@ function WonPanel({
   )
 }
 
-function LostPanel({ state, onStart }: PanelProps) {
+function LostPanel({ state, coins, onStart }: EndPanelProps) {
   const { level, correctCount, lastResult } = state
   // Note restée sans réponse à la fin du temps : on la nomme, pour que l'essai serve.
   const missed = lastResult?.guess === null ? lastResult.challenge : null
@@ -204,7 +224,14 @@ function LostPanel({ state, onStart }: PanelProps) {
         </Button>
       }
     >
-      <ScoreLine score={state.score} className={missed ? 'mb-2' : undefined} />
+      <ScoreLine score={state.score} className={missed && !coins ? 'mb-2' : undefined} />
+      {coins && (
+        <CoinConversion
+          receipt={coins}
+          delay={COINS_AFTER_PANEL}
+          className={cn('mt-3', missed && 'mb-3')}
+        />
+      )}
       {missed && (
         <p data-slot="level-overlay-missed" className="text-sm text-muted-foreground">
           La note était{' '}

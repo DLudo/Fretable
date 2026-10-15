@@ -5,6 +5,7 @@ import { PORTRAIT_QUERY, useBoardFit } from '@/components/game/useBoardFit'
 import { useBoardImpact } from '@/components/game/useBoardImpact'
 import { RevealLayer } from '@/effects'
 import { COMBO_AURA, COMBO_FIRE_AURA, ComboAura } from '@/effects/ambient'
+import { useCoinReward } from '@/game/coins'
 import { BOSS_RULES } from '@/game/config'
 import {
   bossComboTier,
@@ -124,6 +125,17 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
   }, [state.endedAt])
   const overlayVisible = state.phase === 'ready' || overlayFor === state.endedAt
 
+  // Pièces : le combat fini, son score converti crédite le portefeuille, une
+  // seule fois par combat (pas d'étoiles ici, donc pas de prime).
+  const ended = state.phase === 'won' || state.phase === 'lost'
+  const coins = useCoinReward(
+    ended && state.startedAt !== null ? `boss:${state.startedAt}` : null,
+    {
+      score: state.score,
+      stars: 0,
+    },
+  )
+
   const confirm = () => {
     if (overlayVisible && !playing) start()
   }
@@ -240,7 +252,7 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
         <p className="sr-only" aria-live="polite">
           {comboAnnouncement}
         </p>
-        <BossOverlay state={state} visible={overlayVisible} onStart={start} />
+        <BossOverlay state={state} visible={overlayVisible} coins={coins} onStart={start} />
       </main>
     </div>
   )

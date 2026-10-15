@@ -12,8 +12,10 @@ import {
   ScoreLine,
   Stat,
 } from '@/components/game/overlays'
+import { CoinBalance, CoinConversion } from '@/components/game/coins'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
+import type { CoinReceipt } from '@/game/coins'
 import { BOSS_RULES } from '@/game/config'
 import type { BossJudgement, BossState } from '@/game/boss'
 import { cn } from '@/lib/utils'
@@ -22,6 +24,8 @@ export interface BossOverlayProps {
   state: BossState
   /** `false` tant que les derniers retours se jouent (délai de fin géré par le parent). */
   visible: boolean
+  /** Pièces créditées pour le combat fini (conversion du score). */
+  coins?: CoinReceipt | null
   onStart: () => void
   className?: string
 }
@@ -30,7 +34,13 @@ export interface BossOverlayProps {
  * Écrans d'avant et d'après combat (prêt, vaincu, K.O.), posés sur le jeu :
  * le parent doit être `relative`. Rien n'est rendu pendant le combat.
  */
-export function BossOverlay({ state, visible, onStart, className }: BossOverlayProps): ReactNode {
+export function BossOverlay({
+  state,
+  visible,
+  coins = null,
+  onStart,
+  className,
+}: BossOverlayProps): ReactNode {
   const reduceMotion = useReducedMotion()
   const { phase } = state
   const open = visible && phase !== 'playing'
@@ -58,7 +68,7 @@ export function BossOverlay({ state, visible, onStart, className }: BossOverlayP
             {phase === 'ready' ? (
               <ReadyPanel onStart={onStart} />
             ) : (
-              <EndPanel state={state} onStart={onStart} />
+              <EndPanel state={state} coins={coins} onStart={onStart} />
             )}
           </PresenceLayer>
         </PresenceLayer>
@@ -104,6 +114,7 @@ function ReadyPanel({ onStart }: { onStart: () => void }) {
           Le boss se joue au clavier : pas de piano tactile dans ce mode.
         </p>
         <KeyboardMap onTouch />
+        <CoinBalance className="mt-1" />
       </div>
     </Panel>
   )
@@ -128,7 +139,15 @@ function bonusTally(state: BossState): string {
   return `${hits} / ${played}`
 }
 
-function EndPanel({ state, onStart }: { state: BossState; onStart: () => void }) {
+function EndPanel({
+  state,
+  coins,
+  onStart,
+}: {
+  state: BossState
+  coins: CoinReceipt | null
+  onStart: () => void
+}) {
   const won = state.phase === 'won'
   return (
     <Panel
@@ -145,7 +164,8 @@ function EndPanel({ state, onStart }: { state: BossState; onStart: () => void })
         </Button>
       }
     >
-      <ScoreLine score={state.score} className="mb-4" />
+      <ScoreLine score={state.score} className={coins ? undefined : 'mb-4'} />
+      {coins && <CoinConversion receipt={coins} delay={0.45} className="mt-3 mb-4" />}
       <dl data-slot="boss-overlay-stats" className="grid grid-cols-3 divide-x rounded-lg border">
         <Stat label="Parfait" value={count(state, 'perfect')} />
         <Stat label="Super" value={count(state, 'great')} />

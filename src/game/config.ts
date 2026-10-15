@@ -234,3 +234,15 @@ export const BOSS_RULES = {
   /** Fondu d'un fantôme manqué, une fois la cible dépassée (ms). */
   fadeMs: 400,
 } as const
+
+/**
+ * Pièces : la monnaie du jeu, gagnée à la fin de chaque partie, victoire ou
+ * non. Le score s'y convertit (1 000 points = 100 pièces) ; une victoire
+ * rapporte en plus une prime selon les étoiles obtenues.
+ */
+export const COIN_RULES = {
+  /** Points pour une pièce : 1 000 points = 100 pièces (arrondi à la pièce inférieure). */
+  pointsPerCoin: 10,
+  /** Prime de victoire selon les étoiles : rang 0 (aucune étoile) à 3. */
+  starBonus: [0, 100, 300, 700],
+} as const

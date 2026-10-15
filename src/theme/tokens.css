@@ -85,6 +85,12 @@
   /* — Notation — étoiles de l'écran de victoire (gagnées, puis manquées) */
   --rating-star: oklch(0.86 0.16 88);
   --rating-star-empty: color-mix(in oklab, var(--foreground) 14%, transparent);
+
+  /* — Pièces — or chaud, tranche plus sombre, reflet clair */
+  --coin: oklch(0.83 0.15 82);
+  --coin-edge: oklch(0.62 0.13 68);
+  --coin-shine: oklch(0.96 0.07 95);
+  --coin-ink: oklch(0.5 0.11 65);
 }
 
 /*
@@ -177,6 +183,10 @@
   --color-marker-ghost: var(--marker-ghost);
   --color-rating-star: var(--rating-star);
   --color-rating-star-empty: var(--rating-star-empty);
+  --color-coin: var(--coin);
+  --color-coin-edge: var(--coin-edge);
+  --color-coin-shine: var(--coin-shine);
+  --color-coin-ink: var(--coin-ink);
   --color-fretboard-shadow: var(--fretboard-shadow);
   --color-string-highlight: var(--string-highlight);
   --color-nut-highlight: var(--nut-highlight);

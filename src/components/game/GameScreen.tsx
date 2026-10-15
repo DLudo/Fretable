@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 
 import { RevealLayer } from '@/effects'
 import { ComboAura } from '@/effects/ambient'
+import { useCoinReward } from '@/game/coins'
 import { TRIAD_RULES } from '@/game/config'
+import { rateGame } from '@/game/engine/rating'
 import { endScreenAt } from '@/game/engine/selectors'
 import { useGame } from '@/game/engine/useGame'
 import { useTriadRing } from '@/game/engine/useTriadRing'
@@ -61,6 +63,14 @@ export function GameScreen({ modeSwitch, className }: GameScreenProps) {
   }, [overlayAt, state.endedAt])
   const overlayVisible =
     overlayAt === null || overlayAt === state.endedAt || overlayShownFor === state.endedAt
+
+  // Pièces : la partie finie, son score converti et la prime de ses étoiles
+  // créditent le portefeuille, une seule fois par partie.
+  const ended = state.phase === 'won' || state.phase === 'lost'
+  const coins = useCoinReward(
+    ended && state.startedAt !== null ? `classic:${state.levelIndex}:${state.startedAt}` : null,
+    { score: state.score, stars: state.phase === 'won' ? rateGame(state).stars : 0 },
+  )
 
   const confirm = () => {
     if (!overlayVisible) return
@@ -221,6 +231,7 @@ export function GameScreen({ modeSwitch, className }: GameScreenProps) {
         <LevelOverlay
           state={state}
           visible={overlayVisible}
+          coins={coins}
           hasNextLevel={game.hasNextLevel}
           onStart={game.start}
           onNextLevel={game.nextLevel}
