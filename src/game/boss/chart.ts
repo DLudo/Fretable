@@ -18,8 +18,9 @@ type ChartRules = Pick<
  * Le boss tombe après `bossLife` réussites, et chaque échec ne fait qu'allonger
  * le combat ; mais le joueur n'encaisse qu'un nombre fini d'échecs : chacun lui
  * coûte au moins `min(miss, wrong)`, et sa vie de départ plus tout ce que les
- * réussites peuvent lui rendre n'en couvre pas davantage (62 notes au plus avec
- * les réglages actuels). Sans coût d'échec, le combat est borné au triple.
+ * réussites peuvent lui rendre n'en couvre pas davantage (62 notes du boss au
+ * plus avec les réglages actuels, notes bonus non comprises). Sans coût
+ * d'échec, le combat est borné au triple.
  */
 export function bossChartLength(rules: Pick<ChartRules, 'bossLife' | 'life'> = BOSS_RULES): number {
   const { start, miss, wrong, heal } = rules.life
@@ -49,14 +50,24 @@ export function createBossChart(
   rules: ChartRules = BOSS_RULES,
 ): BossNote[] {
   const notes: BossNote[] = []
+  // Note qui précède dans l'ordre d'arrivée (bonus compris), et dernière note du boss.
   let previous: Challenge | null = null
+  let previousRegular: Challenge | null = null
   const draw = (): Challenge => {
     previous = createChallenge(notes.length + 1, level, tuning, random, previous)
     return previous
   }
   const count = bossChartLength(rules)
   for (let i = 0; i < count; i++) {
-    const { id, stringIndex, fret, pc } = draw()
+    // Une note du boss diffère aussi de la précédente note du boss, bonus intercalé
+    // ou non : deux notes du boss de suite ne tombent jamais au même endroit.
+    let regular = draw()
+    for (let attempt = 0; attempt < 32 && regular.pc === previousRegular?.pc; attempt++) {
+      previous = notes.at(-1) ?? null
+      regular = draw()
+    }
+    previousRegular = regular
+    const { id, stringIndex, fret, pc } = regular
     const launchAt = startAt + rules.startDelayMs + i * rules.intervalMs
     const hitAt = launchAt + rules.travelMs
     notes.push({ id, stringIndex, fret, pc, launchAt, hitAt })

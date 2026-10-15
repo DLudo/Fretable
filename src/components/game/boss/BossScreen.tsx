@@ -233,7 +233,8 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
         </div>
         <p className="sr-only" aria-live="polite">
           {announced
-            ? `${announced.bonus ? 'Note bonus' : 'Ensuite'} : corde ${stringNumber(boss.tuning, announced.stringIndex)}, case ${announced.fret}`
+            ? // Une note bonus part après des notes qu'elle devance : l'annonce dit sa place.
+              `${announced.bonus ? 'Note bonus, juste après la note à jouer' : 'Ensuite'} : corde ${stringNumber(boss.tuning, announced.stringIndex)}, case ${announced.fret}`
             : ''}
         </p>
         <p className="sr-only" aria-live="polite">

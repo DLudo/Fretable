@@ -58,6 +58,8 @@ describe('partition du boss', () => {
       if (i > 0) expect(note.pc).not.toBe(notes[i - 1].pc)
     })
     expect(new Set(notes.map((n) => n.id)).size).toBe(notes.length)
+    // Deux notes du boss de suite diffèrent aussi, note bonus intercalée ou non.
+    regular.slice(1).forEach((note, i) => expect(note.pc).not.toBe(regular[i].pc))
   })
 
   it('intercale des notes bonus, plus rapides, à mi-chemin de deux notes', () => {
@@ -86,7 +88,11 @@ describe('partition du boss', () => {
         bonus: { ...BOSS_RULES.bonus, chance },
       })
     expect(chart(0).some((n) => n.bonus)).toBe(false)
-    expect(chart(1).filter((n) => n.bonus)).toHaveLength(bossChartLength() - 1)
+    const full = chart(1)
+    expect(full.filter((n) => n.bonus)).toHaveLength(bossChartLength() - 1)
+    // Un bonus entre chaque paire : les notes du boss restent distinctes de la précédente.
+    const regular = full.filter((n) => !n.bonus)
+    regular.slice(1).forEach((note, i) => expect(note.pc).not.toBe(regular[i].pc))
   })
 })
 
@@ -111,7 +117,8 @@ describe('notes bonus', () => {
   }
 
   it('triple les points d’une note bonus frappée, sans toucher vie, boss ni combo', () => {
-    let s = bossReducer(withBonus(), { type: 'press', pc: 9, at: 5000 })
+    // Vie entamée : une recharge indue se verrait.
+    let s = bossReducer({ ...withBonus(), life: 50 }, { type: 'press', pc: 9, at: 5000 })
     const before = { life: s.life, bossLife: s.bossLife, combo: s.combo, bestCombo: s.bestCombo }
     s = bossReducer(s, { type: 'press', pc: 0, at: 7000 + 80 })
     expect(s.lastHit).toMatchObject({
