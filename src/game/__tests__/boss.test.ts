@@ -486,6 +486,25 @@ describe('étoiles du boss', () => {
     expect(rateBossFight({ phase: 'lost', life: 0 })).toEqual({ stars: 0, index: 0 })
   })
 
+  it('note la vie exacte quand le boss tombe, soin du dernier coup compris', () => {
+    // 29 parfaits (vie plafonnée à 100), 4 erreurs (64), puis un « Super » (+2,5) : 66,5.
+    let s: BossState = {
+      ...started(Array.from({ length: 34 }, () => 9 as PitchClass)),
+      bossLife: 30,
+    }
+    for (let i = 0; i < 34; i++) {
+      const at = 5000 + i * 4000
+      s = bossReducer(s, {
+        type: 'press',
+        pc: i >= 29 && i < 33 ? 2 : 9,
+        at: i === 33 ? at + 80 : at,
+      })
+    }
+    expect(s).toMatchObject({ phase: 'won', life: 66.5 })
+    // 66,5 n'est pas plus des deux tiers de 100 : deux étoiles (l'écran affiche « 66,5 »).
+    expect(rateBossFight(s).stars).toBe(2)
+  })
+
   it('expose la part de vie restante', () => {
     expect(rateBossFight({ phase: 'won', life: 50 }).index).toBe(0.5)
   })

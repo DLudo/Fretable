@@ -14,6 +14,7 @@ import {
   Stat,
 } from '@/components/game/overlays'
 import { CoinBalance, CoinConversion } from '@/components/game/coins'
+import { formatLife } from '@/components/game/hud'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
 import type { CoinReceipt } from '@/game/coins'
@@ -25,7 +26,7 @@ export interface BossOverlayProps {
   state: BossState
   /** `false` tant que les derniers retours se jouent (délai de fin géré par le parent). */
   visible: boolean
-  /** Pièces créditées pour le combat fini (conversion du score). */
+  /** Pièces créditées pour le combat fini (conversion du score, prime d'étoiles sur une victoire). */
   coins?: CoinReceipt | null
   onStart: () => void
   className?: string
@@ -155,7 +156,7 @@ function EndPanel({
       title={won ? 'Boss vaincu !' : 'K.O.'}
       description={
         won
-          ? `Vie restante : ${Math.round(state.life)} sur ${BOSS_RULES.life.max}`
+          ? `Vie restante : ${formatLife(state.life)} sur ${BOSS_RULES.life.max}`
           : `Le boss tenait encore : ${state.bossLife} ${state.bossLife > 1 ? 'coups' : 'coup'} à lui porter sur ${BOSS_RULES.bossLife}.`
       }
       actions={
@@ -170,7 +171,8 @@ function EndPanel({
       <div
         data-slot="boss-overlay-result"
         className={cn(
-          'flex flex-col gap-4 compact:flex-row-reverse compact:items-center compact:justify-between',
+          'flex flex-col gap-4',
+          won && 'compact:flex-row-reverse compact:items-center compact:justify-between',
           !coins && 'mb-4',
         )}
       >

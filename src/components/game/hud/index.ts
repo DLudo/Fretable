@@ -9,6 +9,7 @@ export {
   formatClock,
   formatClockSpoken,
   formatDurationWords,
+  formatLife,
   formatScore,
   formatSeconds,
   type ClockResolution,

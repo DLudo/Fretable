@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { motion, useReducedMotion, type Transition } from 'motion/react'
 import { Progress as ProgressPrimitive } from 'radix-ui'
 
+import { formatLife } from '@/components/game/hud'
 import { cn } from '@/lib/utils'
 import { ease } from '@/theme/motion'
 
@@ -61,7 +62,7 @@ export function LifeBar({
   tone = 'player',
   segments,
   label = 'Vie',
-  valueLabel = (value, total) => `Vie : ${value} sur ${total}`,
+  valueLabel = (value, total) => `Vie : ${formatLife(value)} sur ${total}`,
   className,
 }: LifeBarProps): ReactNode {
   const reduceMotion = useReducedMotion()
@@ -75,7 +76,7 @@ export function LifeBar({
       data-tone={tone}
       data-critical={critical || undefined}
       aria-label={label}
-      value={Math.round(life)}
+      value={Math.min(max, Math.max(0, life))}
       max={max}
       getValueLabel={valueLabel}
       className={cn('relative h-2 w-full overflow-hidden rounded-full bg-hud-track', className)}

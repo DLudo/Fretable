@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  formatLife,
   clockResolutionOf,
   formatClock,
   formatClockSpoken,
@@ -111,5 +112,14 @@ describe('précision imposée', () => {
     expect(formatClockSpoken(120_000, 'ceil')).toBe('2 minutes')
     expect(formatClockSpoken(61_000, 'ceil')).toBe('1 minute 1 seconde')
     expect(formatClockSpoken(42_300, 'ceil')).toBe('42,3 s')
+  })
+})
+
+describe('formatLife', () => {
+  it('garde le demi-point : la vie affichée est celle qui compte pour les étoiles', () => {
+    expect(formatLife(66.5)).toBe('66,5')
+    expect(formatLife(67)).toBe('67')
+    expect(formatLife(100)).toBe('100')
+    expect(formatLife(-3)).toBe('0')
   })
 })

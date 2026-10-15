@@ -85,6 +85,16 @@ export function formatDurationWords(ms: number): string {
 }
 
 const POINTS = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 })
+const LIFE = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 })
+
+/**
+ * Vie du boss final, exacte au demi-point près : `66.5` → « 66,5 », `67` → « 67 ».
+ * Pas d'arrondi : les étoiles se jouent sur la vie exacte (66,5 n'est pas plus
+ * des deux tiers de 100, 67 l'est).
+ */
+export function formatLife(life: number): string {
+  return LIFE.format(Math.max(0, life))
+}
 
 /** Score à la française, milliers séparés : `12400` → « 12 400 ». */
 export function formatScore(points: number): string {
