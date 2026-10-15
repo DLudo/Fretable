@@ -197,7 +197,13 @@ function WonPanel({
         <RatingStars rating={rateGame(state)} />
         <ScoreLine score={state.score} />
       </div>
-      {coins && <CoinConversion receipt={coins} delay={COINS_AFTER_STARS} className="mt-3 mb-4" />}
+      {coins && (
+        <CoinConversion
+          receipt={coins}
+          delay={COINS_AFTER_STARS}
+          className="mt-3 mb-4 compact:mt-2 compact:mb-3"
+        />
+      )}
       <dl data-slot="level-overlay-stats" className="grid grid-cols-3 divide-x rounded-lg border">
         {/* Tronqué : avec le minuteur du HUD (arrondi au-dessus), le total fait la durée du niveau. */}
         <Stat label="Temps" value={formatClock(elapsed, 'floor', resolution)} />

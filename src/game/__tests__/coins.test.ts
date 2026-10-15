@@ -6,7 +6,9 @@ import {
   coinsForScore,
   completionCoins,
   creditWallet,
+  gameCoinKey,
   readWallet,
+  receiptFor,
   resetWallet,
 } from '@/game/coins'
 
@@ -64,7 +66,7 @@ describe('portefeuille', () => {
     const first = creditWallet('classic:0:1234', reward)
     expect(first).toMatchObject({ before: 0, after: 1300 })
     // Double rendu, écran de fin rouvert : rien de plus.
-    expect(creditWallet('classic:0:1234', reward)).toBe(first)
+    expect(creditWallet('classic:0:1234', reward)).toEqual(first)
     expect(readWallet().balance).toBe(1300)
     // Partie suivante : le solde s'ajoute.
     const next = creditWallet('classic:0:9999', coinReward({ score: 2000, stars: 0 }))
@@ -74,6 +76,41 @@ describe('portefeuille', () => {
   it('garde le solde dans le stockage du navigateur', () => {
     creditWallet('boss:42', coinReward({ score: 30_000, stars: 0 }))
     const saved = JSON.parse(store.get('fretable.coins.v1')!)
-    expect(saved).toMatchObject({ balance: 3000, last: { key: 'boss:42', after: 3000 } })
+    expect(saved).toMatchObject({ balance: 3000, receipts: [{ key: 'boss:42', after: 3000 }] })
+  })
+
+  it('ne recrédite pas une partie, même après le crédit d’une autre (autre onglet)', () => {
+    const first = creditWallet('a', coinReward({ score: 1000, stars: 0 }))
+    creditWallet('b', coinReward({ score: 2000, stars: 0 }))
+    expect(creditWallet('a', coinReward({ score: 1000, stars: 0 }))).toEqual(first)
+    expect(readWallet().balance).toBe(300)
+    expect(receiptFor(readWallet(), 'a')).toEqual(first)
+  })
+
+  it('relit le stockage avant de créditer : le crédit d’un autre onglet n’est pas écrasé', () => {
+    creditWallet('a', coinReward({ score: 1000, stars: 0 }))
+    // Un autre onglet crédite 500 pièces de son côté.
+    const other = JSON.parse(store.get('fretable.coins.v1')!)
+    store.set('fretable.coins.v1', JSON.stringify({ ...other, balance: other.balance + 500 }))
+    expect(creditWallet('b', coinReward({ score: 2000, stars: 0 }))).toMatchObject({
+      before: 600,
+      after: 800,
+    })
+  })
+
+  it('lit l’ancien format, qui ne gardait que le dernier crédit', () => {
+    const last = { key: 'old', reward: coinReward({ score: 500, stars: 0 }), before: 0, after: 50 }
+    store.set('fretable.coins.v1', JSON.stringify({ balance: 50, last }))
+    expect(creditWallet('old', last.reward)).toEqual(last)
+    expect(readWallet().balance).toBe(50)
+  })
+
+  it('identifie une partie par son heure absolue, d’un chargement de page à l’autre', () => {
+    const key = gameCoinKey('boss', 1234.5)
+    expect(key).toMatch(/^boss:\d+\.\d$/)
+    // Même instant de page, autre chargement (autre origine) : autre partie.
+    vi.spyOn(performance, 'timeOrigin', 'get').mockReturnValue(performance.timeOrigin + 60_000)
+    expect(gameCoinKey('boss', 1234.5)).not.toBe(key)
+    vi.restoreAllMocks()
   })
 })

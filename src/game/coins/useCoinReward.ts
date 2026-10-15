@@ -1,13 +1,14 @@
 import { useEffect } from 'react'
 
 import { coinReward } from './reward'
-import { creditWallet, useWallet, type CoinReceipt } from './wallet'
+import { creditWallet, receiptFor, useWallet, type CoinReceipt } from './wallet'
 
 /**
  * Crédite le portefeuille à la fin d'une partie et rend le reçu de ce crédit.
- * `key` identifie la partie (mode, niveau, instant du départ) : `null` tant
- * qu'elle n'est pas finie. Le crédit est idempotent : doubles rendus et
- * réouvertures de l'écran de fin ne recréditent rien.
+ * `key` identifie la partie (voir `gameCoinKey`) : `null` tant qu'elle n'est
+ * pas finie. Le crédit est idempotent : doubles rendus, réouvertures de
+ * l'écran de fin ou crédits faits dans un autre onglet n'en refont aucun, et
+ * le reçu reste celui de cette partie.
  */
 export function useCoinReward(
   key: string | null,
@@ -17,5 +18,5 @@ export function useCoinReward(
   useEffect(() => {
     if (key !== null) creditWallet(key, coinReward({ score, stars }))
   }, [key, score, stars])
-  return key !== null && wallet.last?.key === key ? wallet.last : null
+  return key !== null ? receiptFor(wallet, key) : null
 }

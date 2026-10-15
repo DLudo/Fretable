@@ -5,7 +5,7 @@ import { PORTRAIT_QUERY, useBoardFit } from '@/components/game/useBoardFit'
 import { useBoardImpact } from '@/components/game/useBoardImpact'
 import { RevealLayer } from '@/effects'
 import { COMBO_AURA, COMBO_FIRE_AURA, ComboAura } from '@/effects/ambient'
-import { useCoinReward } from '@/game/coins'
+import { gameCoinKey, useCoinReward } from '@/game/coins'
 import { BOSS_RULES } from '@/game/config'
 import {
   bossComboTier,
@@ -129,7 +129,7 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
   // seule fois par combat (pas d'étoiles ici, donc pas de prime).
   const ended = state.phase === 'won' || state.phase === 'lost'
   const coins = useCoinReward(
-    ended && state.startedAt !== null ? `boss:${state.startedAt}` : null,
+    ended && state.startedAt !== null ? gameCoinKey('boss', state.startedAt) : null,
     {
       score: state.score,
       stars: 0,

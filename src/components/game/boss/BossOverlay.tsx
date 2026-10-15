@@ -165,7 +165,13 @@ function EndPanel({
       }
     >
       <ScoreLine score={state.score} className={coins ? undefined : 'mb-4'} />
-      {coins && <CoinConversion receipt={coins} delay={0.45} className="mt-3 mb-4" />}
+      {coins && (
+        <CoinConversion
+          receipt={coins}
+          delay={0.45}
+          className="mt-3 mb-4 compact:mt-2 compact:mb-3"
+        />
+      )}
       <dl data-slot="boss-overlay-stats" className="grid grid-cols-3 divide-x rounded-lg border">
         <Stat label="Parfait" value={count(state, 'perfect')} />
         <Stat label="Super" value={count(state, 'great')} />

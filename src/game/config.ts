@@ -237,8 +237,9 @@ export const BOSS_RULES = {
 
 /**
  * Pièces : la monnaie du jeu, gagnée à la fin de chaque partie, victoire ou
- * non. Le score s'y convertit (1 000 points = 100 pièces) ; une victoire
- * rapporte en plus une prime selon les étoiles obtenues.
+ * non. Le score s'y convertit (1 000 points = 100 pièces) ; une victoire en
+ * mode classique, seul à noter ses parties en étoiles, rapporte en plus une
+ * prime selon les étoiles obtenues.
  */
 export const COIN_RULES = {
   /** Points pour une pièce : 1 000 points = 100 pièces (arrondi à la pièce inférieure). */

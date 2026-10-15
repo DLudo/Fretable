@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 
 import { RevealLayer } from '@/effects'
 import { ComboAura } from '@/effects/ambient'
-import { useCoinReward } from '@/game/coins'
+import { gameCoinKey, useCoinReward } from '@/game/coins'
 import { TRIAD_RULES } from '@/game/config'
 import { rateGame } from '@/game/engine/rating'
 import { endScreenAt } from '@/game/engine/selectors'
@@ -68,7 +68,9 @@ export function GameScreen({ modeSwitch, className }: GameScreenProps) {
   // créditent le portefeuille, une seule fois par partie.
   const ended = state.phase === 'won' || state.phase === 'lost'
   const coins = useCoinReward(
-    ended && state.startedAt !== null ? `classic:${state.levelIndex}:${state.startedAt}` : null,
+    ended && state.startedAt !== null
+      ? gameCoinKey(`classic:${state.levelIndex}`, state.startedAt)
+      : null,
     { score: state.score, stars: state.phase === 'won' ? rateGame(state).stars : 0 },
   )
 
