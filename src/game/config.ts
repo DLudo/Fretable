@@ -146,6 +146,12 @@ export const SCALE_RULES = {
   kinds: ['pentatonic'] as readonly 'pentatonic'[],
   /** Points par note juste du parcours. */
   pointsPerNote: 150,
+  /**
+   * Délai de chaque note du parcours (ms), égrené par un anneau comme celui des
+   * triades : le temps de la partie est suspendu, mais pas celui des notes.
+   * Anneau vide, la note est manquée et le parcours passe à la suivante.
+   */
+  noteMs: 5000,
   /** Supplément pour un parcours sans faute. */
   perfectBonus: 1000,
 } as const

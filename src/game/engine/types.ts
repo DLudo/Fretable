@@ -245,3 +245,5 @@ export type GameAction =
   | { type: 'announceTriad'; now: number; triad: TriadPlan }
   | { type: 'timeUp'; now: number }
   | { type: 'comboExpire'; now: number }
+  /** L'anneau de la note du parcours de gamme s'est vidé : elle est manquée. */
+  | { type: 'scaleNoteTimeUp'; now: number }

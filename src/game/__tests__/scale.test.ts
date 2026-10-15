@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { SCALE_RULES, TRIAD_RULES } from '@/game/config'
 import { rateGame, retainedScore } from '@/game/engine/rating'
 import { gameReducer } from '@/game/engine/reducer'
-import { deadlineAt } from '@/game/engine/selectors'
+import { deadlineAt, scaleNoteDeadlineAt } from '@/game/engine/selectors'
 import { planTriad, scaleChallenge, triadChallenge } from '@/game/engine/triad'
 import type { GameState, TriadPlan } from '@/game/engine/types'
 import { remainingMs } from '@/game/engine/useCountdown'
@@ -156,6 +156,55 @@ describe('parcours de gamme en partie', () => {
     expect(s.combo).toEqual({
       ...running.combo!,
       endsAt: running.combo!.endsAt + s.pausedMs - running.pausedMs,
+    })
+  })
+
+  describe('anneau de chaque note', () => {
+    const shownAt = running.challengeShownAt!
+    const deadline = shownAt + SCALE_RULES.noteMs
+
+    it('donne à la note en attente son propre délai, le temps de la partie restant suspendu', () => {
+      expect(scaleNoteDeadlineAt(running)).toBe(deadline)
+      expect(deadlineAt(running)).toBeNull()
+      // Pendant la révélation d'une réponse, rien ne s'égrène.
+      expect(
+        scaleNoteDeadlineAt(gameReducer(running, { type: 'guess', pc: 0, now: shownAt + 300 })),
+      ).toBeNull()
+    })
+
+    it('manque la note quand l’anneau se vide, et passe à la suivante', () => {
+      expect(gameReducer(running, { type: 'scaleNoteTimeUp', now: deadline - 1 })).toBe(running)
+      const s = gameReducer(running, { type: 'scaleNoteTimeUp', now: deadline })
+      expect(s.lastResult).toMatchObject({
+        guess: null,
+        correct: false,
+        points: 0,
+        reactionMs: null,
+        at: deadline,
+        bonus: 'scale',
+      })
+      expect(s).toMatchObject({ locked: true, score: running.score })
+      expect(s.scaleRun).toMatchObject({ step: 1, outcomes: ['miss'] })
+    })
+
+    it('refuse une réponse arrivée après l’échéance, même juste', () => {
+      const late = gameReducer(running, {
+        type: 'guess',
+        pc: running.challenge!.pc,
+        now: deadline + 50,
+      })
+      expect(late.lastResult).toMatchObject({ guess: null, correct: false, at: deadline })
+    })
+
+    it('perd le supplément sans faute sur une note laissée filer', () => {
+      let s = gameReducer(running, { type: 'scaleNoteTimeUp', now: deadline })
+      s = gameReducer(s, {
+        type: 'next',
+        challenge: scaleChallenge(++id, s.scaleRun!, s.scaleRun!.step),
+        now: deadline + 400,
+      })
+      for (let i = 1; i < shape.notes.length; i++) s = play(s, 300)
+      expect(s.lastScaleRun).toMatchObject({ perfect: false, hits: shape.notes.length - 1 })
     })
   })
 

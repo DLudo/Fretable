@@ -1,4 +1,4 @@
-import { GAME_FEEL } from '@/game/config'
+import { GAME_FEEL, SCALE_RULES } from '@/game/config'
 import type { GameState } from './types'
 
 /** Temps imparti à la partie (ms) : celui du niveau, plus le temps accordé en cours de route. */
@@ -16,6 +16,19 @@ export function deadlineAt(
 ): number | null {
   if (state.startedAt === null || state.pausedAt !== null) return null
   return state.startedAt + totalDurationMs(state) + state.pausedMs
+}
+
+/**
+ * Échéance de la note du parcours de gamme en attente de réponse : son anneau
+ * (`SCALE_RULES.noteMs`) se vide à cet instant. `null` hors parcours, ou
+ * pendant la révélation d'une réponse.
+ */
+export function scaleNoteDeadlineAt(
+  state: Pick<GameState, 'phase' | 'locked' | 'challenge' | 'challengeShownAt' | 'scaleRun'>,
+): number | null {
+  const { phase, locked, challenge, challengeShownAt, scaleRun } = state
+  if (phase !== 'playing' || locked || !scaleRun || challenge?.scale !== true) return null
+  return challengeShownAt === null ? null : challengeShownAt + SCALE_RULES.noteMs
 }
 
 /**

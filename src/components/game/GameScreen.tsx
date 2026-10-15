@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { RevealLayer } from '@/effects'
 import { ComboAura } from '@/effects/ambient'
 import { gameCoinKey, useCoinReward } from '@/game/coins'
-import { TRIAD_RULES } from '@/game/config'
+import { SCALE_RULES, TRIAD_RULES } from '@/game/config'
 import { rateGame } from '@/game/engine/rating'
 import { endScreenAt } from '@/game/engine/selectors'
 import { useGame } from '@/game/engine/useGame'
@@ -125,7 +125,13 @@ export function GameScreen({ modeSwitch, className }: GameScreenProps) {
                 countdownEndsAt: (state.challengeShownAt ?? 0) + TRIAD_RULES.fastReactionMs,
                 countdownSpent: !ringRunning,
               }
-            : {}),
+            : // Note du parcours de gamme : le même anneau ; vide, la note est manquée.
+              state.challenge.scale && state.scaleRun
+              ? {
+                  countdownMs: SCALE_RULES.noteMs,
+                  countdownEndsAt: (state.challengeShownAt ?? 0) + SCALE_RULES.noteMs,
+                }
+              : {}),
         }
       : null
 

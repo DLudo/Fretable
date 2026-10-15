@@ -14,7 +14,7 @@ import {
   type GameEventSnapshot,
 } from './events'
 import { createInitialState, gameReducer } from './reducer'
-import { deadlineAt, playStartsAt, startCountdownMs } from './selectors'
+import { deadlineAt, playStartsAt, scaleNoteDeadlineAt, startCountdownMs } from './selectors'
 import {
   canStartTriad,
   createTriadVoicing,
@@ -191,6 +191,17 @@ export function useGame(options: UseGameOptions = {}): GameController {
     )
     return () => window.clearTimeout(timer)
   }, [phase, deadline])
+
+  // Parcours de gamme : l'anneau de la note en attente se vide, elle est manquée.
+  const scaleDeadline = scaleNoteDeadlineAt(state)
+  useEffect(() => {
+    if (scaleDeadline === null) return
+    const timer = window.setTimeout(
+      () => dispatch({ type: 'scaleNoteTimeUp', now: Math.max(now(), scaleDeadline) }),
+      Math.max(0, scaleDeadline - now()),
+    )
+    return () => window.clearTimeout(timer)
+  }, [scaleDeadline])
 
   // Épuisement du combo. Le minuteur peut sonner une poignée de ms trop tôt :
   // l'instant transmis ne précède jamais l'échéance, sans quoi le combo resterait allumé.

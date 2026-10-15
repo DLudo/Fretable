@@ -2,7 +2,7 @@ import { ASSIST_RULES, SCALE_RULES, TRIAD_RULES } from '@/game/config'
 import { getLevel } from '@/game/levels/levels'
 import { shouldOfferAssist } from './assist'
 import { basePoints, isComboLive, resumeCombo, stepCombo, type ComboStep } from './scoring'
-import { deadlineAt } from './selectors'
+import { deadlineAt, scaleNoteDeadlineAt } from './selectors'
 import { canStartTriad, triadMultiplier } from './triad'
 import type {
   GameAction,
@@ -105,7 +105,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'guess': {
       if (state.phase !== 'playing' || state.locked || !state.challenge) return state
       if (state.challenge.scale === true && state.scaleRun !== null) {
-        return guessScaleNote(state, state.scaleRun, action.pc, action.now)
+        // Anneau déjà vide (son minuteur n'a pas encore sonné) : la note est manquée.
+        const scaleDeadline = scaleNoteDeadlineAt(state)
+        return scaleDeadline !== null && action.now >= scaleDeadline
+          ? guessScaleNote(state, state.scaleRun, null, scaleDeadline)
+          : guessScaleNote(state, state.scaleRun, action.pc, action.now)
       }
       // Réponse arrivée après l'échéance : refusée, comme si le minuteur avait sonné à temps.
       if (isExpired(state, action.now)) {
@@ -288,6 +292,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (state.phase !== 'playing') return state
       return timeUp(state, action.now)
 
+    case 'scaleNoteTimeUp': {
+      // Anneau vide : la note du parcours est manquée, le parcours passe à la suivante.
+      const scaleDeadline = scaleNoteDeadlineAt(state)
+      if (scaleDeadline === null || action.now < scaleDeadline || !state.scaleRun) return state
+      return guessScaleNote(state, state.scaleRun, null, scaleDeadline)
+    }
+
     case 'comboExpire':
       // Jauge vide : le combo s'éteint, il faudra à nouveau trois réponses rapides.
       // En pause, la jauge est figée : rien ne s'épuise.
@@ -366,18 +377,19 @@ function advanceTriad(
 
 /**
  * Réponse à une note du parcours de gamme : des points si elle est juste, rien
- * sinon, et le parcours continue jusqu'au bout. Ni progression, ni série, ni
+ * sinon (ni sur une fausse note, ni quand son anneau se vide, `pc` nul), et le
+ * parcours continue jusqu'au bout. Ni progression, ni série, ni
  * erreur comptée pour la partie, ni combo : sa jauge reste figée. À la dernière note, le supplément d'un
  * parcours sans faute s'ajoute et le temps reprend.
  */
 function guessScaleNote(
   state: GameState,
   run: ScaleRunState,
-  pc: GuessResult['guess'] & number,
+  pc: GuessResult['guess'],
   now: number,
 ): GameState {
   const challenge = state.challenge!
-  const correct = pc === challenge.pc
+  const correct = pc !== null && pc === challenge.pc
   const points = correct ? SCALE_RULES.pointsPerNote : 0
   const result: GuessResult = {
     id: challenge.id,
@@ -386,7 +398,8 @@ function guessScaleNote(
     correct,
     streak: state.streak,
     at: now,
-    reactionMs: Math.max(0, now - (state.challengeShownAt ?? now)),
+    // Anneau vide : pas de réponse, comme un temps écoulé (la bonne note est révélée).
+    reactionMs: pc === null ? null : Math.max(0, now - (state.challengeShownAt ?? now)),
     basePoints: points,
     multiplier: 1,
     points,
