@@ -76,8 +76,10 @@ describe('partition du boss', () => {
       expect(bonus.hitAt - bonus.launchAt).toBe(BOSS_RULES.bonus.travelMs)
       expect(BOSS_RULES.bonus.travelMs).toBeLessThan(BOSS_RULES.travelMs)
     }
-    // Leurs fenêtres de jugement ne chevauchent pas celles des notes voisines.
-    expect(BOSS_RULES.intervalMs / 2).toBeGreaterThan(windows.earlyMs + windows.lateMs)
+    // Leurs fenêtres de jugement, plus larges, ne chevauchent pas celles des notes voisines.
+    const { earlyMs, lateMs } = BOSS_RULES.bonus
+    expect(BOSS_RULES.intervalMs / 2).toBeGreaterThan(windows.lateMs + earlyMs)
+    expect(BOSS_RULES.intervalMs / 2).toBeGreaterThan(lateMs + windows.earlyMs)
     // Jamais après la dernière note.
     expect(notes.at(-1)!.bonus).toBeUndefined()
   })
@@ -132,7 +134,7 @@ describe('notes bonus', () => {
 
   it('ne coûte rien, manquée ou fausse, et le combo continue', () => {
     const played = bossReducer(withBonus(), { type: 'press', pc: 9, at: 5000 })
-    const missed = bossReducer(played, { type: 'tick', at: 7000 + windows.lateMs + 1 })
+    const missed = bossReducer(played, { type: 'tick', at: 7000 + BOSS_RULES.bonus.lateMs + 1 })
     const wrong = bossReducer(played, { type: 'press', pc: 2, at: 7000 })
     for (const s of [missed, wrong]) {
       expect(s).toMatchObject({ life: played.life, combo: 1, score: 1000, cursor: 2 })
@@ -140,6 +142,26 @@ describe('notes bonus', () => {
     }
     // La note suivante se joue normalement, série comprise.
     expect(bossReducer(missed, { type: 'press', pc: 4, at: 9000 })).toMatchObject({ combo: 2 })
+  })
+
+  it('se juge plus large que les autres : plus rapide, elle tolère plus d’avance et de retard', () => {
+    const played = bossReducer(withBonus(), { type: 'press', pc: 9, at: 5000 })
+    const { earlyMs, lateMs } = BOSS_RULES.bonus
+    expect(earlyMs).toBeGreaterThan(windows.earlyMs)
+    expect(lateMs).toBeGreaterThan(windows.lateMs)
+    // 300 ms d'avance : ignorée pour une note ordinaire, comptée pour une note bonus.
+    expect(bossReducer(played, { type: 'press', pc: 0, at: 7000 - 300 }).lastHit).toMatchObject({
+      judgement: 'good',
+      index: 1,
+    })
+    expect(bossReducer(played, { type: 'press', pc: 0, at: 7000 - earlyMs - 1 })).toBe(played)
+    // Pas encore manquée 300 ms après sa cible, manquée passé sa fenêtre.
+    expect(nextMissAt(played)).toBe(7000 + lateMs)
+    expect(bossReducer(played, { type: 'tick', at: 7000 + lateMs })).toBe(played)
+    expect(bossReducer(played, { type: 'tick', at: 7000 + lateMs + 1 }).hits[1]).toMatchObject({
+      judgement: 'miss',
+      at: 7000 + lateMs,
+    })
   })
 
   it('ne vise que sa fenêtre : une frappe pour la note suivante attend son tour', () => {

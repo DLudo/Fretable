@@ -2,7 +2,14 @@ export { bossChartLength, createBossChart } from './chart'
 export { bossComboTier, bossMultiplier, type BossComboTier } from './combo'
 export { ghostProgress, lerpPoint } from './lanes'
 export { rateBossFight, type BossRating } from './rating'
-export { bossReducer, createBossState, gradeHit, nextMissAt, type BossRules } from './reducer'
+export {
+  bossReducer,
+  createBossState,
+  gradeHit,
+  nextMissAt,
+  windowOf,
+  type BossRules,
+} from './reducer'
 export type {
   BossAction,
   BossHit,

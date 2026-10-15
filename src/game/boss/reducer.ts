@@ -1,6 +1,6 @@
 import { BOSS_RULES } from '@/game/config'
 import { bossMultiplier } from './combo'
-import type { BossAction, BossJudged, BossJudgement, BossState } from './types'
+import type { BossAction, BossJudged, BossJudgement, BossNote, BossState } from './types'
 
 export type BossRules = typeof BOSS_RULES
 
@@ -29,11 +29,24 @@ export function gradeHit(deltaMs: number, rules: BossRules = BOSS_RULES): BossJu
   return 'good'
 }
 
+/**
+ * Fenêtre de jugement d'une note (ms avant et après l'instant parfait) : plus
+ * large pour une note bonus, plus rapide que les autres (`BOSS_RULES.bonus`).
+ */
+export function windowOf(
+  note: Pick<BossNote, 'bonus'>,
+  rules: BossRules = BOSS_RULES,
+): { earlyMs: number; lateMs: number } {
+  return note.bonus
+    ? { earlyMs: rules.bonus.earlyMs, lateMs: rules.bonus.lateMs }
+    : { earlyMs: rules.windows.earlyMs, lateMs: rules.windows.lateMs }
+}
+
 /** Fin de la fenêtre de la prochaine note à juger : passé cet instant, elle est manquée. */
 export function nextMissAt(state: BossState, rules: BossRules = BOSS_RULES): number | null {
   if (state.phase !== 'playing') return null
   const note = state.notes[state.cursor]
-  return note ? note.hitAt + rules.windows.lateMs : null
+  return note ? note.hitAt + windowOf(note, rules).lateMs : null
 }
 
 /**
@@ -75,7 +88,7 @@ export function bossReducer(
       const note = swept.notes[swept.cursor]
       if (!note) return swept
       const deltaMs = action.at - note.hitAt
-      if (deltaMs < -rules.windows.earlyMs) return swept
+      if (deltaMs < -windowOf(note, rules).earlyMs) return swept
       const judgement = action.pc === note.pc ? gradeHit(deltaMs, rules) : 'wrong'
       return resolve(swept, { judgement, at: action.at, deltaMs, guess: action.pc }, rules)
     }
@@ -87,12 +100,10 @@ function sweep(state: BossState, at: number, rules: BossRules): BossState {
   let next = state
   while (next.phase === 'playing') {
     const note = next.notes[next.cursor]
-    if (!note || at <= note.hitAt + rules.windows.lateMs) break
-    next = resolve(
-      next,
-      { judgement: 'miss', at: note.hitAt + rules.windows.lateMs, deltaMs: null, guess: null },
-      rules,
-    )
+    if (!note) break
+    const closesAt = note.hitAt + windowOf(note, rules).lateMs
+    if (at <= closesAt) break
+    next = resolve(next, { judgement: 'miss', at: closesAt, deltaMs: null, guess: null }, rules)
   }
   return next
 }
