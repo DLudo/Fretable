@@ -217,7 +217,9 @@ function WonPanel({
 function LostPanel({ state, coins, onStart }: EndPanelProps) {
   const { level, correctCount, lastResult } = state
   // Note restée sans réponse à la fin du temps : on la nomme, pour que l'essai serve.
-  const missed = lastResult?.guess === null ? lastResult.challenge : null
+  // Une note du parcours de gamme manquée par son anneau n'est pas celle du temps écoulé.
+  const missed =
+    lastResult?.guess === null && lastResult.bonus !== 'scale' ? lastResult.challenge : null
   return (
     <Panel
       title="Temps écoulé"

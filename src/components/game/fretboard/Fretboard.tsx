@@ -218,7 +218,9 @@ export function Fretboard({
 
       <p className="sr-only" aria-live="polite">
         {marker
-          ? `Note à trouver : corde ${stringNumber(layout.tuning, marker.stringIndex)}, case ${marker.fret}`
+          ? `Note à trouver : corde ${stringNumber(layout.tuning, marker.stringIndex)}, case ${marker.fret}` +
+            // Note à délai (triade, parcours de gamme) : l'anneau ne se voit pas, il se dit.
+            (marker.countdownMs ? `, en ${Math.round(marker.countdownMs / 1000)} secondes` : '')
           : ''}
       </p>
     </div>
