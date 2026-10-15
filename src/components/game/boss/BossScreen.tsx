@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useEffectEvent, useMemo, useState, type ReactNode } from 'react'
 
 import { Fretboard } from '@/components/game/fretboard'
 import { PORTRAIT_QUERY, useBoardFit } from '@/components/game/useBoardFit'
@@ -11,6 +11,7 @@ import {
   bossComboTier,
   rateBossFight,
   useBossGame,
+  windowOf,
   type BossComboTier,
   type BossJudgement,
   type BossNote,
@@ -209,9 +210,26 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
         .sort((a, b) => state.notes[a].launchAt - state.notes[b].launchAt || a - b),
     [state.notes],
   )
-  const [launched, setLaunched] = useState<{ notes: readonly BossNote[]; step: number } | null>(
-    null,
-  )
+  // Chaque annonce retient sa place dans la file à l'instant où elle sonne :
+  // combien de notes la séparent de celle à jouer.
+  const [launched, setLaunched] = useState<{
+    notes: readonly BossNote[]
+    step: number
+    ahead: number
+  } | null>(null)
+  const announce = useEffectEvent((step: number) => {
+    // La note à jouer : la première dont la fenêtre est encore ouverte (un raté
+    // échu peut ne pas avoir encore été jugé).
+    const now = performance.now()
+    let current = state.cursor
+    while (
+      current < state.notes.length &&
+      now > state.notes[current].hitAt + windowOf(state.notes[current]).lateMs
+    ) {
+      current++
+    }
+    setLaunched({ notes: state.notes, step, ahead: launchOrder[step] - current })
+  })
   const launchedStep = playing && launched?.notes === state.notes ? launched.step : -1
   useEffect(() => {
     if (!playing) return
@@ -219,12 +237,19 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
     const note = state.notes[launchOrder[step]]
     if (!note) return
     const timer = window.setTimeout(
-      () => setLaunched({ notes: state.notes, step }),
+      () => announce(step),
       Math.max(0, note.launchAt - performance.now()),
     )
     return () => window.clearTimeout(timer)
   }, [playing, state.notes, launchOrder, launchedStep])
   const announced = launchedStep >= 0 ? state.notes[launchOrder[launchedStep]] : undefined
+  // Une note bonus part après des notes qu'elle devance : l'annonce dit sa place.
+  const bonusPlace =
+    !launched || launched.ahead <= 1
+      ? 'juste après la note à jouer'
+      : launched.ahead === 2
+        ? 'après la note suivante'
+        : `dans ${launched.ahead} notes`
 
   return (
     <div data-slot="boss-screen" className={cn('flex h-dvh flex-col overflow-hidden', className)}>
@@ -246,8 +271,7 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
         </div>
         <p className="sr-only" aria-live="polite">
           {announced
-            ? // Une note bonus part après des notes qu'elle devance : l'annonce dit sa place.
-              `${announced.bonus ? 'Note bonus, juste après la note à jouer' : 'Ensuite'} : corde ${stringNumber(boss.tuning, announced.stringIndex)}, case ${announced.fret}`
+            ? `${announced.bonus ? `Note bonus, ${bonusPlace}` : 'Ensuite'} : corde ${stringNumber(boss.tuning, announced.stringIndex)}, case ${announced.fret}`
             : ''}
         </p>
         <p className="sr-only" aria-live="polite">
