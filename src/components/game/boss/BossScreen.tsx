@@ -9,6 +9,7 @@ import { gameCoinKey, useCoinReward } from '@/game/coins'
 import { BOSS_RULES } from '@/game/config'
 import {
   bossComboTier,
+  rateBossFight,
   useBossGame,
   type BossComboTier,
   type BossJudgement,
@@ -125,14 +126,14 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
   }, [state.endedAt])
   const overlayVisible = state.phase === 'ready' || overlayFor === state.endedAt
 
-  // Pièces : le combat fini, son score converti crédite le portefeuille, une
-  // seule fois par combat (pas d'étoiles ici, donc pas de prime).
+  // Pièces : le combat fini, son score converti et la prime de ses étoiles
+  // créditent le portefeuille, une seule fois par combat.
   const ended = state.phase === 'won' || state.phase === 'lost'
   const coins = useCoinReward(
     ended && state.startedAt !== null ? gameCoinKey('boss', state.startedAt) : null,
     {
       score: state.score,
-      stars: 0,
+      stars: rateBossFight(state).stars,
     },
   )
 

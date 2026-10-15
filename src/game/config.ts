@@ -231,15 +231,22 @@ export const BOSS_RULES = {
    * tel quel. Son trajet (`travelMs`) est plus court que celui des autres.
    */
   bonus: { chance: 0.3, travelMs: 2500, multiplier: 3 },
+  /**
+   * Étoiles d'une victoire, selon la vie restante quand le boss tombe, en
+   * `parts` de la vie maximale : plus de `threeStarsAbove` parts (2/3), trois
+   * étoiles ; au moins `twoStarsFrom` (1/3), deux ; en deçà, une. Une défaite
+   * n'en vaut aucune. Des parts entières gardent les seuils exacts.
+   */
+  rating: { parts: 3, threeStarsAbove: 2, twoStarsFrom: 1 },
   /** Fondu d'un fantôme manqué, une fois la cible dépassée (ms). */
   fadeMs: 400,
 } as const
 
 /**
  * Pièces : la monnaie du jeu, gagnée à la fin de chaque partie, victoire ou
- * non. Le score s'y convertit (1 000 points = 100 pièces) ; une victoire en
- * mode classique, seul à noter ses parties en étoiles, rapporte en plus une
- * prime selon les étoiles obtenues.
+ * non. Le score s'y convertit (1 000 points = 100 pièces) ; une victoire, en
+ * mode classique comme contre le boss, rapporte en plus une prime selon les
+ * étoiles obtenues.
  */
 export const COIN_RULES = {
   /** Points pour une pièce : 1 000 points = 100 pièces (arrondi à la pièce inférieure). */

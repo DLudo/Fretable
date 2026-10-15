@@ -9,6 +9,7 @@ import {
   LEAVE,
   Panel,
   PresenceLayer,
+  RatingStars,
   ScoreLine,
   Stat,
 } from '@/components/game/overlays'
@@ -17,7 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
 import type { CoinReceipt } from '@/game/coins'
 import { BOSS_RULES } from '@/game/config'
-import type { BossJudgement, BossState } from '@/game/boss'
+import { rateBossFight, type BossJudgement, type BossState } from '@/game/boss'
 import { cn } from '@/lib/utils'
 
 export interface BossOverlayProps {
@@ -164,11 +165,23 @@ function EndPanel({
         </Button>
       }
     >
-      <ScoreLine score={state.score} className={coins ? undefined : 'mb-4'} />
+      {/* Victoire : étoiles au-dessus du score, comme à la fin d'un niveau ; sur écran
+          peu haut, à sa droite pour gagner une ligne. */}
+      <div
+        data-slot="boss-overlay-result"
+        className={cn(
+          'flex flex-col gap-4 compact:flex-row-reverse compact:items-center compact:justify-between',
+          !coins && 'mb-4',
+        )}
+      >
+        {won && <RatingStars rating={rateBossFight(state)} />}
+        <ScoreLine score={state.score} />
+      </div>
       {coins && (
         <CoinConversion
           receipt={coins}
-          delay={0.45}
+          // Sur une victoire, la conversion attend que les étoiles se posent.
+          delay={won ? 1 : 0.45}
           className="mt-3 mb-4 compact:mt-2 compact:mb-3"
         />
       )}

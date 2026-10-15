@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { BOSS_RULES, COMBO_RULES } from '@/game/config'
 import {
+  rateBossFight,
   bossChartLength,
   bossComboTier,
   bossMultiplier,
@@ -455,5 +456,37 @@ describe('trajet des fantômes', () => {
     expect(lerpPoint(from, to, 1)).toEqual(to)
     expect(lerpPoint(from, to, 0.5)).toEqual({ x: 100, y: 600 })
     expect(lerpPoint(from, to, 1.1).y).toBeCloseTo(240, 6)
+  })
+})
+
+describe('étoiles du boss', () => {
+  const max = life.max
+  const stars = (remaining: number, phase: BossState['phase'] = 'won') =>
+    rateBossFight({ phase, life: remaining }).stars
+
+  it('donne trois étoiles au-delà des deux tiers de vie, deux dès un tiers, une en deçà', () => {
+    expect(stars(max)).toBe(3)
+    expect(stars(67)).toBe(3)
+    expect(stars(66.5)).toBe(2)
+    expect(stars(33.5)).toBe(2)
+    expect(stars(33)).toBe(1)
+    expect(stars(0.5)).toBe(1)
+  })
+
+  it('tranche les seuils exacts : pile aux deux tiers, deux étoiles ; pile au tiers, deux', () => {
+    // Vie maximale de 90 : tiers exacts (30 et 60).
+    const rules = { life: { max: 90 }, rating: BOSS_RULES.rating }
+    const at = (remaining: number) => rateBossFight({ phase: 'won', life: remaining }, rules).stars
+    expect([at(60.5), at(60), at(30), at(29.5)]).toEqual([3, 2, 2, 1])
+  })
+
+  it('n’en donne aucune sur une défaite', () => {
+    expect(stars(max, 'lost')).toBe(0)
+    expect(stars(max, 'playing')).toBe(0)
+    expect(rateBossFight({ phase: 'lost', life: 0 })).toEqual({ stars: 0, index: 0 })
+  })
+
+  it('expose la part de vie restante', () => {
+    expect(rateBossFight({ phase: 'won', life: 50 }).index).toBe(0.5)
   })
 })
