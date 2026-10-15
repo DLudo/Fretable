@@ -1,4 +1,5 @@
 import { BOSS_RULES } from '@/game/config'
+import type { PitchClass } from '@/game/music/notes'
 import { bossMultiplier } from './combo'
 import type { BossAction, BossJudged, BossJudgement, BossNote, BossState } from './types'
 
@@ -92,7 +93,8 @@ export function bossReducer(
       if (!note) return swept
       const deltaMs = action.at - note.hitAt
       // Avant la fenêtre, la frappe ne compte pas, et un retour en dit la raison.
-      if (deltaMs < -windowOf(note, rules).earlyMs) return tooSoon(swept, action.at, rules)
+      if (deltaMs < -windowOf(note, rules).earlyMs)
+        return tooSoon(swept, action.at, action.pc, rules)
       // Note bonus : une première mauvaise touche ne la consomme pas, on peut
       // retenter une fois ; la deuxième la juge (sans rien coûter).
       if (note.bonus && action.pc !== note.pc && !retried(swept)) {
@@ -120,17 +122,18 @@ function retried(state: BossState): boolean {
 }
 
 /**
- * Frappe avant la fenêtre de la note à jouer. Plus proche de la fin de la
- * fenêtre d'avant que du début de celle-ci, elle visait la note précédente, déjà
- * jugée : trop tard si celle-ci a filé (le raté l'annonce, la frappe le
- * précise), sans retour sinon (déjà frappée, la note n'a rien à en dire). Elle
- * n'est trop tôt qu'en visant bien la note à jouer.
+ * Frappe avant la fenêtre de la note à jouer. Avec sa touche, elle la visait :
+ * trop tôt. Sinon, plus proche de la fin de la fenêtre d'avant que du début de
+ * celle-ci, elle visait la note précédente, déjà jugée : trop tard si celle-ci a
+ * filé (le raté l'annonce, la frappe le précise), sans retour sinon (déjà
+ * frappée, la note n'a rien à en dire). La partition évite de donner la même
+ * touche à deux notes voisines (`createBossChart`).
  */
-function tooSoon(state: BossState, at: number, rules: BossRules): BossState {
+function tooSoon(state: BossState, at: number, pc: PitchClass, rules: BossRules): BossState {
   const previous = state.cursor - 1
   const before = state.notes[previous]
   const note = state.notes[state.cursor]
-  if (before) {
+  if (before && pc !== note.pc) {
     const closedAt = before.hitAt + windowOf(before, rules).lateMs
     const opensAt = note.hitAt - windowOf(note, rules).earlyMs
     if (at - closedAt < opensAt - at) {

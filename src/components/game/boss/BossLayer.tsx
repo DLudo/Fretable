@@ -99,8 +99,8 @@ export interface BossLayerProps {
  * Plusieurs notes sont en vol à la fois : celle à jouer est au premier plan, les
  * suivantes atténuées. Une étiquette dit le jugement, au-dessus de la révélation.
  * Les notes bonus, plus rapides, sont jaunes. Une frappe sans effet le dit sur
- * la note visée : « Trop tôt » avant sa fenêtre, « Erreur » sur une note bonus,
- * qui se retente.
+ * la note visée : « Trop tôt » avant sa fenêtre, « Trop tard » sur une note
+ * déjà manquée, « Erreur » sur une note bonus, qui se retente une fois.
  */
 export function BossLayer({ state, layout, projection }: BossLayerProps): ReactNode {
   const runUntil =
@@ -127,13 +127,18 @@ export function BossLayer({ state, layout, projection }: BossLayerProps): ReactN
 
   // Notes en vol et notes jugées le temps de leurs retours ; celle à jouer
   // dessinée en dernier, par-dessus les autres.
-  const shown = visibleBossNotes(state, now, Math.max(LABEL_MS, BOSS_RULES.fadeMs)).sort(
-    (a, b) => Number(a.current) - Number(b.current),
-  )
+  const shown = visibleBossNotes(state, now, Math.max(LABEL_MS, BOSS_RULES.fadeMs))
   // Dernière frappe sans effet, rappelée un instant sur la note qu'elle visait.
   const ignored = state.lastIgnored
   const hintFor =
     ignored && now - ignored.at < HINT_MS ? (state.notes[ignored.index]?.id ?? null) : null
+  // « Trop tard » vise une note manquée, parfois déjà effacée : elle reste là
+  // le temps du rappel, qui seul s'y voit encore.
+  if (ignored?.reason === 'late' && hintFor !== null && !shown.some((v) => v.note.id === hintFor)) {
+    const hit = state.hits[ignored.index]
+    if (hit) shown.push({ note: state.notes[ignored.index], hit, current: false, rank: -1 })
+  }
+  shown.sort((a, b) => Number(a.current) - Number(b.current))
 
   return (
     <svg

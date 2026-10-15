@@ -195,6 +195,26 @@ describe('notes bonus', () => {
     })
   })
 
+  it('laisse la touche dire la note visée : celle d’après, trop tôt, plutôt que le bonus', () => {
+    const played = bossReducer(withBonus(), { type: 'press', pc: 9, at: 5000 })
+    const hit = bossReducer(played, { type: 'press', pc: 0, at: 7000 })
+    // Bonus frappé : la touche de la note suivante, 500 ms trop tôt, se dit trop tôt.
+    expect(bossReducer(hit, { type: 'press', pc: 4, at: 8500 })).toMatchObject({
+      cursor: 2,
+      lastIgnored: { at: 8500, index: 2, reason: 'early' },
+    })
+    // Bonus manqué : la touche de la note suivante vise celle-ci, et non le bonus.
+    expect(bossReducer(played, { type: 'press', pc: 4, at: 8680 })).toMatchObject({
+      cursor: 2,
+      lastIgnored: { index: 2, reason: 'early' },
+    })
+    // Une autre touche, juste après la fenêtre du bonus, le visait : trop tard.
+    expect(bossReducer(played, { type: 'press', pc: 2, at: 7650 })).toMatchObject({
+      cursor: 2,
+      lastIgnored: { index: 1, reason: 'late' },
+    })
+  })
+
   it('ne vise que sa fenêtre : une frappe pour la note suivante attend son tour', () => {
     const played = bossReducer(withBonus(), { type: 'press', pc: 9, at: 5000 })
     // Trop tôt pour la note bonus : rien n'est jugé, la frappe est seulement signalée.

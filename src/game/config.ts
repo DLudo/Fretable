@@ -237,8 +237,9 @@ export const BOSS_RULES = {
    * tel quel. Son trajet (`travelMs`) est plus court que celui des autres.
    * Plus rapide, elle se juge plus large (`earlyMs`, `lateMs`) : elle arrive
    * une seconde à peine après la note précédente, et l'on doit encore lire sa
-   * position. Une mauvaise touche ne la consomme pas : on peut retenter tant
-   * que sa fenêtre est ouverte.
+   * position. Une première mauvaise touche ne la consomme pas : on peut
+   * retenter une fois tant que sa fenêtre est ouverte ; la deuxième la juge
+   * fausse, sans rien coûter, si bien que balayer le clavier ne rapporte rien.
    */
   bonus: { chance: 0.3, travelMs: 2500, multiplier: 3, earlyMs: 350, lateMs: 600 },
   /**
