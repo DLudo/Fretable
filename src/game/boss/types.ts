@@ -10,6 +10,11 @@ export interface BossNote {
   launchAt: number
   /** Instant où le fantôme atteint la cible : `launchAt + BOSS_RULES.travelMs`. */
   hitAt: number
+  /**
+   * Note bonus (`BOSS_RULES.bonus`) : intercalée entre deux notes, plus rapide,
+   * triple si frappée, sans effet sur la vie, le boss ni le combo.
+   */
+  bonus?: true
 }
 
 /** Jugement d'une note : réussie (selon la précision), fausse ou manquée. */
@@ -24,7 +29,7 @@ export interface BossHit {
   deltaMs: number | null
   /** Touche jouée ; `null` pour un raté. */
   guess: PitchClass | null
-  /** Multiplicateur du combo appliqué (1 hors combo, et sur un échec). */
+  /** Multiplicateur appliqué : celui du combo, ou du bonus pour une note bonus (1 sur un échec). */
   multiplier: number
   /** Points rapportés, multiplicateur compris (0 sur un échec). */
   points: number

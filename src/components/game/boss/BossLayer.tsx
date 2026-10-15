@@ -25,6 +25,8 @@ const APPEAR_MS = 200
 const GHOST_HALO = 1.7
 /** Fantômes et couloirs des notes en vol après celle à jouer : atténués. */
 const UPCOMING_OPACITY = 0.45
+/** Une note bonus à venir, elle, reste vive : elle doit sauter aux yeux. */
+const UPCOMING_BONUS_OPACITY = 0.85
 /** Montée d'un cran des anneaux d'arrivée, à chaque jugement (ms). */
 const RANK_EASE_MS = 200
 
@@ -43,6 +45,9 @@ const COLOR: Record<BossJudgement, string> = {
   wrong: 'var(--feedback-error)',
   miss: 'var(--muted-foreground)',
 }
+
+/** Notes bonus : le jaune du coup de pouce, pour fantôme, couloir et anneau. */
+const BONUS_COLOR = 'var(--assist)'
 
 const isSuccess = (judgement: BossJudgement) =>
   judgement === 'perfect' || judgement === 'great' || judgement === 'good'
@@ -78,6 +83,8 @@ export interface BossLayerProps {
  * touche pile au moment de frapper ; manqué, il le dépasse et s'efface.
  * Plusieurs notes sont en vol à la fois : celle à jouer est au premier plan, les
  * suivantes atténuées. Une étiquette dit le jugement, au-dessus de la révélation.
+ * Les notes bonus, plus rapides, sont jaunes ; manquées, elles s'effacent sans
+ * étiquette, puisqu'elles ne coûtent rien.
  */
 export function BossLayer({ state, layout, projection }: BossLayerProps): ReactNode {
   const runUntil =
@@ -175,6 +182,8 @@ function BossNoteView({
   // Jugée, la note s'efface : couloir et anneau en quelques dixièmes de seconde.
   const fade = hit ? clamp01(1 - since / 300) : 1
   const success = hit !== null && isSuccess(hit.judgement)
+  const bonus = note.bonus === true
+  const tint = bonus ? BONUS_COLOR : 'var(--boss-ghost)'
 
   // Le fantôme : consommé par une frappe ; manqué, il poursuit sa course au-delà
   // de la cible en s'effaçant.
@@ -183,7 +192,8 @@ function BossNoteView({
   const ghostPx = lerpPoint(launchPx, targetPx, ghostProgress(note, now))
 
   // En attente de leur tour, fantôme et couloir des notes suivantes restent en retrait.
-  const presence = hit === null && !current ? UPCOMING_OPACITY : 1
+  const presence =
+    hit === null && !current ? (bonus ? UPCOMING_BONUS_OPACITY : UPCOMING_OPACITY) : 1
   // Anneau d'arrivée : opacité dégressive selon le rang (100, 50, 25 %), qui
   // passe en un bref fondu au cran supérieur à chaque jugement.
   const ringRank =
@@ -200,6 +210,7 @@ function BossNoteView({
       data-rank={rank >= 0 ? rank : undefined}
       data-string={note.stringIndex}
       data-fret={note.fret}
+      data-bonus={bonus || undefined}
     >
       <line
         data-slot="boss-lane"
@@ -207,8 +218,8 @@ function BossNoteView({
         y1={launchPx.y}
         x2={targetPx.x}
         y2={targetPx.y}
-        stroke="var(--boss-ghost)"
-        strokeOpacity={0.22 * appear * fade * presence}
+        stroke={tint}
+        strokeOpacity={(bonus ? 0.4 : 0.22) * appear * fade * presence}
         strokeWidth={r * 0.18}
         strokeLinecap="round"
       />
@@ -218,9 +229,17 @@ function BossNoteView({
         cy={targetPx.y}
         // Réussie, la cible s'ouvre comme une onde en s'effaçant.
         r={r * (1 + (success && !reduceMotion ? clamp01(since / LABEL_MS) * 0.9 : 0))}
-        fill="var(--marker)"
+        fill={bonus ? BONUS_COLOR : 'var(--marker)'}
         fillOpacity={0.14 * appear * fade * ringRank}
-        stroke={hit ? COLOR[hit.judgement] : 'var(--marker)'}
+        stroke={
+          hit
+            ? bonus && success
+              ? BONUS_COLOR
+              : COLOR[hit.judgement]
+            : bonus
+              ? BONUS_COLOR
+              : 'var(--marker)'
+        }
         strokeWidth={r * (current ? 0.26 : 0.2)}
         strokeOpacity={appear * ringRank * (success ? clamp01(1 - since / LABEL_MS) : fade)}
       />
@@ -230,21 +249,21 @@ function BossNoteView({
             cx={ghostPx.x}
             cy={ghostPx.y}
             r={r * GHOST_HALO}
-            fill="var(--marker-halo)"
-            opacity={0.45}
+            fill={bonus ? BONUS_COLOR : 'var(--marker-halo)'}
+            opacity={bonus ? 0.3 : 0.45}
           />
           <circle
             cx={ghostPx.x}
             cy={ghostPx.y}
             r={r * 0.9}
-            fill="var(--boss-ghost)"
+            fill={tint}
             // Liseré du fond de page : lisible sur la touche comme hors du manche.
             stroke="var(--background)"
             strokeWidth={r * 0.14}
           />
         </g>
       )}
-      {hit && since < LABEL_MS && (
+      {hit && since < LABEL_MS && (!bonus || success) && (
         <text
           data-slot="boss-label"
           x={targetPx.x}
@@ -253,14 +272,14 @@ function BossNoteView({
           textAnchor="middle"
           fontSize={Math.max(12, r * 1.35)}
           fontWeight={800}
-          fill={COLOR[hit.judgement]}
+          fill={bonus ? BONUS_COLOR : COLOR[hit.judgement]}
           opacity={clamp01(1 - since / LABEL_MS)}
           stroke="var(--background)"
           strokeWidth={Math.max(2, r * 0.3)}
           paintOrder="stroke"
           strokeLinejoin="round"
         >
-          {LABEL[hit.judgement]}
+          {bonus ? `Bonus ×${hit.multiplier}` : LABEL[hit.judgement]}
         </text>
       )}
     </g>

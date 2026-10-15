@@ -44,7 +44,9 @@ export function nextMissAt(state: BossState, rules: BossRules = BOSS_RULES): num
  * notes se jouent dans l'ordre d'arrivée : une frappe vise toujours la première
  * note pas encore jugée, même si les suivantes sont déjà en vol. Seules les
  * réussites blessent le boss : il tombe à la `bossLife`-ième, et les échecs
- * ne font qu'allonger le combat, au prix de la vie du joueur. Le combo
+ * ne font qu'allonger le combat, au prix de la vie du joueur. Les notes bonus
+ * (`BossNote.bonus`) se jouent à leur tour, comme les autres, mais ne comptent
+ * que pour le score. Le combo
  * (voir `bossComboTier`) multiplie les points des réussites qui suivent une
  * série, et retombe à la première erreur ou au premier raté.
  */
@@ -100,21 +102,30 @@ function resolve(state: BossState, judged: BossJudged, rules: BossRules): BossSt
   const index = state.cursor
   const { judgement } = judged
   const success = judgement === 'perfect' || judgement === 'great' || judgement === 'good'
-  const change = success
-    ? rules.life.heal[judgement]
-    : judgement === 'wrong'
-      ? -rules.life.wrong
-      : -rules.life.miss
+  // Note bonus : des points (multipliés) si elle est frappée, et rien d'autre.
+  // Ni vie, ni boss, ni combo : la manquer ou se tromper ne coûte rien.
+  const bonus = state.notes[index]?.bonus === true
+  const change = bonus
+    ? 0
+    : success
+      ? rules.life.heal[judgement]
+      : judgement === 'wrong'
+        ? -rules.life.wrong
+        : -rules.life.miss
   const life = Math.min(rules.life.max, Math.max(0, state.life + change))
   // La série d'avant cette note fixe son multiplicateur ; un échec rompt le combo.
-  const multiplier = success ? bossMultiplier(state.combo, rules) : 1
+  const multiplier = !success
+    ? 1
+    : bonus
+      ? rules.bonus.multiplier
+      : bossMultiplier(state.combo, rules)
   const points = success ? rules.points[judgement] * multiplier : 0
   const hit = { ...judged, multiplier, points }
-  const combo = success ? state.combo + 1 : 0
+  const combo = bonus ? state.combo : success ? state.combo + 1 : 0
   const hits = state.hits.slice()
   hits[index] = hit
   const cursor = index + 1
-  const bossLife = success ? Math.max(0, state.bossLife - 1) : state.bossLife
+  const bossLife = success && !bonus ? Math.max(0, state.bossLife - 1) : state.bossLife
   const won = life > 0 && bossLife <= 0
   // K.O., ou partition épuisée sans que le boss tombe (garde-fou : la partition
   // est taillée pour que le combat se termine avant, voir `bossChartLength`).

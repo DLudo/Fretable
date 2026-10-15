@@ -94,7 +94,9 @@ function ReadyPanel({ onStart }: { onStart: () => void }) {
         <p>
           Trop tôt, la frappe ne compte pas. Chaque réussite blesse le boss et te rend un peu de vie
           : touche-le {BOSS_RULES.bossLife} fois pour le vaincre. Une note manquée ne l'entame pas
-          et te coûte de la vie, une erreur davantage ; le combat dure tant qu'il tient debout.
+          et te coûte de la vie, une erreur davantage ; le combat dure tant qu'il tient debout. Des
+          notes bonus, jaunes et plus rapides, s'intercalent parfois : frappées, elles valent le
+          triple de points ; manquées, elles ne coûtent rien.
         </p>
         <p className="pointer-coarse:hidden short:hidden">Pas de piano ici : joue au clavier.</p>
         <p className="hidden pointer-coarse:block">
@@ -106,8 +108,23 @@ function ReadyPanel({ onStart }: { onStart: () => void }) {
   )
 }
 
+/** Notes du boss (hors bonus) jugées ainsi. */
 function count(state: BossState, ...judgements: BossJudgement[]): number {
-  return state.hits.filter((hit) => hit !== null && judgements.includes(hit.judgement)).length
+  return state.hits.filter(
+    (hit, i) => hit !== null && !state.notes[i].bonus && judgements.includes(hit.judgement),
+  ).length
+}
+
+/** Notes bonus frappées, sur celles jouées (jugées) pendant le combat. */
+function bonusTally(state: BossState): string {
+  let hits = 0
+  let played = 0
+  state.hits.forEach((hit, i) => {
+    if (hit === null || !state.notes[i].bonus) return
+    played++
+    if (hit.points > 0) hits++
+  })
+  return `${hits} / ${played}`
 }
 
 function EndPanel({ state, onStart }: { state: BossState; onStart: () => void }) {
@@ -137,6 +154,9 @@ function EndPanel({ state, onStart }: { state: BossState; onStart: () => void })
         <Stat label="Erreurs" value={count(state, 'wrong')} />
         <Stat label="Ratés" value={count(state, 'miss')} />
         <Stat label="Meilleure série" value={state.bestCombo} />
+      </dl>
+      <dl data-slot="boss-overlay-bonus" className="mt-2 grid grid-cols-1 rounded-lg border">
+        <Stat label="Notes bonus" value={bonusTally(state)} />
       </dl>
     </Panel>
   )

@@ -58,6 +58,10 @@ const REVEAL_REACTION_MS: Record<BossJudgement, number | null> = {
 const isSuccess = (judgement: BossJudgement) =>
   judgement === 'perfect' || judgement === 'great' || judgement === 'good'
 
+/** Note bonus manquée ou fausse : elle ne coûte rien, et passe sans révélation ni impact. */
+const isSilent = (hit: NonNullable<BossState['lastHit']>, notes: readonly BossNote[]) =>
+  notes[hit.index]?.bonus === true && !isSuccess(hit.judgement)
+
 /**
  * Dernier jugement du boss, traduit en tentative du mode classique : la même
  * révélation (étiquette de la note, effet, intensité selon la série) se joue
@@ -69,7 +73,7 @@ function revealResultOf({
   combo,
 }: Pick<BossState, 'lastHit' | 'notes' | 'combo'>): GuessResult | null {
   if (!hit) return null
-  const { id, stringIndex, fret, pc } = notes[hit.index]
+  const { id, stringIndex, fret, pc, bonus } = notes[hit.index]
   const correct = isSuccess(hit.judgement)
   return {
     id: Math.round(hit.at),
@@ -83,7 +87,7 @@ function revealResultOf({
     // La pastille « ×2 » ou « ×3 » de la révélation suit le combo, comme en partie classique.
     multiplier: hit.multiplier,
     points: hit.points,
-    comboTriggered: correct && combo === BOSS_RULES.combo.triggerCount,
+    comboTriggered: correct && !bonus && combo === BOSS_RULES.combo.triggerCount,
     assisted: false,
   }
 }
@@ -128,12 +132,27 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
   // Mêmes retours qu'en mode classique : impact du manche et révélation de la note.
   const { ref: boardRef, impact } = useBoardImpact()
   const lastHit = state.lastHit
-  useEffect(() => {
-    if (lastHit) impact(isSuccess(lastHit.judgement))
-  }, [lastHit, impact])
-  // Dernier jugement, série et notes changent ensemble : une révélation par jugement.
   const { notes, combo } = state
-  const reveal = useMemo(() => revealResultOf({ lastHit, notes, combo }), [lastHit, notes, combo])
+  useEffect(() => {
+    if (lastHit && !isSilent(lastHit, notes)) impact(isSuccess(lastHit.judgement))
+  }, [lastHit, notes, impact])
+  // Dernier jugement, série et notes changent ensemble : une révélation par jugement.
+  // Une note bonus qui passe sans révélation laisse la précédente en place (un
+  // résultat nul effacerait toutes les révélations en cours).
+  const [revealed, setRevealed] = useState<{
+    source: BossState['lastHit']
+    result: GuessResult | null
+  }>({ source: null, result: null })
+  if (lastHit !== revealed.source) {
+    setRevealed({
+      source: lastHit,
+      result:
+        lastHit && isSilent(lastHit, notes)
+          ? revealed.result
+          : revealResultOf({ lastHit, notes, combo }),
+    })
+  }
+  const reveal = revealed.result
 
   // Combo : l'aura bleue du mode classique, puis enflammée. Elle garde la couleur
   // de son dernier palier le temps de s'éteindre, et passe sous fantômes et révélations.
@@ -168,23 +187,31 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
   )
 
   // Annonce de chaque note à son départ, au moment où elle paraît à l'écran (soit
-  // `travelMs` avant de la jouer) : les notes s'annoncent dans leur ordre d'arrivée.
-  const [launched, setLaunched] = useState<{ notes: readonly BossNote[]; index: number } | null>(
+  // son trajet avant de la jouer), dans l'ordre des départs : une note bonus, plus
+  // rapide, part après des notes qu'elle devance à l'arrivée.
+  const launchOrder = useMemo(
+    () =>
+      state.notes
+        .map((_, index) => index)
+        .sort((a, b) => state.notes[a].launchAt - state.notes[b].launchAt || a - b),
+    [state.notes],
+  )
+  const [launched, setLaunched] = useState<{ notes: readonly BossNote[]; step: number } | null>(
     null,
   )
-  const launchedIndex = playing && launched?.notes === state.notes ? launched.index : -1
+  const launchedStep = playing && launched?.notes === state.notes ? launched.step : -1
   useEffect(() => {
     if (!playing) return
-    const index = launchedIndex + 1
-    const note = state.notes[index]
+    const step = launchedStep + 1
+    const note = state.notes[launchOrder[step]]
     if (!note) return
     const timer = window.setTimeout(
-      () => setLaunched({ notes: state.notes, index }),
+      () => setLaunched({ notes: state.notes, step }),
       Math.max(0, note.launchAt - performance.now()),
     )
     return () => window.clearTimeout(timer)
-  }, [playing, state.notes, launchedIndex])
-  const announced = launchedIndex >= 0 ? state.notes[launchedIndex] : undefined
+  }, [playing, state.notes, launchOrder, launchedStep])
+  const announced = launchedStep >= 0 ? state.notes[launchOrder[launchedStep]] : undefined
 
   return (
     <div data-slot="boss-screen" className={cn('flex h-dvh flex-col overflow-hidden', className)}>
@@ -206,7 +233,7 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
         </div>
         <p className="sr-only" aria-live="polite">
           {announced
-            ? `Ensuite : corde ${stringNumber(boss.tuning, announced.stringIndex)}, case ${announced.fret}`
+            ? `${announced.bonus ? 'Note bonus' : 'Ensuite'} : corde ${stringNumber(boss.tuning, announced.stringIndex)}, case ${announced.fret}`
             : ''}
         </p>
         <p className="sr-only" aria-live="polite">

@@ -39,19 +39,109 @@ const started = (pcs: PitchClass[] = [9, 0, 4]): BossState =>
   bossReducer(createBossState(), { type: 'start', now: 0, notes: chart(pcs) })
 
 describe('partition du boss', () => {
+  let seed = 7
+  const random = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646
+  const notes = createBossChart(level, STANDARD_TUNING, random, 1000)
+  const regular = notes.filter((note) => !note.bonus)
+  const bonuses = notes.filter((note) => note.bonus)
+
   it('tire des notes au hasard, jamais deux fois la même d’affilée, à intervalle régulier', () => {
-    let seed = 7
-    const random = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646
-    const notes = createBossChart(level, STANDARD_TUNING, random, 1000)
-    expect(notes).toHaveLength(bossChartLength())
-    notes.forEach((note, i) => {
+    expect(regular).toHaveLength(bossChartLength())
+    regular.forEach((note, i) => {
       expect(note.launchAt).toBe(1000 + BOSS_RULES.startDelayMs + i * BOSS_RULES.intervalMs)
       expect(note.hitAt).toBe(note.launchAt + BOSS_RULES.travelMs)
+    })
+    notes.forEach((note, i) => {
       expect(note.pc).toBe(pitchClassAt(STANDARD_TUNING, note.stringIndex, note.fret))
       expect(note.fret).toBeGreaterThanOrEqual(level.frets.min)
       expect(note.fret).toBeLessThanOrEqual(level.frets.max)
       if (i > 0) expect(note.pc).not.toBe(notes[i - 1].pc)
     })
+    expect(new Set(notes.map((n) => n.id)).size).toBe(notes.length)
+  })
+
+  it('intercale des notes bonus, plus rapides, à mi-chemin de deux notes', () => {
+    expect(bonuses.length).toBeGreaterThan(0)
+    // Rangées dans l'ordre d'arrivée.
+    notes.slice(1).forEach((note, i) => expect(note.hitAt).toBeGreaterThan(notes[i].hitAt))
+    for (const bonus of bonuses) {
+      const index = notes.indexOf(bonus)
+      const [before, after] = [notes[index - 1], notes[index + 1]]
+      expect(before.bonus).toBeUndefined()
+      expect(after.bonus).toBeUndefined()
+      expect(bonus.hitAt).toBe(before.hitAt + BOSS_RULES.intervalMs / 2)
+      expect(bonus.hitAt - bonus.launchAt).toBe(BOSS_RULES.bonus.travelMs)
+      expect(BOSS_RULES.bonus.travelMs).toBeLessThan(BOSS_RULES.travelMs)
+    }
+    // Leurs fenêtres de jugement ne chevauchent pas celles des notes voisines.
+    expect(BOSS_RULES.intervalMs / 2).toBeGreaterThan(windows.earlyMs + windows.lateMs)
+    // Jamais après la dernière note.
+    expect(notes.at(-1)!.bonus).toBeUndefined()
+  })
+
+  it('n’intercale rien sans chance de bonus, et partout avec une chance pleine', () => {
+    const chart = (chance: number) =>
+      createBossChart(level, STANDARD_TUNING, random, 0, {
+        ...BOSS_RULES,
+        bonus: { ...BOSS_RULES.bonus, chance },
+      })
+    expect(chart(0).some((n) => n.bonus)).toBe(false)
+    expect(chart(1).filter((n) => n.bonus)).toHaveLength(bossChartLength() - 1)
+  })
+})
+
+describe('notes bonus', () => {
+  /** Note La, puis une note bonus Do à mi-chemin (7 s), puis Mi. */
+  const withBonus = (): BossState => {
+    const notes = chart([9, 4])
+    const bonus: BossNote = {
+      id: 99,
+      stringIndex: 1,
+      fret: 3,
+      pc: 0,
+      launchAt: 4500,
+      hitAt: 7000,
+      bonus: true,
+    }
+    return bossReducer(createBossState(), {
+      type: 'start',
+      now: 0,
+      notes: [notes[0], bonus, { ...notes[1], hitAt: 9000 }],
+    })
+  }
+
+  it('triple les points d’une note bonus frappée, sans toucher vie, boss ni combo', () => {
+    let s = bossReducer(withBonus(), { type: 'press', pc: 9, at: 5000 })
+    const before = { life: s.life, bossLife: s.bossLife, combo: s.combo, bestCombo: s.bestCombo }
+    s = bossReducer(s, { type: 'press', pc: 0, at: 7000 + 80 })
+    expect(s.lastHit).toMatchObject({
+      judgement: 'great',
+      multiplier: BOSS_RULES.bonus.multiplier,
+      points: 600 * BOSS_RULES.bonus.multiplier,
+    })
+    expect(s).toMatchObject({ ...before, cursor: 2, score: 1000 + 1800 })
+  })
+
+  it('ne coûte rien, manquée ou fausse, et le combo continue', () => {
+    const played = bossReducer(withBonus(), { type: 'press', pc: 9, at: 5000 })
+    const missed = bossReducer(played, { type: 'tick', at: 7000 + windows.lateMs + 1 })
+    const wrong = bossReducer(played, { type: 'press', pc: 2, at: 7000 })
+    for (const s of [missed, wrong]) {
+      expect(s).toMatchObject({ life: played.life, combo: 1, score: 1000, cursor: 2 })
+      expect(s.lastHit).toMatchObject({ multiplier: 1, points: 0, index: 1 })
+    }
+    // La note suivante se joue normalement, série comprise.
+    expect(bossReducer(missed, { type: 'press', pc: 4, at: 9000 })).toMatchObject({ combo: 2 })
+  })
+
+  it('ne vise que sa fenêtre : une frappe pour la note suivante attend son tour', () => {
+    const played = bossReducer(withBonus(), { type: 'press', pc: 9, at: 5000 })
+    // Trop tôt pour la note bonus : rien ne se passe.
+    expect(bossReducer(played, { type: 'press', pc: 0, at: 6000 })).toBe(played)
+    // Bonus laissé filer, la frappe suivante vise la note d'après.
+    const s = bossReducer(played, { type: 'press', pc: 4, at: 9000 })
+    expect(s.hits[1]).toMatchObject({ judgement: 'miss' })
+    expect(s.hits[2]).toMatchObject({ judgement: 'perfect' })
   })
 })
 

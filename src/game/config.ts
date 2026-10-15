@@ -223,6 +223,14 @@ export const BOSS_RULES = {
    * jauge ici : seule une erreur ou un raté l'éteint.
    */
   combo: { triggerCount: 5, multiplier: COMBO_RULES.multiplier, fireCount: 10, fireMultiplier: 3 },
+  /**
+   * Notes bonus : à mi-chemin entre deux notes du boss, une note jaune plus
+   * rapide peut s'intercaler (`chance` par intervalle). Frappée, elle rapporte
+   * ses points multipliés par `multiplier` ; manquée ou fausse, elle ne coûte
+   * rien. Elle ne blesse pas le boss, ne rend pas de vie et laisse le combo
+   * tel quel. Son trajet (`travelMs`) est plus court que celui des autres.
+   */
+  bonus: { chance: 0.3, travelMs: 2500, multiplier: 3 },
   /** Fondu d'un fantôme manqué, une fois la cible dépassée (ms). */
   fadeMs: 400,
 } as const
