@@ -150,6 +150,28 @@ describe('notes bonus', () => {
     expect(retried.lastHit).toMatchObject({ judgement: 'great', index: 1, points: 1800 })
   })
 
+  it('ne se retente qu’une fois : la deuxième mauvaise touche la juge, sans rien coûter', () => {
+    const played = bossReducer(withBonus(), { type: 'press', pc: 9, at: 5000 })
+    const once = bossReducer(played, { type: 'press', pc: 2, at: 7000 })
+    const twice = bossReducer(once, { type: 'press', pc: 5, at: 7050 })
+    expect(twice).toMatchObject({ cursor: 2, life: played.life, combo: 1, score: 1000 })
+    expect(twice.lastHit).toMatchObject({ judgement: 'wrong', guess: 5, points: 0, index: 1 })
+    // La bonne touche, trop tard, ne la rattrape plus : elle vise la note suivante.
+    expect(bossReducer(twice, { type: 'press', pc: 0, at: 7100 }).hits).toBe(twice.hits)
+  })
+
+  it('ne se gagne pas en balayant le clavier', () => {
+    const played = bossReducer(withBonus(), { type: 'press', pc: 9, at: 5000 })
+    // Toutes les touches, de 60 en 60 ms dès l'ouverture de la fenêtre, la bonne en dernier.
+    const keys = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0] as PitchClass[]
+    const rolled = keys.reduce(
+      (s, pc, i) => bossReducer(s, { type: 'press', pc, at: 6700 + i * 60 }),
+      played,
+    )
+    expect(rolled.hits[1]).toMatchObject({ judgement: 'wrong', points: 0 })
+    expect(rolled.score).toBe(1000)
+  })
+
   it('se juge plus large que les autres : plus rapide, elle tolère plus d’avance et de retard', () => {
     const played = bossReducer(withBonus(), { type: 'press', pc: 9, at: 5000 })
     const { earlyMs, lateMs } = BOSS_RULES.bonus
@@ -219,11 +241,27 @@ describe('jugement', () => {
     const s = bossReducer(started(), { type: 'press', pc: 2, at: 5010 })
     expect(s).toMatchObject({ cursor: 1, combo: 0, score: 0, life: life.start - life.wrong })
     expect(s.lastHit).toMatchObject({ judgement: 'wrong', guess: 2, index: 0 })
-    // La bonne touche, juste après, ne rattrape rien : elle vise la note suivante, tout juste partie.
-    expect(bossReducer(s, { type: 'press', pc: 9, at: 5050 })).toMatchObject({
+    // La bonne touche, juste après, ne rattrape rien, et ne dit rien de la note
+    // suivante, tout juste partie : la frappe visait encore la précédente.
+    expect(bossReducer(s, { type: 'press', pc: 9, at: 5050 })).toBe(s)
+  })
+
+  it('dit « trop tard » d’une frappe qui vise une note déjà manquée, et non « trop tôt »', () => {
+    const missed = bossReducer(started(), { type: 'tick', at: 5000 + windows.lateMs + 1 })
+    const late = bossReducer(missed, { type: 'press', pc: 9, at: 5000 + windows.lateMs + 20 })
+    expect(late).toEqual({
+      ...missed,
+      lastIgnored: { at: 5000 + windows.lateMs + 20, index: 0, reason: 'late' },
+    })
+    // Le raté se juge aussi dans la foulée de la frappe, sans tick préalable.
+    expect(bossReducer(started(), { type: 'press', pc: 9, at: 5300 })).toMatchObject({
       cursor: 1,
-      hits: s.hits,
-      lastIgnored: { reason: 'early', index: 1 },
+      lastIgnored: { index: 0, reason: 'late' },
+    })
+    // Plus proche de la fenêtre suivante que de la précédente : trop tôt pour la note à jouer.
+    const opensAt = 9000 - windows.earlyMs
+    expect(bossReducer(missed, { type: 'press', pc: 0, at: opensAt - 100 })).toMatchObject({
+      lastIgnored: { index: 1, reason: 'early' },
     })
   })
 
@@ -489,6 +527,13 @@ describe('trajet des fantômes', () => {
     expect(ghostProgress(note, 5000)).toBe(1)
     expect(ghostProgress(note, 5400)).toBeCloseTo(1.1, 6)
     expect(ghostProgress(note, 500)).toBeLessThan(0)
+  })
+
+  it('dépasse la cible à l’allure demandée, sans saut', () => {
+    const note = { launchAt: 1000, hitAt: 5000 }
+    expect(ghostProgress(note, 3000, 8000)).toBe(0.5)
+    expect(ghostProgress(note, 5000, 8000)).toBe(1)
+    expect(ghostProgress(note, 5400, 8000)).toBeCloseTo(1.05, 6)
   })
 
   it('se place sur le segment départ → cible, et dans son prolongement', () => {

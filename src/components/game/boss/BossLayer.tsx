@@ -19,14 +19,19 @@ import type { BoardProjection } from '@/game/fretboard/projection'
 const LINGER_MS = 900
 /** Durée de l'étiquette de jugement (ms). */
 const LABEL_MS = 700
-/** Durée du rappel d'une frappe sans effet (« Trop tôt », « Erreur » sur une note bonus) (ms). */
+/** Durée du rappel d'une frappe sans effet (« Trop tôt », « Trop tard », « Erreur » sur une note bonus) (ms). */
 const HINT_MS = 600
 
 /** Frappe sans jugement : sa raison, et le temps écoulé depuis (ms). */
-type Hint = { reason: 'early' | 'wrong'; since: number }
-const HINT_LABEL: Record<Hint['reason'], string> = { early: 'Trop tôt', wrong: 'Erreur' }
+type Hint = { reason: NonNullable<BossState['lastIgnored']>['reason']; since: number }
+const HINT_LABEL: Record<Hint['reason'], string> = {
+  early: 'Trop tôt',
+  late: 'Trop tard',
+  wrong: 'Erreur',
+}
 const HINT_COLOR: Record<Hint['reason'], string> = {
   early: 'var(--muted-foreground)',
+  late: 'var(--muted-foreground)',
   wrong: 'var(--feedback-error)',
 }
 /** Apparition de la cible et de son couloir (ms). */
@@ -148,8 +153,9 @@ export function BossLayer({ state, layout, projection }: BossLayerProps): ReactN
           rank={rank}
           // Depuis le dernier jugement, chaque anneau en vol monte d'un cran.
           sinceAdvance={state.lastHit ? now - state.lastHit.at : Number.POSITIVE_INFINITY}
+          // « Trop tard » vise une note déjà manquée ; les autres, une note encore à jouer.
           hint={
-            note.id === hintFor && ignored && hit === null
+            note.id === hintFor && ignored && (hit === null) === (ignored.reason !== 'late')
               ? { reason: ignored.reason, since: now - ignored.at }
               : null
           }
@@ -209,10 +215,12 @@ function BossNoteView({
   const tint = bonus ? BONUS_COLOR : 'var(--boss-ghost)'
 
   // Le fantôme : consommé par une frappe ; manqué, il poursuit sa course au-delà
-  // de la cible en s'effaçant.
+  // de la cible en s'effaçant. Passé sa cible, il file à l'allure d'une note
+  // ordinaire : une note bonus, plus rapide, reste ainsi près de son anneau tant
+  // que sa fenêtre, plus longue, est ouverte.
   const ghostOpacity =
     hit === null ? 1 : hit.judgement === 'miss' ? clamp01(1 - since / BOSS_RULES.fadeMs) : 0
-  const ghostPx = lerpPoint(launchPx, targetPx, ghostProgress(note, now))
+  const ghostPx = lerpPoint(launchPx, targetPx, ghostProgress(note, now, BOSS_RULES.travelMs))
 
   // En attente de leur tour, fantôme et couloir des notes suivantes restent en retrait.
   const presence =

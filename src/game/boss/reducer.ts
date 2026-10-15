@@ -53,10 +53,10 @@ export function nextMissAt(state: BossState, rules: BossRules = BOSS_RULES): num
 /**
  * Moteur du boss : réducteur pur, piloté par l'horloge (`tick`) et les frappes
  * (`press`), à instants injectés. Une note se juge une seule fois : la première
- * frappe dans sa fenêtre décide (une mauvaise touche est une erreur, sauf sur
- * une note bonus, qui se retente), une frappe trop tôt ne compte pas, et une
- * fenêtre close sans frappe vaut un raté. Une frappe sans effet est notée
- * (`lastIgnored`) pour en montrer la raison. Les
+ * frappe dans sa fenêtre décide (une mauvaise touche est une erreur, sauf la
+ * première sur une note bonus, qui se retente une fois), une frappe avant la
+ * fenêtre ne compte pas, et une fenêtre close sans frappe vaut un raté. Une
+ * frappe sans effet est notée (`lastIgnored`) pour en montrer la raison. Les
  * notes se jouent dans l'ordre d'arrivée : une frappe vise toujours la première
  * note pas encore jugée, même si les suivantes sont déjà en vol. Seules les
  * réussites blessent le boss : il tombe à la `bossLife`-ième, et les échecs
@@ -91,19 +91,55 @@ export function bossReducer(
       const note = swept.notes[swept.cursor]
       if (!note) return swept
       const deltaMs = action.at - note.hitAt
-      // Trop tôt : la frappe ne compte pas (un retour le signale sur la note).
-      if (deltaMs < -windowOf(note, rules).earlyMs) return ignore(swept, action.at, 'early')
-      // Note bonus : une mauvaise touche ne la consomme pas, on peut retenter.
-      if (note.bonus && action.pc !== note.pc) return ignore(swept, action.at, 'wrong')
+      // Avant la fenêtre, la frappe ne compte pas, et un retour en dit la raison.
+      if (deltaMs < -windowOf(note, rules).earlyMs) return tooSoon(swept, action.at, rules)
+      // Note bonus : une première mauvaise touche ne la consomme pas, on peut
+      // retenter une fois ; la deuxième la juge (sans rien coûter).
+      if (note.bonus && action.pc !== note.pc && !retried(swept)) {
+        return ignore(swept, action.at, swept.cursor, 'wrong')
+      }
       const judgement = action.pc === note.pc ? gradeHit(deltaMs, rules) : 'wrong'
       return resolve(swept, { judgement, at: action.at, deltaMs, guess: action.pc }, rules)
     }
   }
 }
 
-/** Frappe sans effet sur le jugement de la note à jouer : seul son retour est noté. */
-function ignore(state: BossState, at: number, reason: 'early' | 'wrong'): BossState {
-  return { ...state, lastIgnored: { at, index: state.cursor, reason } }
+/** Frappe sans effet sur le jugement : seul son retour, sur la note `index`, est noté. */
+function ignore(
+  state: BossState,
+  at: number,
+  index: number,
+  reason: NonNullable<BossState['lastIgnored']>['reason'],
+): BossState {
+  return { ...state, lastIgnored: { at, index, reason } }
+}
+
+/** La note à jouer a déjà essuyé une mauvaise touche (note bonus, qui se retente une fois). */
+function retried(state: BossState): boolean {
+  return state.lastIgnored?.reason === 'wrong' && state.lastIgnored.index === state.cursor
+}
+
+/**
+ * Frappe avant la fenêtre de la note à jouer. Plus proche de la fin de la
+ * fenêtre d'avant que du début de celle-ci, elle visait la note précédente, déjà
+ * jugée : trop tard si celle-ci a filé (le raté l'annonce, la frappe le
+ * précise), sans retour sinon (déjà frappée, la note n'a rien à en dire). Elle
+ * n'est trop tôt qu'en visant bien la note à jouer.
+ */
+function tooSoon(state: BossState, at: number, rules: BossRules): BossState {
+  const previous = state.cursor - 1
+  const before = state.notes[previous]
+  const note = state.notes[state.cursor]
+  if (before) {
+    const closedAt = before.hitAt + windowOf(before, rules).lateMs
+    const opensAt = note.hitAt - windowOf(note, rules).earlyMs
+    if (at - closedAt < opensAt - at) {
+      return state.hits[previous]?.judgement === 'miss'
+        ? ignore(state, at, previous, 'late')
+        : state
+    }
+  }
+  return ignore(state, at, state.cursor, 'early')
 }
 
 /** Juge « raté » chaque note dont la fenêtre s'est close avant `at`. */

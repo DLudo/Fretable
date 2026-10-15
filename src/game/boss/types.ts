@@ -62,9 +62,10 @@ export interface BossState {
   lastHit: (BossHit & { index: number }) | null
   /**
    * Dernière frappe restée sans jugement, pour un retour sur la note visée :
-   * trop tôt (avant sa fenêtre), ou fausse sur une note bonus, qui se retente.
+   * trop tôt (avant sa fenêtre), trop tard (la note, manquée, a déjà filé), ou
+   * première mauvaise touche sur une note bonus, qui se retente une fois.
    */
-  lastIgnored: { at: number; index: number; reason: 'early' | 'wrong' } | null
+  lastIgnored: { at: number; index: number; reason: 'early' | 'late' | 'wrong' } | null
 }
 
 export type BossAction =

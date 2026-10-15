@@ -108,8 +108,8 @@ function ReadyPanel({ onStart }: { onStart: () => void }) {
           : touche-le {BOSS_RULES.bossLife} fois pour le vaincre. Une note manquée ne l'entame pas
           et te coûte de la vie, une erreur davantage ; le combat dure tant qu'il tient debout. Des
           notes bonus, jaunes et plus rapides, s'intercalent parfois : frappées, elles valent le
-          triple de points, sans blesser le boss ni rendre de vie ; manquées ou fausses, elles ne
-          coûtent rien.
+          triple de points, sans blesser le boss ni rendre de vie ; une fausse touche s'y rattrape
+          une fois, et manquées ou fausses, elles ne coûtent rien.
         </p>
         <p className="pointer-coarse:hidden short:hidden">Pas de piano ici : joue au clavier.</p>
         <p className="hidden pointer-coarse:block">
