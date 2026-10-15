@@ -239,7 +239,8 @@ export const BOSS_RULES = {
    * une seconde à peine après la note précédente, et l'on doit encore lire sa
    * position. Une première mauvaise touche ne la consomme pas : on peut
    * retenter une fois tant que sa fenêtre est ouverte ; la deuxième la juge
-   * fausse, sans rien coûter, si bien que balayer le clavier ne rapporte rien.
+   * fausse, sans rien coûter, si bien que balayer le clavier ne garantit plus le
+   * triple : seules les deux premières touches comptent.
    */
   bonus: { chance: 0.3, travelMs: 2500, multiplier: 3, earlyMs: 350, lateMs: 600 },
   /**

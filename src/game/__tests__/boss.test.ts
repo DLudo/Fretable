@@ -195,23 +195,35 @@ describe('notes bonus', () => {
     })
   })
 
-  it('laisse la touche dire la note visée : celle d’après, trop tôt, plutôt que le bonus', () => {
+  it('laisse la touche dire la note visée, à rebours de la fenêtre la plus proche', () => {
     const played = bossReducer(withBonus(), { type: 'press', pc: 9, at: 5000 })
     const hit = bossReducer(played, { type: 'press', pc: 0, at: 7000 })
-    // Bonus frappé : la touche de la note suivante, 500 ms trop tôt, se dit trop tôt.
-    expect(bossReducer(hit, { type: 'press', pc: 4, at: 8500 })).toMatchObject({
+    // Juste après la fenêtre du bonus (close à 7600), la touche de la note
+    // suivante vise celle-ci : trop tôt, que le bonus ait été frappé ou manqué.
+    expect(bossReducer(hit, { type: 'press', pc: 4, at: 7700 })).toMatchObject({
       cursor: 2,
-      lastIgnored: { at: 8500, index: 2, reason: 'early' },
+      lastIgnored: { at: 7700, index: 2, reason: 'early' },
     })
-    // Bonus manqué : la touche de la note suivante vise celle-ci, et non le bonus.
-    expect(bossReducer(played, { type: 'press', pc: 4, at: 8680 })).toMatchObject({
+    expect(bossReducer(played, { type: 'press', pc: 4, at: 7700 })).toMatchObject({
       cursor: 2,
       lastIgnored: { index: 2, reason: 'early' },
     })
-    // Une autre touche, juste après la fenêtre du bonus, le visait : trop tard.
-    expect(bossReducer(played, { type: 'press', pc: 2, at: 7650 })).toMatchObject({
+    // Une autre touche, au même instant, visait le bonus manqué : trop tard.
+    expect(bossReducer(played, { type: 'press', pc: 2, at: 7700 })).toMatchObject({
       cursor: 2,
       lastIgnored: { index: 1, reason: 'late' },
+    })
+    // Plus près de la fenêtre suivante (qui s'ouvre à 8820), la touche du bonus
+    // le vise encore : trop tard, et non trop tôt sur la note d'après.
+    expect(bossReducer(played, { type: 'press', pc: 0, at: 8700 })).toMatchObject({
+      cursor: 2,
+      lastIgnored: { index: 1, reason: 'late' },
+    })
+    // Note manquée juste avant le bonus : sa touche, tardive, ne se dit pas trop tôt sur le bonus.
+    const missed = bossReducer(withBonus(), { type: 'tick', at: 5000 + windows.lateMs + 1 })
+    expect(bossReducer(missed, { type: 'press', pc: 9, at: 6000 })).toMatchObject({
+      cursor: 1,
+      lastIgnored: { index: 0, reason: 'late' },
     })
   })
 

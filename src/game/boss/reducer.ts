@@ -122,11 +122,12 @@ function retried(state: BossState): boolean {
 }
 
 /**
- * Frappe avant la fenêtre de la note à jouer. Avec sa touche, elle la visait :
- * trop tôt. Sinon, plus proche de la fin de la fenêtre d'avant que du début de
- * celle-ci, elle visait la note précédente, déjà jugée : trop tard si celle-ci a
- * filé (le raté l'annonce, la frappe le précise), sans retour sinon (déjà
- * frappée, la note n'a rien à en dire). La partition évite de donner la même
+ * Frappe avant la fenêtre de la note à jouer. La touche dit d'abord la note
+ * visée : celle de la note à jouer, trop tôt ; celle de la note précédente, déjà
+ * jugée, trop tard. Une autre touche vise la plus proche des deux fenêtres (la
+ * fin de celle d'avant, ou le début de celle-ci). Visée, la note précédente
+ * n'en dit rien si elle a été frappée, et « trop tard » si elle a filé (le raté
+ * l'annonce, la frappe le précise). La partition évite de donner la même
  * touche à deux notes voisines (`createBossChart`).
  */
 function tooSoon(state: BossState, at: number, pc: PitchClass, rules: BossRules): BossState {
@@ -136,7 +137,7 @@ function tooSoon(state: BossState, at: number, pc: PitchClass, rules: BossRules)
   if (before && pc !== note.pc) {
     const closedAt = before.hitAt + windowOf(before, rules).lateMs
     const opensAt = note.hitAt - windowOf(note, rules).earlyMs
-    if (at - closedAt < opensAt - at) {
+    if (pc === before.pc || at - closedAt < opensAt - at) {
       return state.hits[previous]?.judgement === 'miss'
         ? ignore(state, at, previous, 'late')
         : state
