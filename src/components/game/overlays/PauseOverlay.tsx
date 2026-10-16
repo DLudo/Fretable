@@ -1,9 +1,10 @@
-import { type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { AnimatePresence, useReducedMotion } from 'motion/react'
 import { Play } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
+import { usePortraitBlocked } from '@/components/game/orientation'
 import { cn } from '@/lib/utils'
 import { Panel, PresenceLayer } from './panel'
 import { blurThen, ENTER, LEAVE } from './transitions'
@@ -22,6 +23,17 @@ export interface PauseOverlayProps {
  */
 export function PauseOverlay({ open, onResume, className }: PauseOverlayProps): ReactNode {
   const reduceMotion = useReducedMotion()
+  // « Reprendre » prend le focus dès que le panneau devient accessible : à son
+  // ouverture, ou au retour en paysage (inerte en portrait, il n'a pu le prendre).
+  const blocked = usePortraitBlocked()
+  const resumeRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!open || blocked) return
+    // Une image plus tard : le contenu, rendu inerte en portrait, doit d'abord
+    // redevenir interactif.
+    const frame = requestAnimationFrame(() => resumeRef.current?.focus())
+    return () => cancelAnimationFrame(frame)
+  }, [open, blocked])
   return (
     <AnimatePresence>
       {open && (
@@ -47,7 +59,7 @@ export function PauseOverlay({ open, onResume, className }: PauseOverlayProps): 
               description="Le temps s’est arrêté avec toi : la partie reprend là où tu l’as laissée."
               actions={
                 <>
-                  <Button size="lg" className="w-full" autoFocus onClick={blurThen(onResume)}>
+                  <Button ref={resumeRef} size="lg" className="w-full" onClick={blurThen(onResume)}>
                     <Play />
                     Reprendre
                   </Button>

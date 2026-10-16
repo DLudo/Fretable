@@ -83,7 +83,10 @@ export interface TriadPlan extends TriadVoicing {
 
 /** Triade annoncée (pause « Trouve Fa majeur »), depuis `at` (`performance.now()`). */
 export interface TriadIntro extends TriadPlan {
+  /** Début de l'annonce : recule d'autant à la reprise d'une partie suspendue. */
   at: number
+  /** Identité de l'annonce (son instant d'origine), stable d'une suspension à l'autre. */
+  id: number
 }
 
 /** Triade en cours : ses trois notes sont demandées l'une après l'autre. */

@@ -169,11 +169,15 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
 
   // Mêmes retours qu'en mode classique : impact du manche et révélation de la note.
   const { ref: boardRef, impact } = useBoardImpact()
+  // Un impact par jugement : une reprise, qui décale les notes, n'en rejoue aucun.
   const lastHit = state.lastHit
   const { notes, combo } = state
+  const impactOf = useEffectEvent((hit: NonNullable<BossState['lastHit']>) => {
+    if (!isSilent(hit, notes)) impact(isSuccess(hit.judgement))
+  })
   useEffect(() => {
-    if (lastHit && !isSilent(lastHit, notes)) impact(isSuccess(lastHit.judgement))
-  }, [lastHit, notes, impact])
+    if (lastHit) impactOf(lastHit)
+  }, [lastHit])
   // Dernier jugement, série et notes changent ensemble : une révélation par jugement.
   // Une note bonus qui passe sans révélation laisse la précédente en place (un
   // résultat nul effacerait toutes les révélations en cours).
@@ -212,13 +216,15 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
   const auraConfig = auraTier === 'fire' ? COMBO_FIRE_AURA : COMBO_AURA
 
   const [comboAnnouncement, setComboAnnouncement] = useState('')
+  // Suspendu, le combat n'annonce rien : le palier se dira après la reprise.
   useEffect(() => {
+    if (suspended) return
     const timer = window.setTimeout(
       () => setComboAnnouncement(tier ? COMBO_ANNOUNCEMENT[tier] : ''),
       tier ? COMBO_ANNOUNCE_DELAY_MS : 0,
     )
     return () => window.clearTimeout(timer)
-  }, [tier])
+  }, [tier, suspended])
 
   const overlay = useCallback(
     (projection: BoardProjection) => (

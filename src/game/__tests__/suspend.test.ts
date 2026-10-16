@@ -72,7 +72,7 @@ describe('suspension d’une partie', () => {
     expect(announced.triadIntro).not.toBeNull()
     const resumed = pause(announced, 2500, 5000)
     // L'annonce repart d'où elle s'était arrêtée ; la pause du jeu, elle, compte la suspension.
-    expect(resumed.triadIntro?.at).toBe(7000)
+    expect(resumed.triadIntro).toMatchObject({ at: 7000, id: 2000 })
     expect(resumed.pausedAt).toBe(2000)
     expect(resumed.pausedMs).toBe(announced.pausedMs)
   })

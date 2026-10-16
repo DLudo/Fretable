@@ -247,7 +247,7 @@ export function GameScreen({ modeSwitch, className }: GameScreenProps) {
           <ScaleBanner outcome={playing ? state.lastScaleRun : null} />
         </div>
         {/* Annonce d'une triade : la partie est en pause le temps qu'elle passe. */}
-        <TriadIntro intro={playing ? state.triadIntro : null} />
+        <TriadIntro intro={playing ? state.triadIntro : null} suspended={suspended} />
         <LevelOverlay
           state={state}
           visible={overlayVisible}

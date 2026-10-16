@@ -85,18 +85,25 @@ export function bossReducer(
     return state
   }
   switch (action.type) {
-    case 'suspend':
-      return state.phase === 'playing' ? { ...state, suspendedAt: action.at } : state
+    case 'suspend': {
+      if (state.phase !== 'playing') return state
+      // Les fenêtres déjà closes se jugent d'abord : la suspension n'en rouvre aucune.
+      const swept = sweep(state, action.at, rules)
+      return swept.phase === 'playing' ? { ...swept, suspendedAt: action.at } : swept
+    }
 
     case 'resume': {
       if (state.suspendedAt === null) return state
       // Les notes encore à juger partent d'autant plus tard : la partition
-      // reprend là où elle s'était figée.
-      const suspendedFor = Math.max(0, action.at - state.suspendedAt)
+      // reprend là où elle s'était figée, en reculant au besoin pour que la note
+      // à jouer laisse au joueur le temps de revenir (`resumeLeadMs`).
+      const next = state.notes[state.cursor]
+      const lead = next ? Math.max(0, rules.resumeLeadMs - (next.hitAt - state.suspendedAt)) : 0
+      const shift = Math.max(0, action.at - state.suspendedAt) + lead
       const notes = state.notes.map((note, index) =>
         index < state.cursor
           ? note
-          : { ...note, launchAt: note.launchAt + suspendedFor, hitAt: note.hitAt + suspendedFor },
+          : { ...note, launchAt: note.launchAt + shift, hitAt: note.hitAt + shift },
       )
       return { ...state, notes, suspendedAt: null }
     }

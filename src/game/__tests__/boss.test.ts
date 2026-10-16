@@ -686,4 +686,23 @@ describe('suspension du combat', () => {
     })
     expect(nextMissAt(resumed)).toBe(19_000 + windows.lateMs)
   })
+
+  it('rend de l’élan : une note figée juste avant sa cible recule le temps de revenir', () => {
+    const played = bossReducer(started(), { type: 'press', pc: 9, at: 5000 })
+    // Suspendu 100 ms avant la cible de la note suivante (9 000 ms).
+    const resumed = bossReducer(bossReducer(played, { type: 'suspend', at: 8900 }), {
+      type: 'resume',
+      at: 18_900,
+    })
+    expect(resumed.notes[1].hitAt).toBe(18_900 + BOSS_RULES.resumeLeadMs)
+    // Toute la partition à venir recule d'autant : les écarts entre notes restent.
+    expect(resumed.notes[2].hitAt - resumed.notes[1].hitAt).toBe(4000)
+  })
+
+  it('juge d’abord les fenêtres déjà closes : la suspension n’en rouvre aucune', () => {
+    const played = bossReducer(started(), { type: 'press', pc: 9, at: 5000 })
+    const suspended = bossReducer(played, { type: 'suspend', at: 9000 + windows.lateMs + 50 })
+    expect(suspended.hits[1]).toMatchObject({ judgement: 'miss' })
+    expect(suspended).toMatchObject({ cursor: 2, suspendedAt: 9000 + windows.lateMs + 50 })
+  })
 })

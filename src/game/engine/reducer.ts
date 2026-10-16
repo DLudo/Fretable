@@ -260,7 +260,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const live = isComboLive(state.combo, action.now)
       return {
         ...state,
-        triadIntro: { ...action.triad, at: action.now },
+        triadIntro: { ...action.triad, at: action.now, id: action.now },
         pausedAt: action.now,
         combo: live ? state.combo : null,
         fastStreak: live || state.combo === null ? state.fastStreak : 0,

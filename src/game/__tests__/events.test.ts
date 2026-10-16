@@ -40,6 +40,7 @@ describe('ordre des événements', () => {
     let emitted: GameEventSnapshot = EMPTY_EVENT_SNAPSHOT
     const flush = () => {
       const snapshot = {
+        suspended: state.suspendedAt !== null,
         phase: state.phase,
         challenge: state.challenge,
         lastResult: state.lastResult,
@@ -197,6 +198,37 @@ describe('ordre des événements', () => {
       },
     ])
     expect(log.slice(4)).toEqual(['triadIntro:on', 'triadIntro:off', 'triad:0', 'challenge:2'])
+
+    // Suspendue en pleine annonce, puis reprise : l'annonce et le combo ne sont
+    // que décalés dans le temps, rien n'est rediffusé.
+    const paused = record([
+      { type: 'start', now: 0, challenge: challenge(1, 2) },
+      { type: 'guess', pc: 2, now: 1000 },
+      { type: 'announceTriad', now: 1400, triad: voicing },
+      { type: 'suspend', now: 1600 },
+      { type: 'resume', now: 9000 },
+      {
+        type: 'next',
+        challenge: { ...voicing.notes[0], id: 2, triad: true },
+        now: 10_100,
+        triad: voicing,
+      },
+    ])
+    expect(paused.slice(4)).toEqual(['triadIntro:on', 'triadIntro:off', 'triad:0', 'challenge:2'])
+  })
+
+  it('ne prend pas la reprise d’une partie suspendue pour une recharge du combo', () => {
+    const before: GameEventSnapshot = {
+      ...EMPTY_EVENT_SNAPSHOT,
+      suspended: true,
+      phase: 'playing',
+      combo: { startedAt: 500, endsAt: 4000 },
+    }
+    const after = { ...before, suspended: false, combo: { startedAt: 500, endsAt: 14_000 } }
+    expect(diffGameEvents(before, after)).toEqual([])
+    // Une vraie recharge, elle, se diffuse.
+    const recharged = { ...after, combo: { startedAt: 500, endsAt: 16_000 } }
+    expect(diffGameEvents(after, recharged)).toEqual([{ type: 'combo', payload: recharged.combo }])
   })
 
   it('ne rediffuse rien quand rien ne change', () => {

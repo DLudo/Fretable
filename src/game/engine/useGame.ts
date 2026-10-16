@@ -117,7 +117,7 @@ export function useGame(options: UseGameOptions = {}): GameController {
     if (phase !== 'playing' || !locked || !lastResult || suspended) return
     if (triadIntro) {
       // Annonce en cours : la triade s'ouvre sur sa fondamentale à son terme.
-      const { at, ...plan } = triadIntro
+      const { at, id: _id, ...plan } = triadIntro
       const timer = window.setTimeout(
         () =>
           dispatch({
@@ -234,6 +234,7 @@ export function useGame(options: UseGameOptions = {}): GameController {
   const { combo, lastTriad, lastScaleRun } = state
   useEffect(() => {
     const snapshot: GameEventSnapshot = {
+      suspended,
       phase,
       challenge,
       lastResult,
@@ -259,6 +260,7 @@ export function useGame(options: UseGameOptions = {}): GameController {
     lastTriad,
     scaleRun,
     lastScaleRun,
+    suspended,
     events,
   ])
 

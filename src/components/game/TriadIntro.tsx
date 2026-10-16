@@ -55,6 +55,8 @@ function makeSparks(seed: number): Spark[] {
 export interface TriadIntroProps {
   /** Triade annoncée (`GameState.triadIntro`), ou `null`. */
   intro: TriadIntroState | null
+  /** Partie suspendue : la carte attend la reprise pour s'en aller. */
+  suspended?: boolean
   className?: string
 }
 
@@ -66,22 +68,25 @@ export interface TriadIntroProps {
  * `TRIAD_RULES.introMs`, assez brève pour ne pas casser l'élan du joueur.
  * Un voile assombrit la scène et capte les clics le temps de l'annonce.
  */
-export function TriadIntro({ intro, className }: TriadIntroProps): ReactNode {
+export function TriadIntro({ intro, suspended = false, className }: TriadIntroProps): ReactNode {
   const reduceMotion = useReducedMotion()
+  // L'annonce se reconnaît à son identité : une reprise, qui recule `at`, ne la rejoue pas.
+  const id = intro?.id ?? null
   const at = intro?.at ?? null
-  const [leftAt, setLeftAt] = useState<number | null>(null)
+  const [leftId, setLeftId] = useState<number | null>(null)
 
   // La carte part un peu avant la fin de la pause : la note la remplace aussitôt.
+  // Partie suspendue, elle attend la reprise, qui recule son échéance.
   useEffect(() => {
-    if (at === null) return
+    if (id === null || at === null || suspended) return
     const delay = at + TRIAD_RULES.introMs - EXIT_MS - performance.now()
-    const timer = window.setTimeout(() => setLeftAt(at), Math.max(0, delay))
+    const timer = window.setTimeout(() => setLeftId(id), Math.max(0, delay))
     return () => window.clearTimeout(timer)
-  }, [at])
+  }, [id, at, suspended])
 
-  const sparks = useMemo(() => (at === null ? [] : makeSparks(at)), [at])
+  const sparks = useMemo(() => (id === null ? [] : makeSparks(id)), [id])
   const name = intro ? chordName(intro.root, intro.quality, NOTATION) : ''
-  const shown = intro !== null && leftAt !== intro.at
+  const shown = intro !== null && leftId !== intro.id
 
   return (
     <div
@@ -97,7 +102,7 @@ export function TriadIntro({ intro, className }: TriadIntroProps): ReactNode {
       <AnimatePresence>
         {shown && (
           <motion.div
-            key={intro.at}
+            key={intro.id}
             aria-hidden
             data-slot="triad-intro-scrim"
             className="pointer-events-auto absolute inset-0 grid place-items-center bg-background/60 backdrop-blur-[2px]"

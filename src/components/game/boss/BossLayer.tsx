@@ -102,7 +102,8 @@ export interface BossLayerProps {
   /**
    * Élément posé sous le manche (le piano, sur écran tactile) : les fantômes
    * partent toujours du bas de l'écran, à la même allure, mais restent cachés
-   * sous son bord haut, d'où ils semblent jaillir. Absent, rien ne les masque.
+   * derrière son boîtier (`piano-case`), du bord haut duquel ils semblent
+   * jaillir ; ceux qui montent à côté restent visibles. Absent, rien ne les masque.
    */
   floorRef?: RefObject<HTMLElement | null>
 }
@@ -137,15 +138,20 @@ export function BossLayer({ state, layout, projection, floorRef }: BossLayerProp
   const svgRef = useRef<SVGSVGElement>(null)
   const clipId = useId()
   const [bottom, setBottom] = useState(0)
-  const [floor, setFloor] = useState<number | null>(null)
+  const [floor, setFloor] = useState<{ x: number; y: number; width: number } | null>(null)
   useLayoutEffect(() => {
     const measure = () => {
       const svg = svgRef.current
       if (!svg) return
-      const top = svg.getBoundingClientRect().top
-      setBottom(window.innerHeight - top)
+      const origin = svg.getBoundingClientRect()
+      setBottom(window.innerHeight - origin.top)
       const ground = floorRef?.current
-      setFloor(ground ? ground.getBoundingClientRect().top - top : null)
+      const box = (
+        ground?.querySelector('[data-slot=piano-case]') ?? ground
+      )?.getBoundingClientRect()
+      setFloor(
+        box ? { x: box.left - origin.left, y: box.top - origin.top, width: box.width } : null,
+      )
     }
     measure()
     window.addEventListener('resize', measure)
@@ -179,12 +185,10 @@ export function BossLayer({ state, layout, projection, floorRef }: BossLayerProp
       {floor !== null && (
         <defs>
           <clipPath id={clipId}>
-            {/* Tout ce qui est au-dessus du sol, étiquettes comprises, sans limite. */}
-            <rect
-              x={-CLIP_REACH}
-              y={-CLIP_REACH}
-              width={CLIP_REACH * 2}
-              height={floor + CLIP_REACH}
+            {/* Tout l'écran, moins le boîtier du piano prolongé jusqu'en bas. */}
+            <path
+              clipRule="evenodd"
+              d={`M ${-CLIP_REACH} ${-CLIP_REACH} H ${CLIP_REACH} V ${CLIP_REACH} H ${-CLIP_REACH} Z M ${floor.x} ${floor.y} h ${floor.width} V ${CLIP_REACH} H ${floor.x} Z`}
             />
           </clipPath>
         </defs>

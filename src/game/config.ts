@@ -255,6 +255,12 @@ export const BOSS_RULES = {
   rating: { parts: 3, threeStarsAbove: 2, twoStarsFrom: 1 },
   /** Fondu d'un fantôme manqué, une fois la cible dépassée (ms). */
   fadeMs: 400,
+  /**
+   * Élan rendu à la reprise d'un combat suspendu (ms) : la note à jouer
+   * n'atteint pas sa cible moins de ce délai après « Reprendre », le temps de
+   * revenir au piano ; la partition recule d'autant si besoin.
+   */
+  resumeLeadMs: 1500,
 } as const
 
 /**

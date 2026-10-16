@@ -23,7 +23,8 @@ export interface GameEventMap {
    * Combo déclenché, rechargé (nouvel `endsAt`) ou éteint (`null`). La reprise
    * après une pause (annonce de triade, parcours de gamme) recule aussi `endsAt`,
    * de la durée de la pause, sans être une recharge : pour l'en distinguer,
-   * regarder si l'état précédent était en pause (`pausedAt`).
+   * regarder si l'état précédent était en pause (`pausedAt`). La reprise d'une
+   * partie suspendue, elle, n'est pas diffusée.
    */
   combo: ComboState | null
   /** Coup de pouce offert, entamé (`remaining` décroît) ou terminé (`null`). */
@@ -69,6 +70,8 @@ export type GameEvent = {
 
 /** Ce que le bus a déjà diffusé (ou doit diffuser) de l'état du jeu. */
 export interface GameEventSnapshot {
+  /** Partie suspendue (`GameState.suspendedAt`) : sa reprise ne fait que décaler le temps. */
+  suspended?: boolean
   phase: GamePhase | null
   challenge: Challenge | null
   lastResult: GuessResult | null
@@ -106,9 +109,12 @@ export function diffGameEvents(prev: GameEventSnapshot, next: GameEventSnapshot)
   const list: GameEvent[] = []
   if (next.lastResult && next.lastResult !== prev.lastResult)
     list.push({ type: 'guess', payload: next.lastResult })
-  if (next.combo !== prev.combo) list.push({ type: 'combo', payload: next.combo })
+  // Une reprise ne fait que décaler le temps : même combo, même annonce, rien à diffuser.
+  const resumed = prev.suspended === true && next.suspended !== true
+  const sameCombo = resumed && next.combo?.startedAt === prev.combo?.startedAt
+  if (next.combo !== prev.combo && !sameCombo) list.push({ type: 'combo', payload: next.combo })
   if (next.assist !== prev.assist) list.push({ type: 'assist', payload: next.assist })
-  if (next.triadIntro !== prev.triadIntro)
+  if ((next.triadIntro?.id ?? null) !== (prev.triadIntro?.id ?? null))
     list.push({ type: 'triadIntro', payload: next.triadIntro })
   if (next.triad !== prev.triad) list.push({ type: 'triad', payload: next.triad })
   if (next.lastTriad && next.lastTriad !== prev.lastTriad)
