@@ -113,9 +113,9 @@ function ReadyPanel({ onStart }: { onStart: () => void }) {
         </p>
         <p className="pointer-coarse:hidden short:hidden">Pas de piano ici : joue au clavier.</p>
         <p className="hidden pointer-coarse:block">
-          Le boss se joue au clavier : pas de piano tactile dans ce mode.
+          Touche le piano quand chaque fantôme atteint sa cible.
         </p>
-        <KeyboardMap onTouch />
+        <KeyboardMap />
         <CoinBalance className="mt-1" />
       </div>
     </Panel>

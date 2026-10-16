@@ -3,6 +3,7 @@ import { Suspense, lazy, useState } from 'react'
 import { BossScreen } from '@/components/game/boss'
 import { GameScreen } from '@/components/game/GameScreen'
 import { ModeSwitch } from '@/components/game/ModeSwitch'
+import { RotateGuard } from '@/components/game/orientation'
 
 const EffectsLab = lazy(() => import('@/lab/EffectsLab'))
 
@@ -35,5 +36,10 @@ export default function App() {
       }}
     />
   )
-  return boss ? <BossScreen modeSwitch={modeSwitch} /> : <GameScreen modeSwitch={modeSwitch} />
+  // Le jeu se joue à l'horizontale : en portrait, il invite à tourner l'appareil.
+  return (
+    <RotateGuard>
+      {boss ? <BossScreen modeSwitch={modeSwitch} /> : <GameScreen modeSwitch={modeSwitch} />}
+    </RotateGuard>
+  )
 }

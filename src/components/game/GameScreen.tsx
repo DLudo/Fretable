@@ -12,11 +12,13 @@ import { createNeckLayout } from '@/game/fretboard/geometry'
 import type { BoardProjection } from '@/game/fretboard/projection'
 import { useKeyboardControls } from '@/game/input/useKeyboardControls'
 import type { PitchClass } from '@/game/music/notes'
+import { requestLandscape } from '@/lib/landscape'
 import { cn } from '@/lib/utils'
 import { AssistBanner } from './AssistBanner'
 import { Fretboard, type FretboardGhost } from './fretboard'
 import { LevelHud } from './hud'
-import { LevelOverlay } from './overlays'
+import { useAutoSuspend, usePortraitBlocked } from './orientation'
+import { LevelOverlay, PauseOverlay } from './overlays'
 import { Piano, type PianoFeedback } from './piano'
 import { StartCountdown } from './StartCountdown'
 import { ScaleBanner } from './ScaleBanner'
@@ -68,12 +70,31 @@ export function GameScreen({ modeSwitch, className }: GameScreenProps) {
     { score: state.score, stars: state.phase === 'won' ? rateGame(state).stars : 0 },
   )
 
+  // Partie suspendue (écran en portrait, page quittée) : tout attend la reprise.
+  const suspended = state.suspendedAt !== null
+  const blocked = usePortraitBlocked()
+  const live = state.phase === 'starting' || state.phase === 'playing'
+  useAutoSuspend(live && !suspended, game.suspend)
+
+  // Lancer ou reprendre, d'un geste du joueur : sur écran tactile, le jeu passe
+  // en plein écran, verrouillé en paysage quand l'appareil le permet.
+  const startGame = () => {
+    void requestLandscape()
+    game.start()
+  }
+  const resumeGame = () => {
+    void requestLandscape()
+    game.resume()
+  }
+
   const confirm = () => {
+    if (blocked) return
+    if (suspended) return resumeGame()
     if (!overlayVisible) return
-    if (state.phase === 'ready' || state.phase === 'lost') game.start()
+    if (state.phase === 'ready' || state.phase === 'lost') startGame()
     else if (state.phase === 'won') {
       if (game.hasNextLevel) game.nextLevel()
-      else game.start()
+      else startGame()
     }
   }
 
@@ -99,8 +120,9 @@ export function GameScreen({ modeSwitch, className }: GameScreenProps) {
 
   // Anneau de la note de triade en cours : il pilote l'anneau du manche et la pastille « ×2 ».
   const ringRunning = useTriadRing(state)
+  // En pause, la note à deviner se cache : pas question de la chercher à loisir.
   const marker =
-    playing && !state.locked && state.challenge
+    playing && !suspended && !state.locked && state.challenge
       ? {
           id: state.challenge.id,
           stringIndex: state.challenge.stringIndex,
@@ -205,14 +227,14 @@ export function GameScreen({ modeSwitch, className }: GameScreenProps) {
           <StartCountdown state={state} />
         </div>
         {/* Hors partie, le piano sort du parcours clavier et de l'arbre d'accessibilité. */}
-        <div ref={pianoRef} data-slot="game-piano" className="w-full" inert={!playing}>
+        <div ref={pianoRef} data-slot="game-piano" className="w-full" inert={!playing || suspended}>
           <Piano
             onPress={game.guess}
             pressed={pressed}
             sharpMode={sharpMode}
             feedback={feedback}
             nudge={nudge}
-            disabled={!playing}
+            disabled={!playing || suspended}
           />
         </div>
         {/* Annonces empilées au-dessus du manche : deux peuvent se croiser sans se masquer. */}
@@ -231,9 +253,10 @@ export function GameScreen({ modeSwitch, className }: GameScreenProps) {
           visible={overlayVisible}
           coins={coins}
           hasNextLevel={game.hasNextLevel}
-          onStart={game.start}
+          onStart={startGame}
           onNextLevel={game.nextLevel}
         />
+        <PauseOverlay open={suspended} onResume={resumeGame} />
       </main>
     </div>
   )

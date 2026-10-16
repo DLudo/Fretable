@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useEffectEvent, useMemo, useState, type ReactNode } from 'react'
 
 import { Fretboard } from '@/components/game/fretboard'
+import { useAutoSuspend, usePortraitBlocked } from '@/components/game/orientation'
+import { PauseOverlay } from '@/components/game/overlays'
+import { Piano, type PianoFeedback } from '@/components/game/piano'
 import { useBoardFit } from '@/components/game/useBoardFit'
 import { useBoardImpact } from '@/components/game/useBoardImpact'
 import { RevealLayer } from '@/effects'
@@ -22,6 +25,8 @@ import { createNeckLayout } from '@/game/fretboard/geometry'
 import type { BoardProjection } from '@/game/fretboard/projection'
 import { useKeyboardControls } from '@/game/input/useKeyboardControls'
 import { stringNumber } from '@/game/music/tuning'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
+import { COARSE_POINTER_QUERY, requestLandscape } from '@/lib/landscape'
 import { cn } from '@/lib/utils'
 import { BossHud } from './BossHud'
 import { BossLayer } from './BossLayer'
@@ -97,16 +102,24 @@ export interface BossScreenProps {
 }
 
 /**
- * Écran du boss final : HUD avec barre de vie, et le manche seul, sans piano :
- * le combat se joue au clavier, pour laisser toute la hauteur aux fantômes qui
- * montent du bas de l'écran. Toute la logique vit dans `useBossGame`.
+ * Écran du boss final : HUD avec barre de vie, et le manche. Au clavier, il
+ * reste seul, pour laisser toute la hauteur aux fantômes qui montent du bas de
+ * l'écran ; sur écran tactile, un piano s'y ajoute dessous, et les fantômes,
+ * partis du même bas d'écran, jaillissent de son bord. Toute la logique vit
+ * dans `useBossGame`.
  */
 export function BossScreen({ modeSwitch, className }: BossScreenProps) {
   const boss = useBossGame()
-  const { state, start, press } = boss
+  const { state, start, press, suspend, resume } = boss
   const playing = state.phase === 'playing'
   const layout = useMemo(() => createNeckLayout({ tuning: boss.tuning }), [boss.tuning])
-  const { mainRef, maxWidth } = useBoardFit(layout.viewBox.width / layout.viewBox.height)
+  // Sur écran tactile, sans clavier, on joue au piano.
+  const touch = useMediaQuery(COARSE_POINTER_QUERY)
+  // Au piano, un cinquième de la scène reste à la piste des fantômes.
+  const { mainRef, pianoRef, maxWidth } = useBoardFit(
+    layout.viewBox.width / layout.viewBox.height,
+    { reserveShare: touch ? 0.2 : 0 },
+  )
 
   const [overlayFor, setOverlayFor] = useState<number | null>(null)
   useEffect(() => {
@@ -131,10 +144,28 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
     },
   )
 
-  const confirm = () => {
-    if (overlayVisible && !playing) start()
+  // Combat suspendu (écran en portrait, page quittée) : tout attend la reprise.
+  const suspended = state.suspendedAt !== null
+  const blocked = usePortraitBlocked()
+  useAutoSuspend(playing && !suspended, suspend)
+
+  // Lancer ou reprendre, d'un geste du joueur : sur écran tactile, plein écran
+  // et paysage verrouillé quand l'appareil le permet.
+  const startFight = () => {
+    void requestLandscape()
+    start()
   }
-  useKeyboardControls({ onNote: press, onConfirm: confirm })
+  const resumeFight = () => {
+    void requestLandscape()
+    resume()
+  }
+
+  const confirm = () => {
+    if (blocked) return
+    if (suspended) resumeFight()
+    else if (overlayVisible && !playing) startFight()
+  }
+  const { sharpMode, pressed } = useKeyboardControls({ onNote: press, onConfirm: confirm })
 
   // Mêmes retours qu'en mode classique : impact du manche et révélation de la note.
   const { ref: boardRef, impact } = useBoardImpact()
@@ -160,6 +191,18 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
     })
   }
   const reveal = revealed.result
+  // Le piano s'allume comme en partie classique : touche jouée, juste ou fausse,
+  // et la bonne note sur une erreur ou un raté.
+  const pianoFeedback = useMemo<PianoFeedback | null>(
+    () =>
+      reveal && {
+        id: reveal.id,
+        guess: reveal.guess,
+        answer: reveal.challenge.pc,
+        correct: reveal.correct,
+      },
+    [reveal],
+  )
 
   // Combo : l'aura bleue du mode classique, puis enflammée. Elle garde la couleur
   // de son dernier palier le temps de s'éteindre, et passe sous fantômes et révélations.
@@ -186,11 +229,16 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
           layout={layout}
           projection={projection}
         />
-        <BossLayer state={state} layout={layout} projection={projection} />
+        <BossLayer
+          state={state}
+          layout={layout}
+          projection={projection}
+          floorRef={touch ? pianoRef : undefined}
+        />
         <RevealLayer result={reveal} layout={layout} projection={projection} />
       </>
     ),
-    [tier, auraConfig, state, reveal, layout],
+    [tier, auraConfig, state, reveal, layout, touch, pianoRef],
   )
 
   // Annonce de chaque note à son départ, au moment où elle paraît à l'écran (soit
@@ -230,7 +278,6 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
   })
   const launchedStep = playing && launched?.startedAt === state.startedAt ? launched.step : -1
   // Suspendu, le combat n'annonce rien : la note suivante part plus tard.
-  const suspended = state.suspendedAt !== null
   useEffect(() => {
     if (!playing || suspended) return
     const step = launchedStep + 1
@@ -257,7 +304,12 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
       <main
         ref={mainRef}
         data-slot="game-stage"
-        className="relative flex min-h-0 flex-1 flex-col items-center justify-center px-4 pt-2 pb-[clamp(0.75rem,3vh,1.5rem)]"
+        data-touch={touch || undefined}
+        className={cn(
+          'relative flex min-h-0 flex-1 flex-col items-center px-4 pt-2 pb-[clamp(0.75rem,3vh,1.5rem)]',
+          // Au piano, le manche monte et le piano descend : entre eux, la piste des fantômes.
+          touch ? 'justify-between gap-4 pt-[clamp(1.25rem,6vh,2.5rem)]' : 'justify-center',
+        )}
       >
         <div
           ref={boardRef}
@@ -268,6 +320,25 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
         >
           <Fretboard layout={layout} marker={null} overlay={overlay} />
         </div>
+        {touch && (
+          // Hors combat, le piano sort du parcours clavier et de l'arbre d'accessibilité.
+          <div
+            ref={pianoRef}
+            data-slot="game-piano"
+            className="w-full"
+            inert={!playing || suspended}
+          >
+            <Piano
+              onPress={press}
+              pressed={pressed}
+              sharpMode={sharpMode}
+              feedback={pianoFeedback}
+              disabled={!playing || suspended}
+              // Plus bas qu'en partie classique : la piste des fantômes y gagne.
+              className="[&_[data-slot=piano-keybed]]:[--keybed-h:clamp(4.5rem,min(max(6rem,26cqw),22dvh),9rem)]"
+            />
+          </div>
+        )}
         <p className="sr-only" aria-live="polite">
           {announced
             ? `${announced.bonus ? `Note bonus, ${bonusPlace}` : 'Ensuite'} : corde ${stringNumber(boss.tuning, announced.stringIndex)}, case ${announced.fret}`
@@ -276,7 +347,8 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
         <p className="sr-only" aria-live="polite">
           {comboAnnouncement}
         </p>
-        <BossOverlay state={state} visible={overlayVisible} coins={coins} onStart={start} />
+        <BossOverlay state={state} visible={overlayVisible} coins={coins} onStart={startFight} />
+        <PauseOverlay open={suspended} onResume={resumeFight} />
       </main>
     </div>
   )

@@ -14,9 +14,11 @@ export const PORTRAIT_QUERY = '(orientation: portrait) and (max-width: 639px)'
 
 /**
  * Le manche est dimensionné par la largeur, mais jamais plus haut que l'espace
- * laissé par le HUD et le piano (proportions conservées).
+ * laissé par le HUD et le piano (proportions conservées). `reserveShare` garde
+ * en plus libre cette part de la hauteur de la scène (la piste des fantômes du
+ * boss, entre le manche et le piano).
  */
-export function useBoardFit(aspectRatio: number) {
+export function useBoardFit(aspectRatio: number, { reserveShare = 0 } = {}) {
   const [mainRef, main] = useElementSize<HTMLElement>()
   const [pianoRef, piano] = useElementSize<HTMLDivElement>()
   const [chrome, setChrome] = useState(0)
@@ -31,7 +33,7 @@ export function useBoardFit(aspectRatio: number) {
     setChrome(px(style.paddingTop) + px(style.paddingBottom) + px(style.rowGap))
   }, [mainRef, main.height])
 
-  const available = main.height - piano.height - chrome
+  const available = main.height * (1 - reserveShare) - piano.height - chrome
   const maxWidth =
     main.height > 0 && available > 0
       ? `min(${BOARD_MAX_WIDTH}, ${Math.floor(available * aspectRatio)}px)`

@@ -1,4 +1,12 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from 'react'
 import { useReducedMotion } from 'motion/react'
 
 import { BOSS_RULES } from '@/game/config'
@@ -34,6 +42,8 @@ const HINT_COLOR: Record<Hint['reason'], string> = {
   late: 'var(--muted-foreground)',
   wrong: 'var(--feedback-error)',
 }
+/** Portée du masque au-dessus du sol et sur les côtés (px) : bien au-delà de l'écran. */
+const CLIP_REACH = 10_000
 /** Apparition de la cible et de son couloir (ms). */
 const APPEAR_MS = 200
 /** Halo du fantôme, en rayons de note : le départ se fait sous lui, hors de l'écran. */
@@ -89,6 +99,12 @@ export interface BossLayerProps {
   state: BossState
   layout: NeckLayout
   projection: BoardProjection
+  /**
+   * Élément posé sous le manche (le piano, sur écran tactile) : les fantômes
+   * partent toujours du bas de l'écran, à la même allure, mais restent cachés
+   * sous son bord haut, d'où ils semblent jaillir. Absent, rien ne les masque.
+   */
+  floorRef?: RefObject<HTMLElement | null>
 }
 
 /**
@@ -102,7 +118,7 @@ export interface BossLayerProps {
  * la note visée : « Trop tôt » avant sa fenêtre, « Trop tard » sur une note
  * déjà manquée, « Erreur » sur une note bonus, qui se retente une fois.
  */
-export function BossLayer({ state, layout, projection }: BossLayerProps): ReactNode {
+export function BossLayer({ state, layout, projection, floorRef }: BossLayerProps): ReactNode {
   // Combat suspendu : l'image se fige à l'instant de la suspension.
   const runUntil =
     state.suspendedAt !== null
@@ -116,18 +132,25 @@ export function BossLayer({ state, layout, projection }: BossLayerProps): ReactN
   const now = state.suspendedAt ?? frameNow
   const reduceMotion = useReducedMotion() ?? false
 
-  // Bas de l'écran, dans le repère du calque : le départ des fantômes.
+  // Bas de l'écran, dans le repère du calque : le départ des fantômes. Et le
+  // bord haut du sol (piano), sous lequel ils restent cachés.
   const svgRef = useRef<SVGSVGElement>(null)
+  const clipId = useId()
   const [bottom, setBottom] = useState(0)
+  const [floor, setFloor] = useState<number | null>(null)
   useLayoutEffect(() => {
     const measure = () => {
       const svg = svgRef.current
-      if (svg) setBottom(window.innerHeight - svg.getBoundingClientRect().top)
+      if (!svg) return
+      const top = svg.getBoundingClientRect().top
+      setBottom(window.innerHeight - top)
+      const ground = floorRef?.current
+      setFloor(ground ? ground.getBoundingClientRect().top - top : null)
     }
     measure()
     window.addEventListener('resize', measure)
     return () => window.removeEventListener('resize', measure)
-  }, [projection.width, projection.height])
+  }, [projection.width, projection.height, floorRef])
 
   // Notes en vol et notes jugées le temps de leurs retours ; celle à jouer
   // dessinée en dernier, par-dessus les autres.
@@ -153,28 +176,43 @@ export function BossLayer({ state, layout, projection }: BossLayerProps): ReactN
       width={projection.width}
       height={projection.height}
     >
-      {shown.map(({ note, hit, current, rank }) => (
-        <BossNoteView
-          key={note.id}
-          note={note}
-          hit={hit}
-          current={current}
-          rank={rank}
-          // Depuis le dernier jugement, chaque anneau en vol monte d'un cran.
-          sinceAdvance={state.lastHit ? now - state.lastHit.at : Number.POSITIVE_INFINITY}
-          // « Trop tard » vise une note déjà manquée ; les autres, une note encore à jouer.
-          hint={
-            note.id === hintFor && ignored && (hit === null) === (ignored.reason !== 'late')
-              ? { reason: ignored.reason, since: now - ignored.at }
-              : null
-          }
-          now={now}
-          bottom={bottom}
-          layout={layout}
-          projection={projection}
-          reduceMotion={reduceMotion}
-        />
-      ))}
+      {floor !== null && (
+        <defs>
+          <clipPath id={clipId}>
+            {/* Tout ce qui est au-dessus du sol, étiquettes comprises, sans limite. */}
+            <rect
+              x={-CLIP_REACH}
+              y={-CLIP_REACH}
+              width={CLIP_REACH * 2}
+              height={floor + CLIP_REACH}
+            />
+          </clipPath>
+        </defs>
+      )}
+      <g clipPath={floor !== null ? `url(#${clipId})` : undefined}>
+        {shown.map(({ note, hit, current, rank }) => (
+          <BossNoteView
+            key={note.id}
+            note={note}
+            hit={hit}
+            current={current}
+            rank={rank}
+            // Depuis le dernier jugement, chaque anneau en vol monte d'un cran.
+            sinceAdvance={state.lastHit ? now - state.lastHit.at : Number.POSITIVE_INFINITY}
+            // « Trop tard » vise une note déjà manquée ; les autres, une note encore à jouer.
+            hint={
+              note.id === hintFor && ignored && (hit === null) === (ignored.reason !== 'late')
+                ? { reason: ignored.reason, since: now - ignored.at }
+                : null
+            }
+            now={now}
+            bottom={bottom}
+            layout={layout}
+            projection={projection}
+            reduceMotion={reduceMotion}
+          />
+        ))}
+      </g>
     </svg>
   )
 }
