@@ -1,17 +1,19 @@
 import { BOSS_RULES } from '@/game/config'
-import { createChallenge, type Random } from '@/game/engine/challenge'
+import { createChallenge, pick, type Random } from '@/game/engine/challenge'
 import type { Challenge } from '@/game/engine/types'
 import type { LevelConfig } from '@/game/levels/levels'
-import type { Tuning } from '@/game/music/tuning'
+import { pitchClassAt, type Tuning } from '@/game/music/tuning'
+import { windowOf, type WindowRules } from './reducer'
 import type { BossNote } from './types'
 
 type ChartRules = Pick<
   typeof BOSS_RULES,
-  'bossLife' | 'life' | 'travelMs' | 'intervalMs' | 'startDelayMs'
-> & {
-  /** Notes bonus : chance par intervalle et trajet (voir `BOSS_RULES.bonus`). */
-  bonus: { chance: number; travelMs: number }
-}
+  'bossLife' | 'life' | 'travelMs' | 'intervalMs' | 'startDelayMs' | 'fadeMs'
+> &
+  WindowRules & {
+    /** Notes bonus : chance par intervalle, trajet, fenêtre (voir `BOSS_RULES.bonus`). */
+    bonus: { chance: number; travelMs: number; earlyMs: number; lateMs: number }
+  }
 
 /**
  * Nombre de notes de la partition : de quoi finir le combat, quoi qu'il arrive.
@@ -37,10 +39,11 @@ export function bossChartLength(rules: Pick<ChartRules, 'bossLife' | 'life'> = B
  * intervalle régulier : la première `startDelayMs` après `startAt`, puis une
  * toutes les `intervalMs`, chacune `travelMs` avant d'atteindre sa cible. Entre
  * deux d'entre elles, une note bonus peut s'intercaler (`bonus.chance`) : elle
- * atteint sa cible à mi-chemin, après un trajet plus court (`bonus.travelMs`).
- * Les notes sont rangées dans leur ordre d'arrivée. Le calendrier ne bouge plus
- * ensuite, quels que soient les jugements ; le combat s'arrête dès que le boss
- * ou le joueur tombe, notes encore en vol comprises.
+ * atteint sa cible à mi-chemin, après un trajet plus court (`bonus.travelMs`),
+ * sur une case libre (voir `bonusPosition`). Les notes sont rangées dans leur
+ * ordre d'arrivée. Le calendrier ne bouge plus ensuite, quels que soient les
+ * jugements ; le combat s'arrête dès que le boss ou le joueur tombe, notes
+ * encore en vol comprises.
  */
 export function createBossChart(
   level: LevelConfig,
@@ -49,42 +52,73 @@ export function createBossChart(
   startAt: number,
   rules: ChartRules = BOSS_RULES,
 ): BossNote[] {
-  const notes: BossNote[] = []
-  // Note qui précède dans l'ordre d'arrivée (bonus compris), et dernière note du boss.
-  let previous: Challenge | null = null
-  let previousRegular: Challenge | null = null
-  const draw = (): Challenge => {
-    previous = createChallenge(notes.length + 1, level, tuning, random, previous)
-    return previous
-  }
   const count = bossChartLength(rules)
+  // Les notes du boss d'abord, chacune différente de la précédente.
+  const regular: BossNote[] = []
+  let previous: Challenge | null = null
   for (let i = 0; i < count; i++) {
-    // Une note du boss diffère aussi de la précédente note du boss, bonus intercalé
-    // ou non : deux notes du boss de suite ne tombent jamais au même endroit.
-    let regular = draw()
-    for (let attempt = 0; attempt < 32 && regular.pc === previousRegular?.pc; attempt++) {
-      previous = notes.at(-1) ?? null
-      regular = draw()
-    }
-    previousRegular = regular
-    const { id, stringIndex, fret, pc } = regular
+    previous = createChallenge(i + 1, level, tuning, random, previous)
+    const { stringIndex, fret, pc } = previous
     const launchAt = startAt + rules.startDelayMs + i * rules.intervalMs
-    const hitAt = launchAt + rules.travelMs
-    notes.push({ id, stringIndex, fret, pc, launchAt, hitAt })
-    // Note bonus, à mi-chemin de la suivante : jamais après la dernière.
-    if (i < count - 1 && random() < rules.bonus.chance) {
-      const extra = draw()
-      const bonusHitAt = hitAt + rules.intervalMs / 2
-      notes.push({
-        id: extra.id,
-        stringIndex: extra.stringIndex,
-        fret: extra.fret,
-        pc: extra.pc,
-        launchAt: bonusHitAt - rules.bonus.travelMs,
-        hitAt: bonusHitAt,
-        bonus: true,
+    regular.push({ id: 0, stringIndex, fret, pc, launchAt, hitAt: launchAt + rules.travelMs })
+  }
+  // Puis les notes bonus, à mi-chemin de la suivante (jamais après la dernière),
+  // chacune placée parmi toutes les notes déjà posées.
+  const notes = regular.slice()
+  for (let i = 0; i < count - 1; i++) {
+    if (random() >= rules.bonus.chance) continue
+    const hitAt = regular[i].hitAt + rules.intervalMs / 2
+    const timing = { launchAt: hitAt - rules.bonus.travelMs, hitAt, bonus: true as const }
+    const neighbours = [regular[i], regular[i + 1]]
+    const position = bonusPosition(timing, neighbours, notes, level, tuning, random, rules)
+    if (position) notes.push({ id: 0, ...position, ...timing })
+  }
+  return notes.sort((a, b) => a.hitAt - b.hitAt).map((note, index) => ({ ...note, id: index + 1 }))
+}
+
+type Timing = Pick<BossNote, 'launchAt' | 'hitAt' | 'bonus'>
+
+/**
+ * Présence d'une note à l'écran : de son départ (anneau et couloir paraissent)
+ * jusqu'à la fin de sa fenêtre, plus le fondu d'un fantôme manqué.
+ */
+function onScreen(note: Timing, rules: ChartRules): { from: number; until: number } {
+  return { from: note.launchAt, until: note.hitAt + windowOf(note, rules).lateMs + rules.fadeMs }
+}
+
+/**
+ * Position d'une note bonus : sur une case qu'aucune autre note n'occupe tant
+ * qu'elle est à l'écran, sur quelque corde que ce soit. Couloirs et fantômes
+ * montant à la verticale de leur case, le sien n'appartient qu'à elle : jamais
+ * de file de notes sur une même case, dont l'ordre serait difficile à lire. Sa
+ * touche diffère aussi de celles de ses deux voisines (`neighbours`). `null` si
+ * aucune position ne convient : le bonus saute son tour.
+ */
+function bonusPosition(
+  timing: Timing,
+  neighbours: readonly BossNote[],
+  notes: readonly BossNote[],
+  level: LevelConfig,
+  tuning: Tuning,
+  random: Random,
+  rules: ChartRules,
+): Pick<BossNote, 'stringIndex' | 'fret' | 'pc'> | null {
+  const span = onScreen(timing, rules)
+  const taken = new Set(
+    notes
+      .filter((note) => {
+        const other = onScreen(note, rules)
+        return other.from < span.until && span.from < other.until
       })
+      .map((note) => note.fret),
+  )
+  const candidates: Pick<BossNote, 'stringIndex' | 'fret' | 'pc'>[] = []
+  for (const stringIndex of level.strings) {
+    for (let fret = level.frets.min; fret <= level.frets.max; fret++) {
+      const pc = pitchClassAt(tuning, stringIndex, fret)
+      if (taken.has(fret) || neighbours.some((note) => note.pc === pc)) continue
+      candidates.push({ stringIndex, fret, pc })
     }
   }
-  return notes
+  return candidates.length > 0 ? pick(candidates, random) : null
 }

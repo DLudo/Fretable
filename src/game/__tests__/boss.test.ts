@@ -84,12 +84,38 @@ describe('partition du boss', () => {
     expect(notes.at(-1)!.bonus).toBeUndefined()
   })
 
+  const chart = (chance: number, frets = level.frets) =>
+    createBossChart({ ...level, frets }, STANDARD_TUNING, random, 0, {
+      ...BOSS_RULES,
+      bonus: { ...BOSS_RULES.bonus, chance },
+    })
+
+  /** Notes à l'écran en même temps que `bonus` : du départ à la fin du fondu d'un raté. */
+  const alongside = (all: readonly BossNote[], bonus: BossNote) => {
+    const until = (n: BossNote) =>
+      n.hitAt + (n.bonus ? BOSS_RULES.bonus.lateMs : windows.lateMs) + BOSS_RULES.fadeMs
+    return all.filter((n) => n !== bonus && n.launchAt < until(bonus) && bonus.launchAt < until(n))
+  }
+
+  it('pose chaque note bonus sur une case libre : aucune autre note n’y est à l’écran', () => {
+    for (const all of [notes, chart(1), chart(1, { min: 1, max: 6 })]) {
+      for (const bonus of all.filter((n) => n.bonus)) {
+        const others = alongside(all, bonus)
+        expect(others.filter((n) => n.fret === bonus.fret)).toEqual([])
+        // Et la règle écarte du monde : la note d'avant, celle d'après, les suivantes déjà parties.
+        if (bonus.hitAt > all[2].hitAt && bonus.hitAt < all.at(-4)!.hitAt) {
+          expect(others.length).toBeGreaterThanOrEqual(5)
+        }
+      }
+    }
+  })
+
+  it('saute son tour quand aucune case n’est libre', () => {
+    // Une seule case : les notes du boss l'occupent toujours.
+    expect(chart(1, { min: 1, max: 1 }).some((n) => n.bonus)).toBe(false)
+  })
+
   it('n’intercale rien sans chance de bonus, et partout avec une chance pleine', () => {
-    const chart = (chance: number) =>
-      createBossChart(level, STANDARD_TUNING, random, 0, {
-        ...BOSS_RULES,
-        bonus: { ...BOSS_RULES.bonus, chance },
-      })
     expect(chart(0).some((n) => n.bonus)).toBe(false)
     const full = chart(1)
     expect(full.filter((n) => n.bonus)).toHaveLength(bossChartLength() - 1)

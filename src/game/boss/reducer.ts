@@ -5,6 +5,12 @@ import type { BossAction, BossJudged, BossJudgement, BossNote, BossState } from 
 
 export type BossRules = typeof BOSS_RULES
 
+/** Réglages des fenêtres de jugement : notes du boss, et notes bonus. */
+export type WindowRules = {
+  windows: { earlyMs: number; lateMs: number }
+  bonus: { earlyMs: number; lateMs: number }
+}
+
 export function createBossState(rules: BossRules = BOSS_RULES): BossState {
   return {
     phase: 'ready',
@@ -37,7 +43,7 @@ export function gradeHit(deltaMs: number, rules: BossRules = BOSS_RULES): BossJu
  */
 export function windowOf(
   note: Pick<BossNote, 'bonus'>,
-  rules: BossRules = BOSS_RULES,
+  rules: WindowRules = BOSS_RULES,
 ): { earlyMs: number; lateMs: number } {
   return note.bonus
     ? { earlyMs: rules.bonus.earlyMs, lateMs: rules.bonus.lateMs }
