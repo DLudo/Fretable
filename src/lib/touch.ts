@@ -47,6 +47,25 @@ function subscribe(onChange: () => void) {
   }
 }
 
+/**
+ * Un téléphone, et non une tablette ou un ordinateur : le seul appareil qu'il
+ * suffit de tourner pour passer d'une fenêtre étroite à une fenêtre large. Une
+ * fenêtre étroite d'iPad (Slide Over, écran partagé) le reste dans les deux sens.
+ * Indices : l'agent d'un téléphone (iPhone, Android « Mobile » ; un iPad
+ * l'emprunte parfois, il est écarté), sinon un écran dont le petit côté
+ * mesure moins de 600 px.
+ */
+export function isPhone(): boolean {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false
+  const agent = navigator.userAgent ?? ''
+  if (/iPad/i.test(agent)) return false
+  if (/iPhone|iPod/i.test(agent) || (/Android/i.test(agent) && /Mobile/i.test(agent))) return true
+  const hints = (navigator as Navigator & { userAgentData?: { mobile?: boolean } }).userAgentData
+  if (hints?.mobile === true) return true
+  const { width = 0, height = 0 } = window.screen ?? {}
+  return width > 0 && height > 0 && Math.min(width, height) < 600
+}
+
 /** `isTouchDevice`, suivi : passe à vrai au premier toucher, ou quand un écran tactile se branche. */
 export function useTouchDevice(): boolean {
   return useSyncExternalStore(subscribe, isTouchDevice, () => false)
