@@ -654,3 +654,36 @@ describe('étoiles du boss', () => {
     expect(rateBossFight({ phase: 'won', life: 50 }).index).toBe(0.5)
   })
 })
+
+describe('suspension du combat', () => {
+  it('ne juge plus rien : frappes, ratés et fin de fenêtre attendent la reprise', () => {
+    const played = bossReducer(started(), { type: 'press', pc: 9, at: 5000 })
+    const suspended = bossReducer(played, { type: 'suspend', at: 6000 })
+    expect(suspended.suspendedAt).toBe(6000)
+    expect(nextMissAt(suspended)).toBeNull()
+    expect(bossReducer(suspended, { type: 'press', pc: 0, at: 9000 })).toBe(suspended)
+    expect(bossReducer(suspended, { type: 'tick', at: 60_000 })).toBe(suspended)
+    // Hors combat, rien à suspendre.
+    expect(bossReducer(createBossState(), { type: 'suspend', at: 10 }).suspendedAt).toBeNull()
+  })
+
+  it('reprend la partition là où elle s’était figée : les notes à jouer partent plus tard', () => {
+    const played = bossReducer(started(), { type: 'press', pc: 9, at: 5000 })
+    const resumed = bossReducer(bossReducer(played, { type: 'suspend', at: 6000 }), {
+      type: 'resume',
+      at: 16_000,
+    })
+    expect(resumed.suspendedAt).toBeNull()
+    // Note jugée : intacte ; notes à venir : 10 s plus tard.
+    expect(resumed.notes[0]).toEqual(played.notes[0])
+    expect(resumed.notes.slice(1).map((n) => [n.launchAt, n.hitAt])).toEqual(
+      played.notes.slice(1).map((n) => [n.launchAt + 10_000, n.hitAt + 10_000]),
+    )
+    // Frappée à son nouvel instant parfait, la note suivante est parfaite.
+    expect(bossReducer(resumed, { type: 'press', pc: 0, at: 19_000 }).lastHit).toMatchObject({
+      judgement: 'perfect',
+      index: 1,
+    })
+    expect(nextMissAt(resumed)).toBe(19_000 + windows.lateMs)
+  })
+})

@@ -211,6 +211,13 @@ export interface GameState {
   pausedAt: number | null
   /** Temps de pause cumulé depuis le lancement (ms), hors pause en cours. */
   pausedMs: number
+  /**
+   * Partie suspendue depuis cet instant (`performance.now()`), ou `null` : le
+   * joueur n'est plus là (téléphone tourné en portrait, page masquée). Rien ne
+   * se joue ; à la reprise (`resume`), tout ce qui se mesure dans le temps est
+   * décalé de la durée de la suspension, comme si elle n'avait pas eu lieu.
+   */
+  suspendedAt: number | null
   /** `performance.now()` au début du décompte 3, 2, 1 (phase `starting`). */
   startingAt: number | null
   /** `performance.now()` au lancement du niveau : apparition de la première note. */
@@ -247,3 +254,7 @@ export type GameAction =
   | { type: 'comboExpire'; now: number }
   /** L'anneau de la note du parcours de gamme s'est vidé : elle est manquée. */
   | { type: 'scaleNoteTimeUp'; now: number }
+  /** Suspend la partie (décompte ou jeu en cours) : voir `GameState.suspendedAt`. */
+  | { type: 'suspend'; now: number }
+  /** Reprend une partie suspendue. */
+  | { type: 'resume'; now: number }

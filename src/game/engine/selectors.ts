@@ -8,13 +8,18 @@ export function totalDurationMs(state: Pick<GameState, 'level' | 'bonusTimeMs'>)
 
 /**
  * Échéance (`performance.now()`) de la partie, ou `null` avant le départ et
- * pendant une pause (le temps ne court pas). Les pauses passées la repoussent
- * d'autant.
+ * pendant une pause ou une suspension (le temps ne court pas). Les pauses
+ * passées la repoussent d'autant.
  */
 export function deadlineAt(
-  state: Pick<GameState, 'level' | 'bonusTimeMs' | 'startedAt' | 'pausedAt' | 'pausedMs'>,
+  state: Pick<
+    GameState,
+    'level' | 'bonusTimeMs' | 'startedAt' | 'pausedAt' | 'pausedMs' | 'suspendedAt'
+  >,
 ): number | null {
-  if (state.startedAt === null || state.pausedAt !== null) return null
+  if (state.startedAt === null || state.pausedAt !== null || state.suspendedAt !== null) {
+    return null
+  }
   return state.startedAt + totalDurationMs(state) + state.pausedMs
 }
 
@@ -24,10 +29,14 @@ export function deadlineAt(
  * pendant la révélation d'une réponse.
  */
 export function scaleNoteDeadlineAt(
-  state: Pick<GameState, 'phase' | 'locked' | 'challenge' | 'challengeShownAt' | 'scaleRun'>,
+  state: Pick<
+    GameState,
+    'phase' | 'locked' | 'challenge' | 'challengeShownAt' | 'scaleRun' | 'suspendedAt'
+  >,
 ): number | null {
-  const { phase, locked, challenge, challengeShownAt, scaleRun } = state
+  const { phase, locked, challenge, challengeShownAt, scaleRun, suspendedAt } = state
   if (phase !== 'playing' || locked || !scaleRun || challenge?.scale !== true) return null
+  if (suspendedAt !== null) return null
   return challengeShownAt === null ? null : challengeShownAt + SCALE_RULES.noteMs
 }
 
@@ -48,9 +57,15 @@ export function startCountdownMs(): number {
   return Math.max(0, GAME_FEEL.startCountdownFrom) * Math.max(0, GAME_FEEL.startCountdownStepMs)
 }
 
-/** Instant où le décompte s'achève et où la partie démarre, ou `null` hors décompte. */
-export function playStartsAt(state: Pick<GameState, 'phase' | 'startingAt'>): number | null {
+/**
+ * Instant où le décompte s'achève et où la partie démarre, ou `null` hors
+ * décompte (ou décompte suspendu).
+ */
+export function playStartsAt(
+  state: Pick<GameState, 'phase' | 'startingAt'> & Partial<Pick<GameState, 'suspendedAt'>>,
+): number | null {
   if (state.phase !== 'starting' || state.startingAt === null) return null
+  if (state.suspendedAt != null) return null
   return state.startingAt + startCountdownMs()
 }
 

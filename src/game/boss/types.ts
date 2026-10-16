@@ -66,6 +66,12 @@ export interface BossState {
    * première mauvaise touche sur une note bonus, qui se retente une fois.
    */
   lastIgnored: { at: number; index: number; reason: 'early' | 'late' | 'wrong' } | null
+  /**
+   * Combat suspendu depuis cet instant, ou `null` : le joueur n'est plus là
+   * (téléphone en portrait, page masquée). Rien ne se juge ; à la reprise, les
+   * notes pas encore jugées partent d'autant plus tard.
+   */
+  suspendedAt: number | null
 }
 
 export type BossAction =
@@ -74,3 +80,7 @@ export type BossAction =
   | { type: 'press'; pc: PitchClass; at: number }
   /** Le temps passe : toute note dont la fenêtre est close sans frappe est manquée. */
   | { type: 'tick'; at: number }
+  /** Suspend le combat en cours (voir `BossState.suspendedAt`). */
+  | { type: 'suspend'; at: number }
+  /** Reprend un combat suspendu. */
+  | { type: 'resume'; at: number }

@@ -103,13 +103,17 @@ export interface BossLayerProps {
  * déjà manquée, « Erreur » sur une note bonus, qui se retente une fois.
  */
 export function BossLayer({ state, layout, projection }: BossLayerProps): ReactNode {
+  // Combat suspendu : l'image se fige à l'instant de la suspension.
   const runUntil =
-    state.phase === 'playing'
-      ? Number.POSITIVE_INFINITY
-      : state.endedAt !== null
-        ? state.endedAt + LINGER_MS
-        : 0
-  const now = useFrameClock(runUntil)
+    state.suspendedAt !== null
+      ? 0
+      : state.phase === 'playing'
+        ? Number.POSITIVE_INFINITY
+        : state.endedAt !== null
+          ? state.endedAt + LINGER_MS
+          : 0
+  const frameNow = useFrameClock(runUntil)
+  const now = state.suspendedAt ?? frameNow
   const reduceMotion = useReducedMotion() ?? false
 
   // Bas de l'écran, dans le repère du calque : le départ des fantômes.

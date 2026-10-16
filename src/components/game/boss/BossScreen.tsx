@@ -205,9 +205,13 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
   )
   // Chaque annonce retient sa place dans la file à l'instant où elle sonne :
   // combien de notes la séparent de celle à jouer.
+  // Une reprise décale la partition sans la remplacer : la file se reconnaît
+  // à son combat (`startedAt`), et non aux notes elles-mêmes. La note annoncée
+  // est retenue par son index, que l'ordre des départs bouge ou non.
   const [launched, setLaunched] = useState<{
-    notes: readonly BossNote[]
+    startedAt: number | null
     step: number
+    index: number
     ahead: number
   } | null>(null)
   const announce = useEffectEvent((step: number) => {
@@ -221,11 +225,14 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
     ) {
       current++
     }
-    setLaunched({ notes: state.notes, step, ahead: launchOrder[step] - current })
+    const index = launchOrder[step]
+    setLaunched({ startedAt: state.startedAt, step, index, ahead: index - current })
   })
-  const launchedStep = playing && launched?.notes === state.notes ? launched.step : -1
+  const launchedStep = playing && launched?.startedAt === state.startedAt ? launched.step : -1
+  // Suspendu, le combat n'annonce rien : la note suivante part plus tard.
+  const suspended = state.suspendedAt !== null
   useEffect(() => {
-    if (!playing) return
+    if (!playing || suspended) return
     const step = launchedStep + 1
     const note = state.notes[launchOrder[step]]
     if (!note) return
@@ -234,8 +241,8 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
       Math.max(0, note.launchAt - performance.now()),
     )
     return () => window.clearTimeout(timer)
-  }, [playing, state.notes, launchOrder, launchedStep])
-  const announced = launchedStep >= 0 ? state.notes[launchOrder[launchedStep]] : undefined
+  }, [playing, suspended, state.notes, launchOrder, launchedStep])
+  const announced = launchedStep >= 0 && launched ? state.notes[launched.index] : undefined
   // Une note bonus part après des notes qu'elle devance : l'annonce dit sa place.
   const bonusPlace =
     !launched || launched.ahead <= 1

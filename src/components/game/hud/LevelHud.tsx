@@ -125,7 +125,7 @@ export function LevelHud({
             pulseId={pulseId}
             pending={assist && { done: assist.total - assist.remaining, total: assist.total }}
           />
-          <ComboMeter combo={combo} pausedAt={state.pausedAt} />
+          <ComboMeter combo={combo} pausedAt={state.pausedAt ?? state.suspendedAt} />
         </div>
       </div>
     </div>

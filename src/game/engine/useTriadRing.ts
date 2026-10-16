@@ -15,9 +15,12 @@ import type { GameState } from './types'
  * basculent au même instant.
  */
 export function useTriadRing(
-  state: Pick<GameState, 'phase' | 'locked' | 'challenge' | 'challengeShownAt' | 'triad'>,
+  state: Pick<GameState, 'phase' | 'locked' | 'challenge' | 'challengeShownAt' | 'triad'> &
+    Partial<Pick<GameState, 'suspendedAt'>>,
 ): boolean {
   const { phase, locked, challenge, challengeShownAt, triad } = state
+  // Suspendue, la partie gèle l'anneau : son échéance reculera à la reprise.
+  const suspended = (state.suspendedAt ?? null) !== null
   const id =
     phase === 'playing' && !locked && challenge?.triad === true && triad !== null
       ? challenge.id
@@ -25,11 +28,11 @@ export function useTriadRing(
   const [spentId, setSpentId] = useState<number | null>(null)
 
   useEffect(() => {
-    if (id === null || challengeShownAt === null) return
+    if (id === null || challengeShownAt === null || suspended) return
     const delay = challengeShownAt + TRIAD_RULES.fastReactionMs - performance.now()
     const timer = window.setTimeout(() => setSpentId(id), Math.max(0, delay))
     return () => window.clearTimeout(timer)
-  }, [id, challengeShownAt])
+  }, [id, challengeShownAt, suspended])
 
   return id !== null && spentId !== id
 }

@@ -5,7 +5,14 @@ import type { GameState } from './types'
 
 export type CountdownState = Pick<
   GameState,
-  'phase' | 'startedAt' | 'endedAt' | 'level' | 'bonusTimeMs' | 'pausedAt' | 'pausedMs'
+  | 'phase'
+  | 'startedAt'
+  | 'endedAt'
+  | 'level'
+  | 'bonusTimeMs'
+  | 'pausedAt'
+  | 'pausedMs'
+  | 'suspendedAt'
 >
 
 /**
@@ -13,13 +20,17 @@ export type CountdownState = Pick<
  * Plein avant le départ, figé à la fin de la partie, borné à [0, durée].
  * La durée inclut le temps accordé en cours de partie (`bonusTimeMs`) ; les
  * pauses (parcours de gamme) ne sont pas décomptées, et le temps se fige
- * pendant celle en cours.
+ * pendant celle en cours, comme pendant une suspension.
  */
 export function remainingMs(state: CountdownState, now: number): number {
-  const { phase, startedAt, endedAt, pausedAt, pausedMs } = state
+  const { phase, startedAt, endedAt, pausedAt, pausedMs, suspendedAt } = state
   const duration = totalDurationMs(state)
   if (startedAt === null) return duration
-  const end = endedAt ?? pausedAt ?? (phase === 'playing' ? Math.max(now, startedAt) : startedAt)
+  const end =
+    endedAt ??
+    pausedAt ??
+    suspendedAt ??
+    (phase === 'playing' ? Math.max(now, startedAt) : startedAt)
   return Math.min(duration, Math.max(0, duration - (end - startedAt - pausedMs)))
 }
 

@@ -26,6 +26,7 @@ export function createBossState(rules: BossRules = BOSS_RULES): BossState {
     endedAt: null,
     lastHit: null,
     lastIgnored: null,
+    suspendedAt: null,
   }
 }
 
@@ -52,7 +53,7 @@ export function windowOf(
 
 /** Fin de la fenêtre de la prochaine note à juger : passé cet instant, elle est manquée. */
 export function nextMissAt(state: BossState, rules: BossRules = BOSS_RULES): number | null {
-  if (state.phase !== 'playing') return null
+  if (state.phase !== 'playing' || state.suspendedAt !== null) return null
   const note = state.notes[state.cursor]
   return note ? note.hitAt + windowOf(note, rules).lateMs : null
 }
@@ -71,14 +72,35 @@ export function nextMissAt(state: BossState, rules: BossRules = BOSS_RULES): num
  * (`BossNote.bonus`) se jouent à leur tour, comme les autres, mais ne comptent
  * que pour le score. Le combo
  * (voir `bossComboTier`) multiplie les points des réussites qui suivent une
- * série, et retombe à la première erreur ou au premier raté.
+ * série, et retombe à la première erreur ou au premier raté. Suspendu
+ * (`suspend`), le combat ne juge plus rien jusqu'à `resume`.
  */
 export function bossReducer(
   state: BossState,
   action: BossAction,
   rules: BossRules = BOSS_RULES,
 ): BossState {
+  // Combat suspendu : seuls la reprise et un nouveau départ ont un effet.
+  if (state.suspendedAt !== null && action.type !== 'resume' && action.type !== 'start') {
+    return state
+  }
   switch (action.type) {
+    case 'suspend':
+      return state.phase === 'playing' ? { ...state, suspendedAt: action.at } : state
+
+    case 'resume': {
+      if (state.suspendedAt === null) return state
+      // Les notes encore à juger partent d'autant plus tard : la partition
+      // reprend là où elle s'était figée.
+      const suspendedFor = Math.max(0, action.at - state.suspendedAt)
+      const notes = state.notes.map((note, index) =>
+        index < state.cursor
+          ? note
+          : { ...note, launchAt: note.launchAt + suspendedFor, hitAt: note.hitAt + suspendedFor },
+      )
+      return { ...state, notes, suspendedAt: null }
+    }
+
     case 'start':
       return {
         ...createBossState(rules),

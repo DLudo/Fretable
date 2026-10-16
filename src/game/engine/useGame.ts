@@ -47,6 +47,10 @@ export interface GameController {
   /** Passe au niveau suivant s'il existe. */
   nextLevel(): void
   hasNextLevel: boolean
+  /** Suspend la partie en cours (décompte compris) ; sans effet hors partie. */
+  suspend(): void
+  /** Reprend une partie suspendue, là où elle s'était arrêtée. */
+  resume(): void
 }
 
 const now = () => performance.now()
@@ -85,6 +89,9 @@ export function useGame(options: UseGameOptions = {}): GameController {
     [random],
   )
 
+  const suspend = useCallback(() => dispatch({ type: 'suspend', now: now() }), [])
+  const resume = useCallback(() => dispatch({ type: 'resume', now: now() }), [])
+
   const nextLevel = useCallback(() => {
     if (hasNextLevel(state.levelIndex)) dispatch({ type: 'load', levelIndex: state.levelIndex + 1 })
   }, [state.levelIndex])
@@ -102,10 +109,12 @@ export function useGame(options: UseGameOptions = {}): GameController {
 
   // Après une tentative : on laisse vivre la révélation, puis nouvelle note —
   // imposée par la triade ou le coup de pouce en cours, ou début d'une triade.
+  // Suspendue, la partie n'attend rien : la révélation reprendra à son début.
   const { phase, locked, lastResult, challenge, assist, triad, triadsStarted, correctCount } = state
   const { level, scaleRun, triadCooldown, triadIntro } = state
+  const suspended = state.suspendedAt !== null
   useEffect(() => {
-    if (phase !== 'playing' || !locked || !lastResult) return
+    if (phase !== 'playing' || !locked || !lastResult || suspended) return
     if (triadIntro) {
       // Annonce en cours : la triade s'ouvre sur sa fondamentale à son terme.
       const { at, ...plan } = triadIntro
@@ -168,6 +177,7 @@ export function useGame(options: UseGameOptions = {}): GameController {
     phase,
     locked,
     lastResult,
+    suspended,
     assist,
     triad,
     scaleRun,
@@ -205,9 +215,9 @@ export function useGame(options: UseGameOptions = {}): GameController {
 
   // Épuisement du combo. Le minuteur peut sonner une poignée de ms trop tôt :
   // l'instant transmis ne précède jamais l'échéance, sans quoi le combo resterait allumé.
-  // En pause (annonce de triade, parcours de gamme), la jauge est figée : rien à guetter.
+  // En pause (annonce de triade, parcours de gamme) ou suspendue, la jauge est figée : rien à guetter.
   const comboEndsAt = state.combo?.endsAt ?? null
-  const paused = state.pausedAt !== null
+  const paused = state.pausedAt !== null || suspended
   useEffect(() => {
     if (phase !== 'playing' || comboEndsAt === null || paused) return
     const timer = window.setTimeout(
@@ -260,5 +270,7 @@ export function useGame(options: UseGameOptions = {}): GameController {
     guess,
     nextLevel,
     hasNextLevel: hasNextLevel(state.levelIndex),
+    suspend,
+    resume,
   }
 }

@@ -41,6 +41,7 @@ export function createInitialState(levelIndex = 0): GameState {
     lastScaleRun: null,
     pausedAt: null,
     pausedMs: 0,
+    suspendedAt: null,
     startingAt: null,
     startedAt: null,
     endedAt: null,
@@ -76,9 +77,28 @@ function isExpired(state: GameState, now: number): boolean {
  * Pendant toute pause (annonce de triade, parcours), la jauge du combo est
  * figée, puis reprend où elle s'était arrêtée (`resumeCombo`). Les
  * multiplicateurs ne se cumulent jamais.
+ * Une suspension (`suspend`, voir `GameState.suspendedAt`) gèle tout, décompte
+ * compris : réponses et minuteurs sont ignorés jusqu'à `resume`.
  */
 export function gameReducer(state: GameState, action: GameAction): GameState {
+  // Partie suspendue : seuls la reprise et un nouveau départ ont un effet.
+  if (
+    state.suspendedAt !== null &&
+    action.type !== 'resume' &&
+    action.type !== 'load' &&
+    action.type !== 'prepare' &&
+    action.type !== 'start'
+  ) {
+    return state
+  }
   switch (action.type) {
+    case 'suspend':
+      if (state.phase !== 'starting' && state.phase !== 'playing') return state
+      return { ...state, suspendedAt: action.now }
+
+    case 'resume':
+      return state.suspendedAt === null ? state : resume(state, action.now)
+
     case 'load':
       return createInitialState(action.levelIndex)
 
@@ -304,6 +324,28 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       // En pause, la jauge est figée : rien ne s'épuise.
       if (!state.combo || state.pausedAt !== null || action.now < state.combo.endsAt) return state
       return { ...state, combo: null, fastStreak: 0 }
+  }
+}
+
+/**
+ * Reprise d'une partie suspendue, `now - suspendedAt` plus tard : le décompte
+ * repart de son début ; en jeu, tout ce qui se mesure dans le temps (échéance
+ * de la partie, jauge du combo, temps de réaction et anneau de la note, annonce
+ * de triade) est décalé d'autant. Pendant une pause du jeu (annonce, parcours
+ * de gamme), sa durée compte déjà la suspension : rien d'autre à décaler.
+ */
+function resume(state: GameState, now: number): GameState {
+  const suspendedFor = Math.max(0, now - state.suspendedAt!)
+  if (state.phase === 'starting') return { ...state, suspendedAt: null, startingAt: now }
+  const shift = (at: number | null) => (at === null ? null : at + suspendedFor)
+  const running = state.pausedAt === null
+  return {
+    ...state,
+    suspendedAt: null,
+    challengeShownAt: shift(state.challengeShownAt),
+    triadIntro: state.triadIntro && { ...state.triadIntro, at: state.triadIntro.at + suspendedFor },
+    pausedMs: running ? state.pausedMs + suspendedFor : state.pausedMs,
+    combo: running ? resumeCombo(state.combo, suspendedFor) : state.combo,
   }
 }
 

@@ -60,8 +60,9 @@ export function LevelTimer({ state, className, barClassName }: LevelTimerProps):
   const ratio = total > 0 ? remaining / total : 0
   const critical = remaining < GAME_FEEL.criticalTimeMs
   const boosted = bonusPop !== null
-  // Temps suspendu (parcours de gamme) : icône de pause, couleur du bonus.
-  const paused = state.phase === 'playing' && state.pausedAt !== null
+  // Temps suspendu (parcours de gamme, partie en pause) : icône de pause, couleur du bonus.
+  const paused =
+    state.phase === 'playing' && (state.pausedAt !== null || state.suspendedAt !== null)
   // Clé changée à chaque seconde entamée en zone critique : le libellé est remonté et pulse.
   const beat = critical && state.phase === 'playing' && !paused ? Math.ceil(remaining / 1000) : 0
   const pulse = beat > 0 && !reduceMotion

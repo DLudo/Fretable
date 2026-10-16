@@ -47,6 +47,8 @@ export function useBossGame(options: BossGameOptions = {}) {
   }, [level, tuning, random])
 
   const press = useCallback((pc: PitchClass) => dispatch({ type: 'press', pc, at: now() }), [])
+  const suspend = useCallback(() => dispatch({ type: 'suspend', at: now() }), [])
+  const resume = useCallback(() => dispatch({ type: 'resume', at: now() }), [])
 
   // Fenêtre de la note en cours close sans frappe : raté. Le minuteur revérifie
   // tant que la fenêtre n'est pas réellement close, sans quoi un réveil précoce
@@ -65,5 +67,5 @@ export function useBossGame(options: BossGameOptions = {}) {
     return () => window.clearTimeout(timer)
   }, [missAt])
 
-  return { state, start, press, tuning, level }
+  return { state, start, press, suspend, resume, tuning, level }
 }
