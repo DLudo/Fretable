@@ -18,9 +18,17 @@ export function isFastReaction(reactionMs: number): boolean {
   return reactionMs < COMBO_RULES.fastReactionMs
 }
 
-/** Le combo court encore à l'instant `now`. */
+/** Le combo court encore à l'instant `now` (en pause, passer `pausedAt` : la jauge y est figée). */
 export function isComboLive(combo: ComboState | null, now: number): combo is ComboState {
   return combo !== null && now < combo.endsAt
+}
+
+/**
+ * Reprise après une pause (annonce de triade, parcours de gamme) : la jauge
+ * était figée, son échéance recule d'autant. Un combo déjà échu le reste.
+ */
+export function resumeCombo(combo: ComboState | null, pausedForMs: number): ComboState | null {
+  return combo && pausedForMs > 0 ? { ...combo, endsAt: combo.endsAt + pausedForMs } : combo
 }
 
 export interface ComboStep {

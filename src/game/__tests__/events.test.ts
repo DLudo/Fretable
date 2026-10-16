@@ -8,9 +8,11 @@ import {
   type GameEvent,
   type GameEventSnapshot,
 } from '@/game/engine/events'
-import { createInitialState, gameReducer } from '@/game/engine/reducer'
+import { gameReducer } from '@/game/engine/reducer'
 import type { Challenge, GameAction, GameState } from '@/game/engine/types'
 import type { PitchClass } from '@/game/music/notes'
+
+import { testState } from './fixtures'
 
 const challenge = (id: number, pc: PitchClass): Challenge => ({ id, stringIndex: 0, fret: 1, pc })
 
@@ -34,15 +36,21 @@ describe('ordre des événements', () => {
   /** Rejoue une suite d'actions et note les événements, comme `useGame`. */
   function record(actions: GameAction[]): string[] {
     const log: string[] = []
-    let state: GameState = createInitialState(0)
+    let state: GameState = testState()
     let emitted: GameEventSnapshot = EMPTY_EVENT_SNAPSHOT
     const flush = () => {
       const snapshot = {
+        suspended: state.suspendedAt !== null,
         phase: state.phase,
         challenge: state.challenge,
         lastResult: state.lastResult,
         combo: state.combo,
         assist: state.assist,
+        triadIntro: state.triadIntro,
+        triad: state.triad,
+        lastTriad: state.lastTriad,
+        scaleRun: state.scaleRun,
+        lastScaleRun: state.lastScaleRun,
       }
       for (const event of diffGameEvents(emitted, snapshot)) log.push(label(event))
       emitted = snapshot
@@ -68,6 +76,16 @@ describe('ordre des événements', () => {
         return `combo:${event.payload ? 'on' : 'off'}`
       case 'assist':
         return `assist:${event.payload ? event.payload.remaining : 'off'}`
+      case 'triadIntro':
+        return `triadIntro:${event.payload ? 'on' : 'off'}`
+      case 'triad':
+        return `triad:${event.payload ? event.payload.step : 'off'}`
+      case 'triadResult':
+        return `triadResult:${event.payload.success ? 'success' : 'missed'}`
+      case 'scaleRun':
+        return `scaleRun:${event.payload ? event.payload.step : 'off'}`
+      case 'scaleResult':
+        return `scaleResult:${event.payload.perfect ? 'perfect' : event.payload.hits}`
     }
   }
 
@@ -116,6 +134,103 @@ describe('ordre des événements', () => {
     expect(log).toEqual(['phase:ready', 'phase:starting', 'phase:playing', 'challenge:1'])
   })
 
+  it('annonce la triade note après note, puis son issue', () => {
+    const voicing = {
+      root: 9 as PitchClass,
+      quality: 'minor' as const,
+      notes: [
+        { stringIndex: 0, fret: 5, pc: 9 as PitchClass },
+        { stringIndex: 1, fret: 3, pc: 0 as PitchClass },
+        { stringIndex: 2, fret: 2, pc: 4 as PitchClass },
+      ] as const,
+      scale: null,
+    }
+    const triadNote = (id: number, step: number) => ({ ...voicing.notes[step], id, triad: true })
+    const log = record([
+      { type: 'start', now: 0, challenge: challenge(1, 2) },
+      { type: 'guess', pc: 2, now: 1000 },
+      { type: 'next', challenge: triadNote(2, 0), now: 1400, triad: voicing },
+      { type: 'guess', pc: 9, now: 2000 },
+      { type: 'next', challenge: triadNote(3, 1), now: 2400 },
+      { type: 'guess', pc: 0, now: 3000 },
+      { type: 'next', challenge: triadNote(4, 2), now: 3400 },
+      { type: 'guess', pc: 4, now: 4000 },
+    ])
+    // Les notes de la triade nourrissent le combo : la troisième réponse rapide
+    // l'allume, la suivante le recharge, toujours entre la tentative et la triade.
+    expect(log.slice(4)).toEqual([
+      'triad:0',
+      'challenge:2',
+      'guess:true',
+      'triad:1',
+      'challenge:3',
+      'guess:true',
+      'combo:on',
+      'triad:2',
+      'challenge:4',
+      'guess:true',
+      'combo:on',
+      'triad:off',
+      'triadResult:success',
+    ])
+  })
+
+  it('annonce la triade avant de l’ouvrir', () => {
+    const voicing = {
+      root: 9 as PitchClass,
+      quality: 'minor' as const,
+      notes: [
+        { stringIndex: 0, fret: 5, pc: 9 as PitchClass },
+        { stringIndex: 1, fret: 3, pc: 0 as PitchClass },
+        { stringIndex: 2, fret: 2, pc: 4 as PitchClass },
+      ] as const,
+      scale: null,
+    }
+    const log = record([
+      { type: 'start', now: 0, challenge: challenge(1, 2) },
+      { type: 'guess', pc: 2, now: 1000 },
+      { type: 'announceTriad', now: 1400, triad: voicing },
+      {
+        type: 'next',
+        challenge: { ...voicing.notes[0], id: 2, triad: true },
+        now: 2700,
+        triad: voicing,
+      },
+    ])
+    expect(log.slice(4)).toEqual(['triadIntro:on', 'triadIntro:off', 'triad:0', 'challenge:2'])
+
+    // Suspendue en pleine annonce, puis reprise : l'annonce et le combo ne sont
+    // que décalés dans le temps, rien n'est rediffusé.
+    const paused = record([
+      { type: 'start', now: 0, challenge: challenge(1, 2) },
+      { type: 'guess', pc: 2, now: 1000 },
+      { type: 'announceTriad', now: 1400, triad: voicing },
+      { type: 'suspend', now: 1600 },
+      { type: 'resume', now: 9000 },
+      {
+        type: 'next',
+        challenge: { ...voicing.notes[0], id: 2, triad: true },
+        now: 10_100,
+        triad: voicing,
+      },
+    ])
+    expect(paused.slice(4)).toEqual(['triadIntro:on', 'triadIntro:off', 'triad:0', 'challenge:2'])
+  })
+
+  it('ne prend pas la reprise d’une partie suspendue pour une recharge du combo', () => {
+    const before: GameEventSnapshot = {
+      ...EMPTY_EVENT_SNAPSHOT,
+      suspended: true,
+      phase: 'playing',
+      combo: { startedAt: 500, endsAt: 4000 },
+    }
+    const after = { ...before, suspended: false, combo: { startedAt: 500, endsAt: 14_000 } }
+    expect(diffGameEvents(before, after)).toEqual([])
+    // Une vraie recharge, elle, se diffuse.
+    const recharged = { ...after, combo: { startedAt: 500, endsAt: 16_000 } }
+    expect(diffGameEvents(after, recharged)).toEqual([{ type: 'combo', payload: recharged.combo }])
+  })
+
   it('ne rediffuse rien quand rien ne change', () => {
     const snapshot: GameEventSnapshot = {
       phase: 'playing',
@@ -123,6 +238,11 @@ describe('ordre des événements', () => {
       lastResult: null,
       combo: null,
       assist: null,
+      triadIntro: null,
+      triad: null,
+      lastTriad: null,
+      scaleRun: null,
+      lastScaleRun: null,
     }
     expect(diffGameEvents(snapshot, { ...snapshot })).toEqual([])
   })

@@ -1,6 +1,8 @@
 import { GAME_FEEL, RATING_RULES, type RatingRules } from '@/game/config'
 import type { LevelConfig } from '@/game/levels/levels'
 import { basePoints, stepCombo, type ComboStep } from './scoring'
+import { playedMs } from './selectors'
+import { triadMultiplier } from './triad'
 import type { GameState, GuessResult } from './types'
 
 export type StarCount = 0 | 1 | 2 | 3
@@ -31,31 +33,46 @@ export function ratingRulesFor(level: LevelConfig): RatingRules {
  * Score d'un joueur qui trouverait toutes les notes du niveau à `paceMs` par
  * note, sans erreur ni coup de pouce : mêmes règles de points et de combo que
  * le moteur, mêmes temps de révélation entre deux notes.
+ *
+ * `triadSlots` : la partie a connu des triades, ouvertes après autant de notes
+ * trouvées. Le joueur de référence les vit comme le moteur l'impose : le combo
+ * les traverse (annonce et parcours de gamme le figent sans l'entamer), et
+ * leurs notes, qui le nourrissent, valent double quand il bat leur anneau, sans
+ * cumul avec lui. Sans quoi, à allure régulière égale, un bonus tiré au sort
+ * ferait gagner ou perdre des étoiles.
  */
-export function referenceScore(level: LevelConfig, paceMs: number): number {
+export function referenceScore(
+  level: LevelConfig,
+  paceMs: number,
+  triadSlots: readonly number[] = [],
+): number {
   let step: Pick<ComboStep, 'combo' | 'fastStreak'> = { combo: null, fastStreak: 0 }
   let now = 0
   let score = 0
   for (let i = 0; i < level.targetCount; i++) {
     now += paceMs
-    const next = stepCombo(step.combo, step.fastStreak, {
-      now,
-      correct: true,
-      reactionMs: paceMs,
-    })
-    score += basePoints(paceMs) * next.multiplier
+    const inTriad = triadSlots.some((slot) => i >= slot && i < slot + 3)
+    const next = stepCombo(step.combo, step.fastStreak, { now, correct: true, reactionMs: paceMs })
+    const multiplier = inTriad
+      ? Math.max(next.multiplier, triadMultiplier(paceMs))
+      : next.multiplier
+    score += basePoints(paceMs) * multiplier
     step = next
     now += GAME_FEEL.holdAfterCorrectMs
   }
   return score
 }
 
-/** Score retenu : les bonnes réponses du coup de pouce valent ensemble la moyenne de leurs points. */
+/**
+ * Score retenu : les bonnes réponses du coup de pouce valent ensemble la
+ * moyenne de leurs points ; le parcours de gamme, simple bonus, ne compte pas.
+ */
 export function retainedScore(results: readonly GuessResult[]): number {
   let own = 0
   let assistedPoints = 0
   let assistedHits = 0
   for (const r of results) {
+    if (r.bonus === 'scale') continue
     if (!r.assisted) own += r.points
     else if (r.correct) {
       assistedPoints += r.points
@@ -65,11 +82,16 @@ export function retainedScore(results: readonly GuessResult[]): number {
   return own + (assistedHits > 0 ? assistedPoints / assistedHits : 0)
 }
 
-/** Part du temps du niveau restante à la fin de la partie, sans le temps accordé. */
-export function remainingShare(state: Pick<GameState, 'level' | 'startedAt' | 'endedAt'>): number {
+/**
+ * Part du temps du niveau restante à la fin de la partie, sans le temps accordé
+ * et sans les pauses (parcours de gamme).
+ */
+export function remainingShare(
+  state: Pick<GameState, 'level' | 'startedAt' | 'endedAt'> & Partial<Pick<GameState, 'pausedMs'>>,
+): number {
   const { level, startedAt, endedAt } = state
   if (startedAt === null || endedAt === null || level.durationMs <= 0) return 0
-  return clamp01((level.durationMs - (endedAt - startedAt)) / level.durationMs)
+  return clamp01((level.durationMs - playedMs(state)) / level.durationMs)
 }
 
 /**
@@ -77,11 +99,12 @@ export function remainingShare(state: Pick<GameState, 'level' | 'startedAt' | 'e
  * trois étoiles demandent un indice suffisant. Une défaite n'en vaut aucune.
  */
 export function rateGame(
-  state: Pick<GameState, 'phase' | 'level' | 'startedAt' | 'endedAt' | 'results' | 'assistUsed'>,
+  state: Pick<GameState, 'phase' | 'level' | 'startedAt' | 'endedAt' | 'results' | 'assistUsed'> &
+    Partial<Pick<GameState, 'pausedMs' | 'triadSlots'>>,
   rules: RatingRules = ratingRulesFor(state.level),
 ): GameRating {
   const retained = retainedScore(state.results)
-  const reference = referenceScore(state.level, rules.referencePaceMs)
+  const reference = referenceScore(state.level, rules.referencePaceMs, state.triadSlots)
   const share = remainingShare(state)
   const scoreRatio = reference > 0 ? Math.min(1, retained / reference) : 1
   const timeRatio = rules.referenceTimeShare > 0 ? Math.min(1, share / rules.referenceTimeShare) : 1

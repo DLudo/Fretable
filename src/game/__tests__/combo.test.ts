@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import { COMBO_RULES } from '@/game/config'
-import { createInitialState, gameReducer } from '@/game/engine/reducer'
+import { gameReducer } from '@/game/engine/reducer'
 import { basePoints, isCritical, stepCombo } from '@/game/engine/scoring'
 import type { Challenge, GameState } from '@/game/engine/types'
 import type { PitchClass } from '@/game/music/notes'
+
+import { testState } from './fixtures'
 
 describe('barème des points', () => {
   it('récompense le temps de réaction', () => {
@@ -44,7 +46,7 @@ function scripted(
     fret: 1,
     pc: (id % 12) as PitchClass,
   })
-  let s = gameReducer(createInitialState(0), { type: 'start', now: t, challenge: note(1) })
+  let s = gameReducer(testState(), { type: 'start', now: t, challenge: note(1) })
   const states: GameState[] = []
   plays.forEach(({ reaction, correct = true, gap = 400 }, i) => {
     const target = s.challenge!

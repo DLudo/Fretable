@@ -8,10 +8,18 @@ import { AssistChip } from './AssistChip'
 import { ComboMeter } from './ComboMeter'
 import { LevelProgress } from './LevelProgress'
 import { LevelTimer } from './LevelTimer'
+import { ScaleChip } from './ScaleChip'
 import { ScoreCounter } from './ScoreCounter'
 
 export interface LevelHudProps {
   state: GameState
+  /**
+   * Anneau d'une note de triade en cours : pastille « ×2 » en vert acide, sauf
+   * pendant un combo, qui la garde bleue (les deux ×2 ne s'additionnent pas).
+   */
+  triadBoost?: boolean
+  /** Élément posé en tête de la ligne, à gauche du titre (interrupteur de mode). */
+  leading?: ReactNode
   className?: string
 }
 
@@ -36,8 +44,13 @@ function useRisePulse(value: number): number {
  * pour laisser la hauteur au manche. L'ordre du DOM ne change pas : la ligne
  * du haut s'efface (`display: contents`) et la barre se glisse au milieu (`order`).
  */
-export function LevelHud({ state, className }: LevelHudProps): ReactNode {
-  const { level, correctCount, phase, score, combo, assist } = state
+export function LevelHud({
+  state,
+  triadBoost = false,
+  leading,
+  className,
+}: LevelHudProps): ReactNode {
+  const { level, correctCount, phase, score, combo, assist, scaleRun } = state
   const pulseId = useRisePulse(correctCount)
   const reduceMotion = useReducedMotion()
 
@@ -55,12 +68,20 @@ export function LevelHud({ state, className }: LevelHudProps): ReactNode {
           data-slot="level-hud-row"
           className="flex items-center gap-2 text-sm leading-none sm:gap-3 short:contents"
         >
+          {leading}
           <span data-slot="level-title" className="truncate font-medium short:shrink-0">
             {level.title}
           </span>
 
-          <ScoreCounter score={score} comboActive={combo !== null} className="short:shrink-0" />
+          {/* Le parcours de gamme ne multiplie rien : la pastille du combo s'y retire. */}
+          <ScoreCounter
+            score={score}
+            comboActive={combo !== null && scaleRun === null}
+            triadBoost={triadBoost}
+            className="short:shrink-0"
+          />
           <AssistChip assist={assist} className="short:shrink-0" />
+          <ScaleChip run={scaleRun} className="short:shrink-0" />
 
           <span
             data-slot="level-count"
@@ -79,7 +100,10 @@ export function LevelHud({ state, className }: LevelHudProps): ReactNode {
             <span data-slot="level-count-target" className="text-muted-foreground">
               / {level.targetCount}
             </span>
-            <span data-slot="level-count-unit" className="text-xs text-muted-foreground">
+            <span
+              data-slot="level-count-unit"
+              className="text-xs text-muted-foreground max-sm:hidden"
+            >
               notes
             </span>
           </span>
@@ -101,7 +125,7 @@ export function LevelHud({ state, className }: LevelHudProps): ReactNode {
             pulseId={pulseId}
             pending={assist && { done: assist.total - assist.remaining, total: assist.total }}
           />
-          <ComboMeter combo={combo} />
+          <ComboMeter combo={combo} pausedAt={state.pausedAt ?? state.suspendedAt} />
         </div>
       </div>
     </div>

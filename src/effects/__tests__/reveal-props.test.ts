@@ -107,8 +107,6 @@ describe('revealGeometry', () => {
   const vb = layout.viewBox
   const width = 1200
   const horizontal = createProjection(vb, width, (width * vb.height) / vb.width)
-  // Même échelle à la verticale : le cadre orienté échange largeur et hauteur.
-  const vertical = createProjection(vb, (width * vb.height) / vb.width, width, 'vertical')
   const fret = 5
   const stringIndex = 2
 
@@ -128,14 +126,6 @@ describe('revealGeometry', () => {
     // Le sillet (index 0) est à la distance réelle, à l'inclinaison de la corde près.
     const nutMm = layout.fretCenterX(fret)
     expect(-g.fretOffsets[0] / horizontal.pxPerMm).toBeCloseTo(nutMm, 0)
-  })
-
-  it('à la verticale : corde ≈ π/2, mêmes distances le long de la corde', () => {
-    const h = revealGeometry(layout, horizontal, stringIndex, fret)
-    const v = revealGeometry(layout, vertical, stringIndex, fret)
-    expect(vertical.pxPerMm).toBeCloseTo(horizontal.pxPerMm)
-    expect(Math.abs(v.stringAngle - Math.PI / 2)).toBeLessThan(0.05)
-    v.fretOffsets.forEach((offset, n) => expect(offset).toBeCloseTo(h.fretOffsets[n], 6))
   })
 })
 

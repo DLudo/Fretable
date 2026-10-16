@@ -5,21 +5,27 @@ import {
   countdownDigit,
   deadlineAt,
   endScreenAt,
+  playedMs,
   playStartsAt,
   startCountdownMs,
   totalDurationMs,
 } from '@/game/engine/selectors'
 import type { GameState, GuessResult } from '@/game/engine/types'
 import { remainingMs, type CountdownState } from '@/game/engine/useCountdown'
-import { getLevel } from '@/game/levels/levels'
 
-const level = getLevel(0)
+import { TEST_LEVEL } from './fixtures'
+
+/** Niveau de 30 s : les valeurs attendues ci-dessous en dépendent. */
+const level = TEST_LEVEL
 const clock = (patch: Partial<CountdownState>): CountdownState => ({
   phase: 'playing',
   startedAt: 1000,
   endedAt: null,
   level,
   bonusTimeMs: 0,
+  pausedAt: null,
+  pausedMs: 0,
+  suspendedAt: null,
   ...patch,
 })
 
@@ -123,5 +129,13 @@ describe('décompte 3, 2, 1', () => {
 
   it('laisse le temps plein tant que la partie n’a pas commencé', () => {
     expect(remainingMs(clock({ phase: 'starting', startedAt: null }), 50_000)).toBe(30_000)
+  })
+})
+
+describe('temps de jeu', () => {
+  it('déduit les pauses', () => {
+    expect(playedMs({ startedAt: 1000, endedAt: 61_000, pausedMs: 20_000 })).toBe(40_000)
+    expect(playedMs({ startedAt: 1000, endedAt: 61_000 })).toBe(60_000)
+    expect(playedMs({ startedAt: 1000, endedAt: null })).toBe(0)
   })
 })

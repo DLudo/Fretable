@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { motion, type Transition } from 'motion/react'
 
+import { cn } from '@/lib/utils'
 import { duration, ease, spring } from '@/theme/motion'
 
 /** Apparition « note suivante ! » : pop très raide, posé en moins de 250 ms. */
@@ -10,6 +12,9 @@ const EXIT: Transition = { duration: duration.instant, ease: ease.inQuad }
 const PULSE: Transition = { duration: duration.pulse, ease: ease.inOut, repeat: Infinity }
 /** Onde de choc à l'apparition. */
 const SHOCKWAVE: Transition = { duration: duration.reveal, ease: ease.outExpo }
+/** Étincelles de la triade : chacune part du point, s'éloigne et s'éteint, en boucle décalée. */
+const SPARK_COUNT = 8
+const SPARK_SECONDS = 1.5
 
 const CENTERED = { transformBox: 'fill-box', transformOrigin: 'center' } as const
 
@@ -19,9 +24,55 @@ interface MarkerDotProps {
   r: number
   /** Identifiant du dégradé de halo (défini une fois par le parent, couleur `--marker-halo`). */
   haloId: string
-  /** `assist` : note du coup de pouce, cerclée d'un anneau ambré (`--assist`). */
-  variant?: 'default' | 'assist'
+  /** Identifiant du dégradé de lueur de la triade (couleur `--triad-glow`). */
+  triadGlowId?: string
+  /**
+   * `assist` : note du coup de pouce, cerclée d'un anneau ambré (`--assist`) ;
+   * `triad` : note d'une triade, nimbée de vert acide et semée d'étincelles (`--triad`).
+   */
+  variant?: 'default' | 'assist' | 'triad'
+  /**
+   * Temps imparti pour répondre (ms) : un anneau vert acide se vide autour du
+   * point, depuis midi et dans le sens des aiguilles d'une montre. Il renseigne,
+   * donc il s'écoule aussi quand les animations sont réduites.
+   */
+  countdownMs?: number
+  /**
+   * Échéance du délai, sur l'horloge `performance.now()` : l'anneau part de la
+   * part qui reste (le point apparaît un rendu après le départ du moteur) et
+   * se vide pile à l'échéance. Défaut : au montage + `countdownMs`.
+   */
+  countdownEndsAt?: number
+  /** Délai écoulé : l'anneau, vide, passe au gris (le « ×2 » est perdu). */
+  countdownSpent?: boolean
   reduceMotion: boolean
+}
+
+/** Étincelles vert acide autour d'une note de triade. */
+function TriadSparks({ cx, cy, r }: { cx: number; cy: number; r: number }) {
+  return Array.from({ length: SPARK_COUNT }, (_, i) => {
+    // Répartition régulière, légèrement désaxée pour ne pas paraître mécanique.
+    const angle = (i / SPARK_COUNT) * Math.PI * 2 + (i % 2 === 0 ? 0.25 : -0.15)
+    const travel = r * (1.5 + (i % 3) * 0.4)
+    return (
+      <motion.circle
+        key={i}
+        data-slot="fretboard-marker-spark"
+        cx={cx + Math.cos(angle) * r * 1.1}
+        cy={cy + Math.sin(angle) * r * 1.1}
+        r={r * (i % 3 === 0 ? 0.22 : 0.14)}
+        className="fill-triad"
+        initial={{ opacity: 0, x: 0, y: 0 }}
+        animate={{ opacity: [0, 1, 0], x: Math.cos(angle) * travel, y: Math.sin(angle) * travel }}
+        transition={{
+          duration: SPARK_SECONDS,
+          ease: ease.outQuart,
+          repeat: Infinity,
+          delay: (i * SPARK_SECONDS) / SPARK_COUNT,
+        }}
+      />
+    )
+  })
 }
 
 /** Le point à deviner. À monter dans `AnimatePresence`, clé = identifiant de la note. */
@@ -30,9 +81,23 @@ export function MarkerDot({
   cy,
   r,
   haloId,
+  triadGlowId,
   variant = 'default',
+  countdownMs,
+  countdownEndsAt,
+  countdownSpent = false,
   reduceMotion,
 }: MarkerDotProps) {
+  // Part du délai qui reste au montage, figée : l'anneau s'en vide jusqu'à l'échéance.
+  const [remaining] = useState(() =>
+    countdownMs && countdownEndsAt !== undefined
+      ? Math.min(1, Math.max(0, (countdownEndsAt - performance.now()) / countdownMs))
+      : 1,
+  )
+  const ring = r * 1.5
+  // L'anneau part de midi, en haut du point.
+  const top = { x: cx, y: cy - ring }
+  const bottom = { x: cx, y: cy + ring }
   return (
     <motion.g
       data-slot="fretboard-marker"
@@ -46,6 +111,19 @@ export function MarkerDot({
       }}
       exit={{ scale: 0.4, opacity: 0, transition: EXIT }}
     >
+      {variant === 'triad' && triadGlowId && (
+        <motion.circle
+          data-slot="fretboard-marker-triad-glow"
+          cx={cx}
+          cy={cy}
+          r={r * 3.2}
+          fill={`url(#${triadGlowId})`}
+          style={CENTERED}
+          animate={reduceMotion ? undefined : { scale: [1, 1.15, 1], opacity: [0.75, 1, 0.75] }}
+          transition={PULSE}
+        />
+      )}
+      {variant === 'triad' && !reduceMotion && <TriadSparks cx={cx} cy={cy} r={r} />}
       <motion.circle
         data-slot="fretboard-marker-halo"
         cx={cx}
@@ -89,6 +167,37 @@ export function MarkerDot({
           className="stroke-assist"
           strokeWidth={r * 0.3}
         />
+      )}
+      {countdownMs !== undefined && (
+        <g data-slot="fretboard-marker-countdown">
+          {/* Gorge sombre : l'arc restant tranche sur la lueur verte, la part écoulée
+              aussi. Le délai écoulé, elle passe au gris : l'anneau est perdu. */}
+          <circle
+            data-slot="fretboard-marker-countdown-track"
+            data-spent={countdownSpent || undefined}
+            cx={cx}
+            cy={cy}
+            r={ring}
+            fill="none"
+            className={cn(
+              'transition-[stroke] duration-300',
+              countdownSpent ? 'stroke-muted-foreground' : 'stroke-triad-foreground',
+            )}
+            strokeWidth={r * 0.4}
+          />
+          <motion.path
+            // Deux demi-cercles depuis midi (à l'écran), dans le sens antihoraire :
+            // en se rétractant, l'arc restant recule dans le sens des aiguilles
+            // d'une montre, comme balayé par une trotteuse.
+            d={`M ${top.x} ${top.y} A ${ring} ${ring} 0 1 0 ${bottom.x} ${bottom.y} A ${ring} ${ring} 0 1 0 ${top.x} ${top.y}`}
+            fill="none"
+            className="stroke-triad"
+            strokeWidth={r * 0.24}
+            initial={{ pathLength: remaining }}
+            animate={{ pathLength: 0 }}
+            transition={{ duration: (remaining * countdownMs) / 1000, ease: 'linear' }}
+          />
+        </g>
       )}
       <circle
         data-slot="fretboard-marker-dot"

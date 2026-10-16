@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { RATING_RULES } from '@/game/config'
+import { RATING_RULES, TRIAD_RULES } from '@/game/config'
 import {
   rateGame,
   ratingRulesFor,
@@ -8,16 +8,21 @@ import {
   remainingShare,
   retainedScore,
 } from '@/game/engine/rating'
-import { createInitialState, gameReducer } from '@/game/engine/reducer'
+import { gameReducer } from '@/game/engine/reducer'
 import type { Challenge, GameState, GuessResult } from '@/game/engine/types'
-import { getLevel } from '@/game/levels/levels'
 
-const level = getLevel(0)
+import { TEST_LEVEL, testState } from './fixtures'
+
+/**
+ * Le tableau de référence a été étalonné sur un niveau de 30 s : la notation
+ * est évaluée sur ce niveau-là, quelle que soit la durée du niveau 1 en jeu.
+ */
+const level = TEST_LEVEL
 const note = (id: number): Challenge => ({ id, stringIndex: 0, fret: 1, pc: 5 })
 
 /** Partie jouée par le vrai moteur : une réponse toutes les `reactions[i]` ms, erreurs aux index donnés. */
 function play(reactions: number[], wrongAt: number[] = []): GameState {
-  let s = gameReducer(createInitialState(0), { type: 'start', now: 0, challenge: note(0) })
+  let s = gameReducer(testState(), { type: 'start', now: 0, challenge: note(0) })
   let t = 0
   for (let i = 0; i < reactions.length && s.phase === 'playing'; i++) {
     t += reactions[i]
@@ -29,7 +34,7 @@ function play(reactions: number[], wrongAt: number[] = []): GameState {
     s = gameReducer(s, { type: 'comboExpire', now: t })
     s = gameReducer(s, { type: 'next', challenge: note(i + 1), now: t })
   }
-  return s
+  return { ...s, level }
 }
 
 const pace = (ms: number, count = 6) => Array<number>(count).fill(ms)
@@ -96,6 +101,66 @@ describe('étoiles', () => {
     expect(ratingRulesFor(strict).threeStarsAt).toBe(0.99)
     expect(ratingRulesFor(strict).scoreWeight).toBe(RATING_RULES.scoreWeight)
     expect(rateGame({ ...play(pace(1900)), level: strict }).stars).toBe(2)
+  })
+})
+
+describe('triade', () => {
+  it('ne coûte pas d’étoile à performance égale', () => {
+    // Même allure (1,5 s par note, sans erreur), avec une triade ouverte après la première note.
+    const voicing = {
+      root: 9 as const,
+      quality: 'minor' as const,
+      notes: [
+        { stringIndex: 0, fret: 5, pc: 9 as const },
+        { stringIndex: 1, fret: 3, pc: 0 as const },
+        { stringIndex: 2, fret: 2, pc: 4 as const },
+      ] as const,
+      scale: null,
+    }
+    let s = gameReducer(testState(), { type: 'start', now: 0, challenge: note(0) })
+    let t = 0
+    for (let i = 0; i < 6; i++) {
+      t += 1500
+      s = gameReducer(s, { type: 'guess', pc: s.challenge!.pc, now: t, roll: 1 })
+      if (s.phase !== 'playing') break
+      t += 420
+      const step = i === 0 ? 0 : s.triad?.step
+      const challenge =
+        step !== undefined && i < 3
+          ? { ...voicing.notes[step], id: 10 + i, triad: true }
+          : note(20 + i)
+      s = gameReducer(s, {
+        type: 'next',
+        challenge,
+        now: t,
+        ...(i === 0 ? { triad: voicing } : {}),
+      })
+    }
+    expect(s.lastTriad).toMatchObject({ success: true, slot: 1 })
+    const withTriad = rateGame({ ...s, level })
+    const without = rateGame(play(pace(1500)))
+    // Le combo traverse la triade et ses notes le nourrissent : la référence vit
+    // la triade exactement comme le joueur, d'où la même note.
+    expect(withTriad.stars).toBe(without.stars)
+    expect(withTriad.scoreRatio).toBe(1)
+    expect(referenceScore(level, 1500, [1])).toBe(s.score)
+  })
+})
+
+describe('triades', () => {
+  it('les joue toutes dans la référence, anneaux compris', () => {
+    const long = { ...level, targetCount: 12 }
+    const single = (pace: number) => referenceScore({ ...level, targetCount: 1 }, pace)
+    // Quatre triades couvrent les douze notes : à 0,8 s, chaque anneau est battu.
+    expect(referenceScore(long, 800, [0, 3, 6, 9])).toBe(12 * 2 * single(800))
+    // Au-delà du délai de l'anneau, plus rien n'est doublé.
+    const slow = TRIAD_RULES.fastReactionMs
+    expect(referenceScore(long, slow, [0, 3, 6, 9])).toBe(12 * single(slow))
+    // Le combo traverse les triades, comme celui du joueur, et leurs notes le
+    // nourrissent : tout est doublé, sans cumul entre anneau et combo.
+    expect(referenceScore(long, 800, [0, 6])).toBe(12 * 2 * single(800))
+    // Sans triade, les trois premières notes construisent le combo, sans bonus.
+    expect(referenceScore(long, 800)).toBe((3 + 9 * 2) * single(800))
   })
 })
 

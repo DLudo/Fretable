@@ -1,4 +1,4 @@
-import { GAME_FEEL } from '@/game/config'
+import { GAME_FEEL, SCALE_RULES } from '@/game/config'
 import type { GameState } from './types'
 
 /** Temps imparti à la partie (ms) : celui du niveau, plus le temps accordé en cours de route. */
@@ -6,11 +6,50 @@ export function totalDurationMs(state: Pick<GameState, 'level' | 'bonusTimeMs'>)
   return state.level.durationMs + state.bonusTimeMs
 }
 
-/** Échéance (`performance.now()`) de la partie, ou `null` avant le départ. */
+/**
+ * Échéance (`performance.now()`) de la partie, ou `null` avant le départ et
+ * pendant une pause ou une suspension (le temps ne court pas). Les pauses
+ * passées la repoussent d'autant.
+ */
 export function deadlineAt(
-  state: Pick<GameState, 'level' | 'bonusTimeMs' | 'startedAt'>,
+  state: Pick<
+    GameState,
+    'level' | 'bonusTimeMs' | 'startedAt' | 'pausedAt' | 'pausedMs' | 'suspendedAt'
+  >,
 ): number | null {
-  return state.startedAt === null ? null : state.startedAt + totalDurationMs(state)
+  if (state.startedAt === null || state.pausedAt !== null || state.suspendedAt !== null) {
+    return null
+  }
+  return state.startedAt + totalDurationMs(state) + state.pausedMs
+}
+
+/**
+ * Échéance de la note du parcours de gamme en attente de réponse : son anneau
+ * (`SCALE_RULES.noteMs`) se vide à cet instant. `null` hors parcours, ou
+ * pendant la révélation d'une réponse.
+ */
+export function scaleNoteDeadlineAt(
+  state: Pick<
+    GameState,
+    'phase' | 'locked' | 'challenge' | 'challengeShownAt' | 'scaleRun' | 'suspendedAt'
+  >,
+): number | null {
+  const { phase, locked, challenge, challengeShownAt, scaleRun, suspendedAt } = state
+  if (phase !== 'playing' || locked || !scaleRun || challenge?.scale !== true) return null
+  if (suspendedAt !== null) return null
+  return challengeShownAt === null ? null : challengeShownAt + SCALE_RULES.noteMs
+}
+
+/**
+ * Temps de jeu effectif d'une partie terminée (ms) : de la première note à la
+ * fin, sans les pauses (parcours de gamme). 0 avant la fin.
+ */
+export function playedMs(
+  state: Pick<GameState, 'startedAt' | 'endedAt'> & Partial<Pick<GameState, 'pausedMs'>>,
+): number {
+  const { startedAt, endedAt, pausedMs = 0 } = state
+  if (startedAt === null || endedAt === null) return 0
+  return Math.max(0, endedAt - startedAt - pausedMs)
 }
 
 /** Durée du décompte 3, 2, 1 avant la première note (ms). */
@@ -18,9 +57,15 @@ export function startCountdownMs(): number {
   return Math.max(0, GAME_FEEL.startCountdownFrom) * Math.max(0, GAME_FEEL.startCountdownStepMs)
 }
 
-/** Instant où le décompte s'achève et où la partie démarre, ou `null` hors décompte. */
-export function playStartsAt(state: Pick<GameState, 'phase' | 'startingAt'>): number | null {
+/**
+ * Instant où le décompte s'achève et où la partie démarre, ou `null` hors
+ * décompte (ou décompte suspendu).
+ */
+export function playStartsAt(
+  state: Pick<GameState, 'phase' | 'startingAt'> & Partial<Pick<GameState, 'suspendedAt'>>,
+): number | null {
   if (state.phase !== 'starting' || state.startingAt === null) return null
+  if (state.suspendedAt != null) return null
   return state.startingAt + startCountdownMs()
 }
 

@@ -11,7 +11,10 @@ export interface ComboAuraProps {
   active: boolean
   layout: NeckLayout
   projection: BoardProjection
-  /** Réglages (par défaut `COMBO_AURA`). */
+  /**
+   * Réglages (par défaut `COMBO_AURA`). En changer pendant le combo (passage au
+   * combo enflammé) ravive l'aura : nouvel éclat et nouvelle gerbe.
+   */
   config?: ComboAuraConfig
 }
 
@@ -43,6 +46,10 @@ interface AuraGeometry {
   fadeTo: Point
 }
 
+/**
+ * Particule. Sa position est relative au manche (px, sans la marge `bleedPx`) :
+ * changer de réglages en plein combo ne la déplace pas.
+ */
 interface Particle {
   x: number
   y: number
@@ -52,7 +59,12 @@ interface Particle {
   life: number
   radius: number
   spark: boolean
+  /** Poussée vers le haut (px/s²) : pleine sur le bord du haut, nulle sur celui du bas. */
+  lift: number
 }
+
+/** Les particules s'effacent dans les derniers px avant le bord du canvas, au lieu d'y être tranchées. */
+const EDGE_FADE_PX = 16
 
 /** Contour du manche projeté à l'écran, avec normales sortantes et fondu de l'extrémité. */
 function auraGeometry(
@@ -186,7 +198,8 @@ function renderDot(color: [number, number, number, number]): HTMLCanvasElement {
 }
 
 /**
- * Aura de combo : halo bleu et particules qui s'échappent du pourtour du manche.
+ * Aura de combo : halo bleu et particules qui s'échappent du pourtour du manche
+ * (orangé et flammes montantes avec `COMBO_FIRE_AURA`).
  *
  * Rendu procédural sur un canvas posé sur le calque du manche, débordant de
  * `bleedPx`. Le halo est pré-rendu à chaque changement de taille ; seules les
@@ -219,11 +232,14 @@ export function ComboAura({
     particles: [] as Particle[],
   })
   const activeRef = useRef(false)
+  // Réglages avec lesquels l'aura s'est allumée (`null` éteinte) : en changer la ravive.
+  const ignitedWith = useRef<ComboAuraConfig | null>(null)
   useEffect(() => {
-    if (active && !activeRef.current) {
+    if (active && ignitedWith.current !== config) {
       engine.current.introAt = performance.now()
       engine.current.pendingBurst = config.particles.burst
     }
+    ignitedWith.current = active ? config : null
     activeRef.current = active
   }, [active, config])
 
@@ -255,6 +271,7 @@ export function ComboAura({
     }
 
     const random = Math.random
+    const bleed = config.bleedPx
     const state = engine.current
     const { particles } = state
 
@@ -271,14 +288,16 @@ export function ComboAura({
       const speed = between(random, config.particles.speedPxPerSecond)
       const slide = (random() * 2 - 1) * config.particles.drift
       particles.push({
-        x: segment.a.x + (segment.b.x - segment.a.x) * u + segment.nx * random() * 2,
-        y: segment.a.y + (segment.b.y - segment.a.y) * u + segment.ny * random() * 2,
+        x: segment.a.x + (segment.b.x - segment.a.x) * u + segment.nx * random() * 2 - bleed,
+        y: segment.a.y + (segment.b.y - segment.a.y) * u + segment.ny * random() * 2 - bleed,
         vx: (segment.nx + segment.tx * slide) * speed,
         vy: (segment.ny + segment.ty * slide) * speed,
         age: 0,
         life: between(random, config.particles.lifeMs) / 1000,
         radius: between(random, config.particles.radiusPx),
         spark: random() < config.particles.sparkRatio,
+        // Les braises du bord du bas ne remontent pas : elles traverseraient les cordes.
+        lift: (config.particles.lift * (1 - segment.ny)) / 2,
       })
     }
 
@@ -336,14 +355,24 @@ export function ComboAura({
           }
           p.vx *= drag
           p.vy *= drag
+          p.vy -= p.lift * dt
           p.x += p.vx * dt
           p.y += p.vy * dt
+          const x = p.x + bleed
+          const y = p.y + bleed
+          const edge = Math.min(x, y, geometry.width - x, geometry.height - y) / EDGE_FADE_PX
+          if (edge <= 0) continue
           const t = p.age / p.life
-          ctx.globalAlpha = Math.pow(1 - t, 1.4) * Math.max(0.35, state.level)
+          ctx.globalAlpha = Math.pow(1 - t, 1.4) * Math.max(0.35, state.level) * Math.min(1, edge)
           const size = p.radius * (1 + 0.6 * Math.sin(Math.PI * Math.min(1, t * 2))) * 2.4
           const image = texture ?? (p.spark ? dots.spark : dots.particle)
-          ctx.drawImage(image, p.x - size / 2, p.y - size / 2, size, size)
+          ctx.drawImage(image, x - size / 2, y - size / 2, size, size)
         }
+        // L'intérieur du manche reste net : une braise qui y repasse s'y efface.
+        ctx.globalCompositeOperation = 'destination-out'
+        ctx.globalAlpha = 1
+        polygon(ctx, geometry.inside, true)
+        ctx.fill()
       } else {
         particles.length = 0
       }

@@ -46,8 +46,7 @@ export function AssistBanner({ assist, className }: AssistBannerProps): ReactNod
           data-slot="assist-banner"
           role="status"
           className={cn(
-            // Sur écran bas, l'annonce s'affine pour tenir entre le HUD et le manche.
-            'pointer-events-none absolute top-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-full bg-assist py-1.5 pr-4 pl-3 text-sm whitespace-nowrap text-assist-foreground shadow-[0_6px_24px_-6px_var(--assist)] short:top-0.5 short:py-1 short:text-xs',
+            'flex items-center gap-2 rounded-full bg-assist py-1.5 pr-4 pl-3 text-sm whitespace-nowrap text-assist-foreground shadow-[0_6px_24px_-6px_var(--assist)] short:py-1 short:text-xs',
             className,
           )}
           initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -12, scale: 0.85 }}

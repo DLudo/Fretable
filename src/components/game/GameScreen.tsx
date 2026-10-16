@@ -1,42 +1,37 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useAnimate, useReducedMotion, type Transition } from 'motion/react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import { RevealLayer } from '@/effects'
 import { ComboAura } from '@/effects/ambient'
-import type { GameEventBus } from '@/game/engine/events'
+import { gameCoinKey, useCoinReward } from '@/game/coins'
+import { SCALE_RULES, TRIAD_RULES } from '@/game/config'
+import { rateGame } from '@/game/engine/rating'
 import { endScreenAt } from '@/game/engine/selectors'
 import { useGame } from '@/game/engine/useGame'
+import { useTriadRing } from '@/game/engine/useTriadRing'
 import { createNeckLayout } from '@/game/fretboard/geometry'
-import {
-  orientViewBox,
-  type BoardOrientation,
-  type BoardProjection,
-} from '@/game/fretboard/projection'
+import type { BoardProjection } from '@/game/fretboard/projection'
 import { useKeyboardControls } from '@/game/input/useKeyboardControls'
 import type { PitchClass } from '@/game/music/notes'
-import { useElementSize } from '@/hooks/useElementSize'
-import { useMediaQuery } from '@/hooks/useMediaQuery'
+import { requestLandscape } from '@/lib/landscape'
 import { cn } from '@/lib/utils'
-import { duration, ease } from '@/theme/motion'
 import { AssistBanner } from './AssistBanner'
-import { Fretboard } from './fretboard'
+import { Fretboard, type FretboardGhost } from './fretboard'
 import { LevelHud } from './hud'
-import { LevelOverlay } from './overlays'
+import { useAutoSuspend, usePortraitBlocked } from './orientation'
+import { LevelOverlay, PauseOverlay } from './overlays'
 import { Piano, type PianoFeedback } from './piano'
 import { StartCountdown } from './StartCountdown'
+import { ScaleBanner } from './ScaleBanner'
+import { TriadBanner } from './TriadBanner'
+import { TriadIntro } from './TriadIntro'
+import { useBoardFit } from './useBoardFit'
+import { useBoardImpact } from './useBoardImpact'
 
-/** Largeur maximale du manche sur grand écran. */
-const BOARD_MAX_WIDTH = '72rem'
-
-/** Téléphone tenu en portrait : le manche passe à la verticale (sillet en haut). */
-const PORTRAIT_QUERY = '(orientation: portrait) and (max-width: 639px)'
-
-/** Petit coup sec du manche sur une bonne réponse. */
-const BOARD_HIT: Transition = { duration: duration.fast, ease: ease.outQuart }
-/** Secousse latérale sur une erreur. */
-const BOARD_SHAKE: Transition = { duration: duration.base, ease: ease.outQuart }
+const NO_GHOSTS: readonly FretboardGhost[] = []
 
 export interface GameScreenProps {
+  /** Interrupteur de mode, posé en tête du HUD. */
+  modeSwitch?: ReactNode
   className?: string
 }
 
@@ -44,12 +39,11 @@ export interface GameScreenProps {
  * Écran de jeu : assemble HUD, manche, piano, révélations et overlays.
  * Toute la logique vit dans `useGame` ; ce composant ne fait que du câblage.
  */
-export function GameScreen({ className }: GameScreenProps) {
+export function GameScreen({ modeSwitch, className }: GameScreenProps) {
   const game = useGame()
   const { state } = game
   const layout = useMemo(() => createNeckLayout({ tuning: game.tuning }), [game.tuning])
   const playing = state.phase === 'playing'
-  const orientation: BoardOrientation = useMediaQuery(PORTRAIT_QUERY) ? 'vertical' : 'horizontal'
 
   // L'écran de fin attend que la dernière révélation ait pu être lue.
   const overlayAt = endScreenAt(state)
@@ -66,12 +60,41 @@ export function GameScreen({ className }: GameScreenProps) {
   const overlayVisible =
     overlayAt === null || overlayAt === state.endedAt || overlayShownFor === state.endedAt
 
+  // Pièces : la partie finie, son score converti et la prime de ses étoiles
+  // créditent le portefeuille, une seule fois par partie.
+  const ended = state.phase === 'won' || state.phase === 'lost'
+  const coins = useCoinReward(
+    ended && state.startedAt !== null
+      ? gameCoinKey(`classic:${state.levelIndex}`, state.startedAt)
+      : null,
+    { score: state.score, stars: state.phase === 'won' ? rateGame(state).stars : 0 },
+  )
+
+  // Partie suspendue (écran en portrait, page quittée) : tout attend la reprise.
+  const suspended = state.suspendedAt !== null
+  const blocked = usePortraitBlocked()
+  const live = state.phase === 'starting' || state.phase === 'playing'
+  useAutoSuspend(live && !suspended, game.suspend)
+
+  // Lancer ou reprendre, d'un geste du joueur : sur écran tactile, le jeu passe
+  // en plein écran, verrouillé en paysage quand l'appareil le permet.
+  const startGame = () => {
+    void requestLandscape()
+    game.start()
+  }
+  const resumeGame = () => {
+    void requestLandscape()
+    game.resume()
+  }
+
   const confirm = () => {
+    if (blocked) return
+    if (suspended) return resumeGame()
     if (!overlayVisible) return
-    if (state.phase === 'ready' || state.phase === 'lost') game.start()
+    if (state.phase === 'ready' || state.phase === 'lost') startGame()
     else if (state.phase === 'won') {
       if (game.hasNextLevel) game.nextLevel()
-      else game.start()
+      else startGame()
     }
   }
 
@@ -95,19 +118,83 @@ export function GameScreen({ className }: GameScreenProps) {
     }
   }, [state.lastResult])
 
+  // Anneau de la note de triade en cours : il pilote l'anneau du manche et la pastille « ×2 ».
+  const ringRunning = useTriadRing(state)
+  // En pause, la note à deviner se cache : pas question de la chercher à loisir.
   const marker =
-    playing && !state.locked && state.challenge
+    playing && !suspended && !state.locked && state.challenge
       ? {
           id: state.challenge.id,
           stringIndex: state.challenge.stringIndex,
           fret: state.challenge.fret,
-          variant: state.challenge.assist ? ('assist' as const) : ('default' as const),
+          // Triade et parcours de gamme : même langage visuel, vert acide.
+          variant: state.challenge.assist
+            ? ('assist' as const)
+            : state.challenge.triad || state.challenge.scale
+              ? ('triad' as const)
+              : ('default' as const),
+          // Chaque note de la triade, à son tour, égrène son délai autour du point ;
+          // l'anneau vide passe au gris : le « ×2 » est perdu pour cette note.
+          ...(state.challenge.triad && state.triad
+            ? {
+                countdownMs: TRIAD_RULES.fastReactionMs,
+                countdownEndsAt: (state.challengeShownAt ?? 0) + TRIAD_RULES.fastReactionMs,
+                countdownSpent: !ringRunning,
+              }
+            : // Note du parcours de gamme : le même anneau ; vide, la note est manquée.
+              state.challenge.scale && state.scaleRun
+              ? {
+                  countdownMs: SCALE_RULES.noteMs,
+                  countdownEndsAt: (state.challengeShownAt ?? 0) + SCALE_RULES.noteMs,
+                }
+              : {}),
         }
       : null
 
-  const boardRef = useBoardImpact(game.events)
-  const box = orientViewBox(layout.viewBox, orientation)
-  const { mainRef, pianoRef, maxWidth: boardMaxWidth } = useBoardFit(box.width / box.height)
+  // Notes en filigrane. Triade : celles pas encore demandées (pendant une
+  // révélation, `locked`, la suivante attend encore son tour). Parcours de
+  // gamme : toute la forme, sauf la note à deviner ; elle se dessine du grave
+  // à l'aigu à son ouverture, puis chaque note jouée prend sa couleur.
+  const triad = playing ? state.triad : null
+  const run = playing ? state.scaleRun : null
+  const locked = state.locked
+  const ghosts = useMemo<readonly FretboardGhost[]>(() => {
+    if (run) {
+      const drawing = run.outcomes.length === 0 && locked
+      return run.notes.flatMap((note, i) => {
+        if (i === run.step && !locked) return []
+        const outcome = run.outcomes[i]
+        return [
+          {
+            key: `${note.stringIndex}:${note.fret}`,
+            stringIndex: note.stringIndex,
+            fret: note.fret,
+            tone: outcome ?? (run.accents.includes(i) ? 'triad' : 'plain'),
+            delay: drawing ? i * 0.07 : 0,
+          },
+        ]
+      })
+    }
+    if (!triad) return NO_GHOSTS
+    return triad.notes.slice(locked ? triad.step : triad.step + 1).map((note) => ({
+      key: `${note.stringIndex}:${note.fret}`,
+      stringIndex: note.stringIndex,
+      fret: note.fret,
+      tone: 'triad' as const,
+    }))
+  }, [run, triad, locked])
+
+  // Impact physique du manche, à chaque tentative.
+  const { ref: boardRef, impact } = useBoardImpact()
+  useEffect(
+    () => game.events.on('guess', (result) => impact(result.correct)),
+    [game.events, impact],
+  )
+  const {
+    mainRef,
+    pianoRef,
+    maxWidth: boardMaxWidth,
+  } = useBoardFit(layout.viewBox.width / layout.viewBox.height)
 
   // L'aura du combo passe sous les révélations.
   const comboActive = playing && state.combo !== null
@@ -123,11 +210,10 @@ export function GameScreen({ className }: GameScreenProps) {
 
   return (
     <div data-slot="game-screen" className={cn('flex h-dvh flex-col overflow-hidden', className)}>
-      <LevelHud state={state} className="shrink-0" />
+      <LevelHud state={state} triadBoost={ringRunning} leading={modeSwitch} className="shrink-0" />
       <main
         ref={mainRef}
         data-slot="game-stage"
-        data-orientation={orientation}
         className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-[clamp(1rem,6vh,4.5rem)] px-4 pt-2 pb-[clamp(0.75rem,3vh,1.5rem)]"
       >
         <div
@@ -137,76 +223,41 @@ export function GameScreen({ className }: GameScreenProps) {
           className="relative w-full"
           style={{ maxWidth: boardMaxWidth }}
         >
-          <Fretboard layout={layout} marker={marker} overlay={overlay} orientation={orientation} />
+          <Fretboard layout={layout} marker={marker} ghosts={ghosts} overlay={overlay} />
           <StartCountdown state={state} />
         </div>
         {/* Hors partie, le piano sort du parcours clavier et de l'arbre d'accessibilité. */}
-        <div ref={pianoRef} data-slot="game-piano" className="w-full" inert={!playing}>
+        <div ref={pianoRef} data-slot="game-piano" className="w-full" inert={!playing || suspended}>
           <Piano
             onPress={game.guess}
             pressed={pressed}
             sharpMode={sharpMode}
             feedback={feedback}
             nudge={nudge}
-            disabled={!playing}
+            disabled={!playing || suspended}
           />
         </div>
-        <AssistBanner assist={playing ? state.assist : null} />
+        {/* Annonces empilées au-dessus du manche : deux peuvent se croiser sans se masquer. */}
+        <div
+          data-slot="stage-banners"
+          className="pointer-events-none absolute top-2 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-1.5 short:top-0.5 short:gap-1"
+        >
+          <AssistBanner assist={playing ? state.assist : null} />
+          <TriadBanner outcome={playing ? state.lastTriad : null} />
+          <ScaleBanner outcome={playing ? state.lastScaleRun : null} />
+        </div>
+        {/* Annonce d'une triade : la partie est en pause le temps qu'elle passe. */}
+        <TriadIntro intro={playing ? state.triadIntro : null} suspended={suspended} />
         <LevelOverlay
           state={state}
           visible={overlayVisible}
+          coins={coins}
           hasNextLevel={game.hasNextLevel}
-          onStart={game.start}
+          onStart={startGame}
           onNextLevel={game.nextLevel}
         />
+        <PauseOverlay open={suspended} onResume={resumeGame} />
       </main>
     </div>
   )
-}
-
-/**
- * Le manche est dimensionné par la largeur, mais jamais plus haut que l'espace
- * laissé par le HUD et le piano (proportions conservées). `aspectRatio` est
- * celui du manche orienté : à la verticale, c'est donc la hauteur disponible
- * qui fixe sa taille.
- */
-function useBoardFit(aspectRatio: number) {
-  const [mainRef, main] = useElementSize<HTMLElement>()
-  const [pianoRef, piano] = useElementSize<HTMLDivElement>()
-  const [chrome, setChrome] = useState(0)
-
-  // Marges verticales et espacement du conteneur, relus avant affichage quand sa taille change.
-  useLayoutEffect(() => {
-    const element = mainRef.current
-    if (!element) return
-    const style = getComputedStyle(element)
-    setChrome(
-      parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + parseFloat(style.rowGap),
-    )
-  }, [mainRef, main.height])
-
-  const available = main.height - piano.height - chrome
-  const maxWidth =
-    main.height > 0 && available > 0
-      ? `min(${BOARD_MAX_WIDTH}, ${Math.floor(available * aspectRatio)}px)`
-      : BOARD_MAX_WIDTH
-  return { mainRef, pianoRef, maxWidth }
-}
-
-/**
- * Impact physique du manche : petit coup sec sur une bonne réponse,
- * secousse sur une erreur. Branché sur le bus d'événements du jeu.
- */
-function useBoardImpact(events: GameEventBus) {
-  const [scope, animate] = useAnimate<HTMLDivElement>()
-  const reduced = useReducedMotion()
-  useEffect(() => {
-    if (reduced) return
-    return events.on('guess', (result) => {
-      if (!scope.current) return
-      if (result.correct) animate(scope.current, { y: [0, 3, 0] }, BOARD_HIT)
-      else animate(scope.current, { x: [0, -7, 6, -4, 3, -1, 0] }, BOARD_SHAKE)
-    })
-  }, [events, animate, scope, reduced])
-  return scope
 }

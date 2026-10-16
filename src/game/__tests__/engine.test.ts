@@ -7,10 +7,15 @@ import { getLevel, hasNextLevel, LEVELS } from '@/game/levels/levels'
 import type { PitchClass } from '@/game/music/notes'
 import { STANDARD_TUNING } from '@/game/music/tuning'
 
+import { TEST_LEVEL, testState } from './fixtures'
+
+/** Échéance de la partie démarrée à 1 000 ms par `startedGame`. */
+const DEADLINE = 1000 + TEST_LEVEL.durationMs
+
 const challenge = (id: number, pc: PitchClass): Challenge => ({ id, stringIndex: 0, fret: 1, pc })
 
 const startedGame = (): GameState =>
-  gameReducer(createInitialState(0), { type: 'start', now: 1000, challenge: challenge(1, 5) })
+  gameReducer(testState(), { type: 'start', now: 1000, challenge: challenge(1, 5) })
 
 function play(state: GameState, pc: PitchClass, now: number, next?: Challenge): GameState {
   const guessed = gameReducer(state, { type: 'guess', pc, now })
@@ -18,8 +23,8 @@ function play(state: GameState, pc: PitchClass, now: number, next?: Challenge): 
 }
 
 describe('niveau 1', () => {
-  it('demande 6 notes en 30 secondes', () => {
-    expect(getLevel(0)).toMatchObject({ targetCount: 6, durationMs: 30_000 })
+  it('demande 24 notes en 2 minutes', () => {
+    expect(getLevel(0)).toMatchObject({ targetCount: 24, durationMs: 120_000 })
   })
 })
 
@@ -52,17 +57,20 @@ describe('moteur de jeu', () => {
       s = play(s, current.pc, 2000 + i * 1000, i < 5 ? challenge(10 + i, 3) : undefined)
     }
     expect(s).toMatchObject({ phase: 'won', correctCount: 6, endedAt: 7000 })
-    expect(gameReducer(s, { type: 'timeUp', now: 31_000 })).toBe(s)
+    expect(gameReducer(s, { type: 'timeUp', now: DEADLINE })).toBe(s)
   })
 
   it("perd quand le temps s'écoule", () => {
-    const s = gameReducer(started, { type: 'timeUp', now: 31_000 })
-    expect(s).toMatchObject({ phase: 'lost', locked: true, endedAt: 31_000 })
+    const s = gameReducer(started, { type: 'timeUp', now: DEADLINE })
+    expect(s).toMatchObject({ phase: 'lost', locked: true, endedAt: DEADLINE })
     expect(play(s, 5, 31_100)).toBe(s)
   })
 
   it('révèle la note restée sans réponse, sans la compter comme erreur', () => {
-    const s = gameReducer(play(started, 5, 2000, challenge(2, 7)), { type: 'timeUp', now: 31_000 })
+    const s = gameReducer(play(started, 5, 2000, challenge(2, 7)), {
+      type: 'timeUp',
+      now: DEADLINE,
+    })
     const timeout = { id: 2, challenge: challenge(2, 7), guess: null, correct: false, streak: 0 }
     const unscored = {
       reactionMs: null,
@@ -72,7 +80,7 @@ describe('moteur de jeu', () => {
       comboTriggered: false,
       assisted: false,
     }
-    expect(s.lastResult).toEqual({ ...timeout, ...unscored, at: 31_000 })
+    expect(s.lastResult).toEqual({ ...timeout, ...unscored, at: DEADLINE })
     expect(s.results).toHaveLength(2)
     expect(s.results[1]).toBe(s.lastResult)
     expect(s).toMatchObject({ mistakes: 0, correctCount: 1, streak: 0, bestStreak: 1 })
@@ -80,25 +88,25 @@ describe('moteur de jeu', () => {
 
   it('ne révèle rien de plus si une révélation est déjà en cours', () => {
     const missed = play(started, 0, 30_800)
-    const s = gameReducer(missed, { type: 'timeUp', now: 31_000 })
-    expect(s).toMatchObject({ phase: 'lost', endedAt: 31_000, mistakes: 1 })
+    const s = gameReducer(missed, { type: 'timeUp', now: DEADLINE })
+    expect(s).toMatchObject({ phase: 'lost', endedAt: DEADLINE, mistakes: 1 })
     expect(s.lastResult).toBe(missed.lastResult)
     expect(s.results).toBe(missed.results)
   })
 
   it('accepte une réponse juste avant l’échéance', () => {
-    expect(play(started, 5, 30_999)).toMatchObject({ phase: 'playing', correctCount: 1 })
+    expect(play(started, 5, DEADLINE - 1)).toMatchObject({ phase: 'playing', correctCount: 1 })
   })
 
   it('refuse une réponse arrivée pile à l’échéance', () => {
-    const s = play(started, 5, 31_000)
-    expect(s).toMatchObject({ phase: 'lost', correctCount: 0, endedAt: 31_000 })
+    const s = play(started, 5, DEADLINE)
+    expect(s).toMatchObject({ phase: 'lost', correctCount: 0, endedAt: DEADLINE })
   })
 
   it('refuse une réponse arrivée après l’échéance et révèle la note', () => {
-    const s = play(started, 5, 31_500)
-    expect(s).toMatchObject({ phase: 'lost', correctCount: 0, mistakes: 0, endedAt: 31_000 })
-    expect(s.lastResult).toMatchObject({ id: 1, guess: null, correct: false, at: 31_000 })
+    const s = play(started, 5, DEADLINE + 500)
+    expect(s).toMatchObject({ phase: 'lost', correctCount: 0, mistakes: 0, endedAt: DEADLINE })
+    expect(s.lastResult).toMatchObject({ id: 1, guess: null, correct: false, at: DEADLINE })
   })
 
   it('ignore « next » hors révélation', () => {
@@ -115,7 +123,7 @@ describe('moteur de jeu', () => {
 })
 
 describe('décompte avant la partie', () => {
-  const prepared = gameReducer(createInitialState(0), { type: 'prepare', now: 500 })
+  const prepared = gameReducer(testState(), { type: 'prepare', now: 500 })
 
   it('passe par la phase « starting » sans note ni temps qui court', () => {
     expect(prepared).toMatchObject({

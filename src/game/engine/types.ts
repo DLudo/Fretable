@@ -1,4 +1,6 @@
 import type { LevelConfig } from '@/game/levels/levels'
+import type { TriadQuality, TriadVoicing } from '@/game/music/chords'
+import type { ScaleShape } from '@/game/music/scales'
 import type { PitchClass } from '@/game/music/notes'
 
 /** `starting` : décompte 3, 2, 1 avant la première note (le temps ne court pas encore). */
@@ -13,6 +15,10 @@ export interface Challenge {
   pc: PitchClass
   /** Note proposée par le coup de pouce (voir `AssistState`). */
   assist?: boolean
+  /** Note d'une triade (voir `TriadState`). */
+  triad?: boolean
+  /** Note du parcours de gamme (voir `ScaleRunState`). */
+  scale?: boolean
 }
 
 /** Résultat d'une tentative — c'est ce que consomment les effets de révélation. */
@@ -31,14 +37,28 @@ export interface GuessResult {
   reactionMs: number | null
   /** Points du barème, avant multiplicateur (0 sur une erreur). */
   basePoints: number
-  /** Multiplicateur appliqué (2 pendant un combo, sinon 1). */
+  /**
+   * Multiplicateur appliqué : 2 pendant un combo ou sur une note de triade jouée
+   * à temps (3 pendant le combo enflammé du boss), sinon 1.
+   */
   multiplier: number
   /** Points marqués : `basePoints × multiplier`. */
   points: number
-  /** Cette réponse a déclenché le combo (elle-même n'est pas multipliée). */
+  /**
+   * Cette réponse a déclenché le combo : le combo ne la multiplie pas encore,
+   * mais l'anneau d'une note de triade peut la doubler.
+   */
   comboTriggered: boolean
   /** Réponse à une note du coup de pouce (jamais multipliée, sans effet sur le combo). */
   assisted: boolean
+  /**
+   * Réponse à une note de bonus (`triad`, `scale`), qui ne compte pas pour le
+   * coup de pouce. Une note de triade nourrit le combo comme les autres et vaut
+   * double si elle arrive avant la fin de son anneau ou pendant un combo (sans
+   * cumul : ×2 au plus) ; celles du parcours de gamme ne touchent pas au combo,
+   * ne sont jamais multipliées et ne comptent pas pour la progression.
+   */
+  bonus?: 'triad' | 'scale'
 }
 
 /**
@@ -53,11 +73,96 @@ export interface AssistState {
   remaining: number
 }
 
-/** Combo en cours : actif tant que `performance.now() < endsAt`. */
+/**
+ * Triade prête à être jouée, avec la forme de gamme qu'elle ouvrira si elle est
+ * réussie (`null` : aucune forme ne tient sur le manche).
+ */
+export interface TriadPlan extends TriadVoicing {
+  scale: { shape: ScaleShape; accents: readonly number[] } | null
+}
+
+/** Triade annoncée (pause « Trouve Fa majeur »), depuis `at` (`performance.now()`). */
+export interface TriadIntro extends TriadPlan {
+  /** Début de l'annonce : recule d'autant à la reprise d'une partie suspendue. */
+  at: number
+  /** Identité de l'annonce (son instant d'origine), stable d'une suspension à l'autre. */
+  id: number
+}
+
+/** Triade en cours : ses trois notes sont demandées l'une après l'autre. */
+export interface TriadState extends TriadPlan {
+  /** Notes déjà trouvées quand la triade s'est ouverte : sa place dans la partie. */
+  slot: number
+  /** Index de la note demandée (0 : fondamentale, 1 : tierce, 2 : quinte). */
+  step: number
+  /** Toutes les réponses jusqu'ici justes, et chacune assez rapide. */
+  clean: boolean
+  /** Réponses fausses jusqu'ici. */
+  missed: number
+  /** Temps de réaction le plus long jusqu'ici (ms). */
+  slowestMs: number
+}
+
+/** Issue de la dernière triade. */
+export interface TriadOutcome {
+  /** Identifiant de sa dernière note (sert de clé à l'annonce). */
+  id: number
+  root: PitchClass
+  quality: TriadQuality
+  /** Notes déjà trouvées quand la triade s'est ouverte (voir `TriadState.slot`). */
+  slot: number
+  /** Trois bonnes réponses, chacune en moins de `TRIAD_RULES.fastReactionMs`. */
+  success: boolean
+  /** Raison de l'échec : une erreur au moins, ou une réponse trop lente. */
+  reason?: 'wrong' | 'slow'
+  /** Réponses fausses. */
+  missed: number
+  /** Temps de réaction le plus long des trois notes (ms). */
+  slowestMs: number
+  /** Gamme dont le parcours s'ouvre à la suite (triade réussie et forme disponible). */
+  scale?: ScaleShape['kind']
+}
+
+/** Parcours de gamme en cours : la forme est jouée note après note, jusqu'au bout. */
+export interface ScaleRunState extends ScaleShape {
+  /** Index, dans `notes`, des notes de la triade d'origine (mises en valeur). */
+  accents: readonly number[]
+  /** Index de la note demandée. */
+  step: number
+  /** Issue de chaque note déjà jouée, dans l'ordre. */
+  outcomes: readonly ('hit' | 'miss')[]
+  /** Points gagnés jusqu'ici. */
+  points: number
+}
+
+/** Issue du dernier parcours de gamme. */
+export interface ScaleRunOutcome {
+  /** Identifiant de sa dernière note (sert de clé à l'annonce). */
+  id: number
+  root: PitchClass
+  quality: TriadQuality
+  kind: ScaleShape['kind']
+  /** Notes justes, sur le total. */
+  hits: number
+  total: number
+  /** Points du parcours, supplément compris. */
+  points: number
+  perfect: boolean
+}
+
+/**
+ * Combo en cours : actif tant que le temps de jeu n'a pas atteint `endsAt`.
+ * Pendant une pause (`GameState.pausedAt`), sa jauge est figée : `endsAt`
+ * recule de la durée de la pause à la reprise. En pause, c'est donc `pausedAt`
+ * qui tient lieu d'« instant présent » pour juger s'il court encore.
+ */
 export interface ComboState {
   /** Instant du déclenchement. */
   startedAt: number
-  /** Fin prévue, repoussée par chaque bonne réponse rapide (plafonnée, voir `COMBO_RULES`). */
+  /**
+   * Fin prévue, repoussée par chaque bonne réponse rapide (plafonnée, voir
+   * `COMBO_RULES`) et, à la reprise, de la durée d'une pause.
+   */
   endsAt: number
 }
 
@@ -86,6 +191,36 @@ export interface GameState {
   assistUsed: boolean
   /** Temps accordé en plus de `level.durationMs` (coup de pouce), en ms. */
   bonusTimeMs: number
+  /** Triade en cours, ou `null`. */
+  triad: TriadState | null
+  /** Triades commencées dans cette partie (voir `TRIAD_RULES.maxPerGame`). */
+  triadsStarted: number
+  /** Place de chaque triade de la partie : notes trouvées à son ouverture. */
+  triadSlots: readonly number[]
+  /** Notes ordinaires à jouer encore avant qu'une triade puisse recommencer. */
+  triadCooldown: number
+  /**
+   * Triade annoncée, pas encore ouverte : la partie est en pause le temps de
+   * l'annonce (`TRIAD_RULES.introMs`), depuis `at`. `null` hors annonce.
+   */
+  triadIntro: TriadIntro | null
+  /** Issue de la dernière triade, ou `null`. */
+  lastTriad: TriadOutcome | null
+  /** Parcours de gamme en cours, ou `null`. */
+  scaleRun: ScaleRunState | null
+  /** Issue du dernier parcours de gamme, ou `null`. */
+  lastScaleRun: ScaleRunOutcome | null
+  /** Début de la pause en cours (`performance.now()`), ou `null` : le temps court. */
+  pausedAt: number | null
+  /** Temps de pause cumulé depuis le lancement (ms), hors pause en cours. */
+  pausedMs: number
+  /**
+   * Partie suspendue depuis cet instant (`performance.now()`), ou `null` : le
+   * joueur n'est plus là (téléphone tourné en portrait, page masquée). Rien ne
+   * se joue ; à la reprise (`resume`), tout ce qui se mesure dans le temps est
+   * décalé de la durée de la suspension, comme si elle n'avait pas eu lieu.
+   */
+  suspendedAt: number | null
   /** `performance.now()` au début du décompte 3, 2, 1 (phase `starting`). */
   startingAt: number | null
   /** `performance.now()` au lancement du niveau : apparition de la première note. */
@@ -106,6 +241,23 @@ export type GameAction =
    * réducteur pur) ; absent, aucun coup de pouce n'est offert.
    */
   | { type: 'guess'; pc: PitchClass; now: number; roll?: number }
-  | { type: 'next'; challenge: Challenge; now: number }
+  /**
+   * `triad` : la note suivante ouvre cette triade (`challenge` est sa
+   * fondamentale) ; ignorée si une triade ne peut pas commencer (`canStartTriad`).
+   */
+  | { type: 'next'; challenge: Challenge; now: number; triad?: TriadPlan }
+  /**
+   * Annonce la triade qui va s'ouvrir : pause du temps (la jauge du combo se
+   * fige avec lui), aucune réponse possible ; le `next` qui ouvre la triade
+   * reprend le temps.
+   * Ignorée si une triade ne peut pas commencer (`canStartTriad`).
+   */
+  | { type: 'announceTriad'; now: number; triad: TriadPlan }
   | { type: 'timeUp'; now: number }
   | { type: 'comboExpire'; now: number }
+  /** L'anneau de la note du parcours de gamme s'est vidé : elle est manquée. */
+  | { type: 'scaleNoteTimeUp'; now: number }
+  /** Suspend la partie (décompte ou jeu en cours) : voir `GameState.suspendedAt`. */
+  | { type: 'suspend'; now: number }
+  /** Reprend une partie suspendue. */
+  | { type: 'resume'; now: number }

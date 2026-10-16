@@ -20,7 +20,7 @@ import { EXIT_FADE_MS, EXIT_LEAD_MS } from './reveal-props'
  *    couleurs `revealPillStyle(color, colorForeground, halo)`. `estimateLabelBox`
  *    donne ses demi-axes pour faire partir des éléments de son bord.
  * 3. Combo : `<RevealCombo streak={streak} color={color} colorForeground={…}
- *    className="…décalage…" />` affiche le multiplicateur de points (« ×2 »)
+ *    className="…décalage…" />` affiche le multiplicateur de points (« ×2 », « ×3 »)
  *    pendant un combo et ne rend rien sinon ; ses props Motion règlent son
  *    entrée (`comboScaleFor(streak)` pour l'échelle).
  * 4. Temps : `revealExit(budgetMs)` cale le fondu de sortie sur l'arrivée de la
@@ -194,8 +194,9 @@ export type RevealComboProps = Omit<HTMLMotionProps<'span'>, 'children' | 'color
 }
 
 /**
- * Pastille du multiplicateur de points (« ×2 » pendant un combo), rien hors
- * combo. À placer dans le conteneur de l'étiquette ; `className` règle son
+ * Pastille du multiplicateur de points (« ×2 » pendant un combo ou sur une note
+ * de triade jouée à temps, « ×3 » pendant le combo enflammé du boss), rien sans
+ * multiplicateur. À placer dans le conteneur de l'étiquette ; `className` règle son
  * décalage, les props Motion son entrée. `streak` n'agit que sur l'échelle.
  */
 export function RevealCombo({

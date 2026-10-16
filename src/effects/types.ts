@@ -47,8 +47,7 @@ export interface RevealEffectProps {
   /**
    * Distances signées (px), le long de la corde, du repère à chaque fil de
    * frette : l'index `n` est la frette `n`, l'index 0 le sillet. Négatives côté
-   * sillet, positives côté chevalet, dans le repère tourné de `stringAngle`
-   * (quelle que soit l'orientation du manche).
+   * sillet, positives côté chevalet, dans le repère tourné de `stringAngle`.
    */
   fretOffsets: readonly number[]
   /** Taille du calque d'effets (px), pour garder un effet dans le manche. */
@@ -61,7 +60,10 @@ export interface RevealEffectProps {
   reactionMs: number | null
   /** Points marqués par cette réponse, multiplicateur compris (0 sur une erreur). */
   points: number
-  /** Multiplicateur appliqué : 2 pendant un combo, sinon 1. La pastille `RevealCombo` l'affiche. */
+  /**
+   * Multiplicateur appliqué : 2 pendant un combo ou sur une note de triade jouée
+   * à temps, sinon 1. La pastille `RevealCombo` l'affiche.
+   */
   multiplier: number
   /** Graine déterministe propre à la révélation, pour varier les détails (`seededRandom`). */
   seed: number

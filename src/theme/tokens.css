@@ -46,6 +46,12 @@
   --hud-time: color-mix(in oklab, var(--foreground) 35%, transparent);
   --hud-time-critical: var(--feedback-error);
   --hud-tick: var(--background);
+  /* Barre de vie du joueur (boss final) : rouge ; la tranche perdue, commune aux
+     deux barres, s'efface après coup */
+  --hud-life: var(--feedback-error);
+  --hud-life-trail: color-mix(in oklab, var(--foreground) 55%, transparent);
+  /* Barre de vie du boss : violette, un segment par note */
+  --boss-life: oklch(0.68 0.2 300);
 
   /* — Révélations — blanc « chauffé » des étincelles, éclats et flashs */
   --reveal-highlight: oklch(0.985 0 0);
@@ -56,14 +62,35 @@
   --combo-spark: oklch(0.9 0.08 235);
   --combo-foreground: oklch(0.16 0.04 250);
   --combo-track: color-mix(in oklab, var(--combo) 18%, transparent);
+  /* Combo enflammé (boss final, dès 10 réussites) : orangé vif de flamme, cœur jaune */
+  --combo-fire: oklch(0.76 0.19 55);
+  --combo-fire-glow: oklch(0.7 0.22 42);
+  --combo-fire-spark: oklch(0.94 0.12 90);
+  --combo-fire-foreground: oklch(0.2 0.06 45);
 
   /* — Coup de pouce — ambre : pastille, annonce et anneau du point */
   --assist: oklch(0.83 0.15 80);
   --assist-foreground: oklch(0.22 0.05 70);
 
+  /* — Triade — vert acide : halo et étincelles des notes de la triade, annonce */
+  --triad: #b6f43d;
+  --triad-foreground: oklch(0.24 0.07 128);
+  --triad-glow: color-mix(in oklab, var(--triad) 70%, transparent);
+  /* — Boss final — fantômes et couloirs, tracés sur la touche comme hors du manche */
+  --boss-ghost: var(--foreground);
+
+  /* Encre de l'annonce « Trouve Fa majeur » : un noir à peine teinté de vert */
+  --triad-ink: oklch(0.15 0.03 128);
+
   /* — Notation — étoiles de l'écran de victoire (gagnées, puis manquées) */
   --rating-star: oklch(0.86 0.16 88);
   --rating-star-empty: color-mix(in oklab, var(--foreground) 14%, transparent);
+
+  /* — Pièces — or chaud, tranche plus sombre, reflet clair */
+  --coin: oklch(0.83 0.15 82);
+  --coin-edge: oklch(0.62 0.13 68);
+  --coin-shine: oklch(0.96 0.07 95);
+  --coin-ink: oklch(0.5 0.11 65);
 }
 
 /*
@@ -78,6 +105,8 @@
   --nut-highlight: var(--fret-wire-highlight);
   --marker-halo: var(--marker-ring);
   --marker-outline: var(--fretboard-edge);
+  /* Notes à venir (triade, forme de gamme) : en gris, en filigrane */
+  --marker-ghost: color-mix(in oklab, var(--marker) 38%, transparent);
   --piano-case: var(--key-black);
   --piano-keybed: var(--key-border);
   --key-white-hover: color-mix(in oklab, var(--key-white) 70%, var(--key-white-pressed));
@@ -132,16 +161,32 @@
   --color-hud-time: var(--hud-time);
   --color-hud-time-critical: var(--hud-time-critical);
   --color-hud-tick: var(--hud-tick);
+  --color-hud-life: var(--hud-life);
+  --color-hud-life-trail: var(--hud-life-trail);
+  --color-boss-life: var(--boss-life);
   --color-reveal-highlight: var(--reveal-highlight);
   --color-combo: var(--combo);
   --color-combo-glow: var(--combo-glow);
   --color-combo-spark: var(--combo-spark);
   --color-combo-foreground: var(--combo-foreground);
   --color-combo-track: var(--combo-track);
+  --color-combo-fire: var(--combo-fire);
+  --color-combo-fire-glow: var(--combo-fire-glow);
+  --color-combo-fire-spark: var(--combo-fire-spark);
+  --color-combo-fire-foreground: var(--combo-fire-foreground);
   --color-assist: var(--assist);
   --color-assist-foreground: var(--assist-foreground);
+  --color-triad: var(--triad);
+  --color-triad-foreground: var(--triad-foreground);
+  --color-triad-glow: var(--triad-glow);
+  --color-triad-ink: var(--triad-ink);
+  --color-marker-ghost: var(--marker-ghost);
   --color-rating-star: var(--rating-star);
   --color-rating-star-empty: var(--rating-star-empty);
+  --color-coin: var(--coin);
+  --color-coin-edge: var(--coin-edge);
+  --color-coin-shine: var(--coin-shine);
+  --color-coin-ink: var(--coin-ink);
   --color-fretboard-shadow: var(--fretboard-shadow);
   --color-string-highlight: var(--string-highlight);
   --color-nut-highlight: var(--nut-highlight);

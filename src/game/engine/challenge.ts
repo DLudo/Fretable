@@ -5,7 +5,7 @@ import type { Challenge } from './types'
 
 export type Random = () => number
 
-function pick<T>(items: readonly T[], random: Random): T {
+export function pick<T>(items: readonly T[], random: Random): T {
   return items[Math.floor(random() * items.length) % items.length]
 }
 

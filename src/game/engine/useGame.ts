@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 
-import { ASSIST_RULES, GAME_FEEL } from '@/game/config'
+import { ASSIST_RULES, GAME_FEEL, TRIAD_RULES } from '@/game/config'
 import { hasNextLevel } from '@/game/levels/levels'
 import type { PitchClass } from '@/game/music/notes'
 import { STANDARD_TUNING, type Tuning } from '@/game/music/tuning'
@@ -14,8 +14,15 @@ import {
   type GameEventSnapshot,
 } from './events'
 import { createInitialState, gameReducer } from './reducer'
-import { deadlineAt, playStartsAt, startCountdownMs } from './selectors'
-import type { AssistState, Challenge, GameState } from './types'
+import { deadlineAt, playStartsAt, scaleNoteDeadlineAt, startCountdownMs } from './selectors'
+import {
+  canStartTriad,
+  createTriadVoicing,
+  planTriad,
+  scaleChallenge,
+  triadChallenge,
+} from './triad'
+import type { AssistState, Challenge, GameState, TriadPlan } from './types'
 
 export interface UseGameOptions {
   tuning?: Tuning
@@ -27,7 +34,9 @@ export interface GameController {
   state: GameState
   tuning: Tuning
   /**
-   * Bus d'événements ; pour un même changement d'état : `guess` → `combo` → `assist` → `phase` → `challenge`.
+   * Bus d'événements ; pour un même changement d'état :
+   * `guess` → `combo` → `assist` → `triad` → `triadResult` → `scaleRun` → `scaleResult`
+   * → `phase` → `challenge`.
    * Une partie s'ouvre sur `phase: starting` (décompte 3, 2, 1), puis `phase: playing` et la première note.
    */
   events: GameEventBus
@@ -38,6 +47,10 @@ export interface GameController {
   /** Passe au niveau suivant s'il existe. */
   nextLevel(): void
   hasNextLevel: boolean
+  /** Suspend la partie en cours (décompte compris) ; sans effet hors partie. */
+  suspend(): void
+  /** Reprend une partie suspendue, là où elle s'était arrêtée. */
+  resume(): void
 }
 
 const now = () => performance.now()
@@ -76,6 +89,9 @@ export function useGame(options: UseGameOptions = {}): GameController {
     [random],
   )
 
+  const suspend = useCallback(() => dispatch({ type: 'suspend', now: now() }), [])
+  const resume = useCallback(() => dispatch({ type: 'resume', now: now() }), [])
+
   const nextLevel = useCallback(() => {
     if (hasNextLevel(state.levelIndex)) dispatch({ type: 'load', levelIndex: state.levelIndex + 1 })
   }, [state.levelIndex])
@@ -91,23 +107,89 @@ export function useGame(options: UseGameOptions = {}): GameController {
     return () => window.clearTimeout(timer)
   }, [playAt, makeChallenge])
 
-  // Après une tentative : on laisse vivre la révélation, puis nouvelle note
-  // (imposée par le coup de pouce s'il est en cours).
-  const { phase, locked, lastResult, challenge, assist } = state
+  // Après une tentative : on laisse vivre la révélation, puis nouvelle note —
+  // imposée par la triade ou le coup de pouce en cours, ou début d'une triade.
+  // Suspendue, la partie n'attend rien : la révélation reprendra à son début.
+  const { phase, locked, lastResult, challenge, assist, triad, triadsStarted, correctCount } = state
+  const { level, scaleRun, triadCooldown, triadIntro } = state
+  const suspended = state.suspendedAt !== null
   useEffect(() => {
-    if (phase !== 'playing' || !locked || !lastResult) return
+    if (phase !== 'playing' || !locked || !lastResult || suspended) return
+    if (triadIntro) {
+      // Annonce en cours : la triade s'ouvre sur sa fondamentale à son terme.
+      const { at, id: _id, ...plan } = triadIntro
+      const timer = window.setTimeout(
+        () =>
+          dispatch({
+            type: 'next',
+            challenge: triadChallenge(++nextId.current, plan, 0),
+            now: now(),
+            triad: plan,
+          }),
+        Math.max(0, at + TRIAD_RULES.introMs - now()),
+      )
+      return () => window.clearTimeout(timer)
+    }
     const hold = lastResult.correct ? GAME_FEEL.holdAfterCorrectMs : GAME_FEEL.holdAfterWrongMs
-    const timer = window.setTimeout(
-      () =>
-        dispatch({
-          type: 'next',
-          challenge: makeChallenge(lastResult.challenge, assist),
-          now: now(),
-        }),
-      hold,
-    )
+    const timer = window.setTimeout(() => {
+      let next: Challenge
+      let opening: TriadPlan | undefined
+      if (scaleRun) {
+        next = scaleChallenge(++nextId.current, scaleRun, scaleRun.step)
+      } else if (triad) {
+        next = triadChallenge(++nextId.current, triad, triad.step)
+      } else {
+        const eligible = canStartTriad({
+          phase,
+          triad,
+          assist,
+          triadsStarted,
+          triadCooldown,
+          correctCount,
+          level,
+          scaleRun,
+        })
+        const voicing =
+          eligible && random() < TRIAD_RULES.chance
+            ? createTriadVoicing(level, tuning, random, lastResult.challenge)
+            : null
+        if (voicing && TRIAD_RULES.introMs > 0) {
+          // La triade s'annonce d'abord ; l'annonce terminée, elle s'ouvrira.
+          dispatch({ type: 'announceTriad', now: now(), triad: planTriad(voicing, level, tuning) })
+          return
+        }
+        if (voicing) {
+          next = triadChallenge(++nextId.current, voicing, 0)
+          opening = planTriad(voicing, level, tuning)
+        } else {
+          next = makeChallenge(lastResult.challenge, assist)
+        }
+      }
+      dispatch({
+        type: 'next',
+        challenge: next,
+        now: now(),
+        ...(opening ? { triad: opening } : {}),
+      })
+    }, hold)
     return () => window.clearTimeout(timer)
-  }, [phase, locked, lastResult, assist, makeChallenge])
+  }, [
+    phase,
+    locked,
+    lastResult,
+    suspended,
+    assist,
+    triad,
+    scaleRun,
+    triadIntro,
+    triadsStarted,
+    triadCooldown,
+    correctCount,
+    level,
+    tuning,
+    random,
+    makeChallenge,
+  ])
 
   // Expiration du temps imparti (reprogrammée quand du temps est accordé).
   const deadline = deadlineAt(state)
@@ -120,29 +202,67 @@ export function useGame(options: UseGameOptions = {}): GameController {
     return () => window.clearTimeout(timer)
   }, [phase, deadline])
 
+  // Parcours de gamme : l'anneau de la note en attente se vide, elle est manquée.
+  const scaleDeadline = scaleNoteDeadlineAt(state)
+  useEffect(() => {
+    if (scaleDeadline === null) return
+    const timer = window.setTimeout(
+      () => dispatch({ type: 'scaleNoteTimeUp', now: Math.max(now(), scaleDeadline) }),
+      Math.max(0, scaleDeadline - now()),
+    )
+    return () => window.clearTimeout(timer)
+  }, [scaleDeadline])
+
   // Épuisement du combo. Le minuteur peut sonner une poignée de ms trop tôt :
   // l'instant transmis ne précède jamais l'échéance, sans quoi le combo resterait allumé.
+  // En pause (annonce de triade, parcours de gamme) ou suspendue, la jauge est figée : rien à guetter.
   const comboEndsAt = state.combo?.endsAt ?? null
+  const paused = state.pausedAt !== null || suspended
   useEffect(() => {
-    if (phase !== 'playing' || comboEndsAt === null) return
+    if (phase !== 'playing' || comboEndsAt === null || paused) return
     const timer = window.setTimeout(
       () => dispatch({ type: 'comboExpire', now: Math.max(now(), comboEndsAt) }),
       Math.max(0, comboEndsAt - now()),
     )
     return () => window.clearTimeout(timer)
-  }, [phase, comboEndsAt])
+  }, [phase, comboEndsAt, paused])
 
   // Diffusion des événements, dans un ordre défini (voir `diffGameEvents`).
   // Le ref mémorise ce qui a déjà été publié : rien n'est émis deux fois,
   // même quand StrictMode rejoue les effets au montage.
   const emitted = useRef<GameEventSnapshot>(EMPTY_EVENT_SNAPSHOT)
-  const { combo } = state
+  const { combo, lastTriad, lastScaleRun } = state
   useEffect(() => {
-    const snapshot: GameEventSnapshot = { phase, challenge, lastResult, combo, assist }
+    const snapshot: GameEventSnapshot = {
+      suspended,
+      phase,
+      challenge,
+      lastResult,
+      combo,
+      assist,
+      triadIntro,
+      triad,
+      lastTriad,
+      scaleRun,
+      lastScaleRun,
+    }
     const pending = diffGameEvents(emitted.current, snapshot)
     emitted.current = snapshot
     for (const event of pending) emitGameEvent(events, event)
-  }, [phase, challenge, lastResult, combo, assist, events])
+  }, [
+    phase,
+    challenge,
+    lastResult,
+    combo,
+    assist,
+    triadIntro,
+    triad,
+    lastTriad,
+    scaleRun,
+    lastScaleRun,
+    suspended,
+    events,
+  ])
 
   return {
     state,
@@ -152,5 +272,7 @@ export function useGame(options: UseGameOptions = {}): GameController {
     guess,
     nextLevel,
     hasNextLevel: hasNextLevel(state.levelIndex),
+    suspend,
+    resume,
   }
 }

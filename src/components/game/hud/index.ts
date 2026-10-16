@@ -4,4 +4,14 @@ export { LevelTimer, type LevelTimerProps } from './LevelTimer'
 export { AssistChip, type AssistChipProps } from './AssistChip'
 export { ComboMeter, type ComboMeterProps } from './ComboMeter'
 export { ScoreCounter, type ScoreCounterProps } from './ScoreCounter'
-export { formatScore, formatSeconds, type SecondsRounding } from './format'
+export {
+  clockResolutionOf,
+  formatClock,
+  formatClockSpoken,
+  formatDurationWords,
+  formatLife,
+  formatScore,
+  formatSeconds,
+  type ClockResolution,
+  type SecondsRounding,
+} from './format'

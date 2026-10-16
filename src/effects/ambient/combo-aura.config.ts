@@ -1,8 +1,8 @@
 /**
  * Réglages de l'aura de combo : halo bleu et particules autour du manche.
  *
- * L'aura est procédurale (canvas) : elle suit le contour réel du manche, à
- * l'horizontale comme à la verticale, et ne pèse rien à télécharger. Tout son
+ * L'aura est procédurale (canvas) : elle suit le contour réel du manche, et ne
+ * pèse rien à télécharger. Tout son
  * rendu se règle ici. Pour une texture faite dans After Effects, exportez une
  * image (PNG ou WebP, fond transparent) dans `public/fx/combo/` et indiquez son
  * chemin dans `particles.sprite`.
@@ -55,10 +55,18 @@ export interface ComboAuraConfig {
     drag: number
     /** Proportion d'étincelles claires. */
     sparkRatio: number
+    /**
+     * Poussée vers le haut de l'écran (px/s²), 0 : aucune. Les flammes montent :
+     * pleine sur le bord du haut, à moitié sur les côtés, nulle sur le bord du bas.
+     */
+    lift: number
     /** Texture des particules (`/fx/combo/particule.png`), sinon un point lumineux généré. */
     sprite: string | null
   }
-  /** Marge autour du manche où halo et particules peuvent déborder (px). */
+  /**
+   * Marge autour du manche où halo et particules peuvent déborder (px) ; les
+   * particules s'effacent en l'approchant.
+   */
   bleedPx: number
 }
 
@@ -91,7 +99,46 @@ export const COMBO_AURA: ComboAuraConfig = {
     drift: 0.45,
     drag: 0.55,
     sparkRatio: 0.25,
+    lift: 0,
     sprite: null,
   },
   bleedPx: 40,
+}
+
+/**
+ * Aura du combo enflammé (boss final, dès 10 réussites d'affilée) : halo orangé
+ * qui vacille plus vite, et des particules plus nombreuses qui montent comme
+ * des flammes. Passer de `COMBO_AURA` à celle-ci, combo allumé, ravive l'aura.
+ */
+export const COMBO_FIRE_AURA: ComboAuraConfig = {
+  colors: {
+    glow: 'var(--combo-fire-glow)',
+    rim: 'var(--combo-fire-spark)',
+    particle: 'var(--combo-fire)',
+    spark: 'var(--combo-fire-spark)',
+  },
+  glow: {
+    ...COMBO_AURA.glow,
+    blurPx: 20,
+    passes: 5,
+    pulseHz: 2.6,
+    pulseDepth: 0.25,
+    introBoost: 1.8,
+    introDecayMs: 520,
+  },
+  particles: {
+    ...COMBO_AURA.particles,
+    ratePerSecond: 95,
+    max: 260,
+    burst: 96,
+    lifeMs: [450, 1100],
+    speedPxPerSecond: [18, 64],
+    radiusPx: [1.3, 3.8],
+    drift: 0.35,
+    drag: 0.7,
+    sparkRatio: 0.35,
+    lift: 140,
+  },
+  // Plus de marge : les braises montent jusqu'à une centaine de px au-dessus du manche.
+  bleedPx: 96,
 }

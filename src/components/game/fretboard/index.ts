@@ -1,1 +1,6 @@
-export { Fretboard, type FretboardMarker, type FretboardProps } from './Fretboard'
+export {
+  Fretboard,
+  type FretboardGhost,
+  type FretboardMarker,
+  type FretboardProps,
+} from './Fretboard'

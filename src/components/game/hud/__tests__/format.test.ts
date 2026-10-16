@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatSeconds } from '@/components/game/hud/format'
+import {
+  formatLife,
+  clockResolutionOf,
+  formatClock,
+  formatClockSpoken,
+  formatDurationWords,
+  formatSeconds,
+} from '@/components/game/hud/format'
 
 /** « 27,6 s » → 276 dixièmes. */
 const tenthsOf = (label: string) =>
@@ -46,5 +53,73 @@ describe('formatSeconds', () => {
       const left = tenthsOf(formatSeconds(duration - elapsed, 'ceil'))
       expect(shown + left, `écoulé ${elapsed} ms`).toBe(duration / 100)
     }
+  })
+})
+
+describe('formatClock', () => {
+  it('garde le dixième sous la minute', () => {
+    expect(formatClock(59_900, 'ceil')).toBe('59,9 s')
+    expect(formatClock(9_250, 'ceil')).toBe('9,3 s')
+  })
+
+  it('passe en minutes et secondes au-delà', () => {
+    expect(formatClock(120_000, 'ceil')).toBe('2:00')
+    expect(formatClock(119_001, 'ceil')).toBe('2:00')
+    expect(formatClock(119_000, 'ceil')).toBe('1:59')
+    expect(formatClock(65_400, 'floor')).toBe('1:05')
+    // La bascule se fait sans « 60,0 s » : 59,95 s s'affiche déjà « 1:00 ».
+    expect(formatClock(59_950, 'ceil')).toBe('1:00')
+  })
+
+  it('ramène les durées négatives à zéro', () => {
+    expect(formatClock(-5, 'ceil')).toBe('0,0 s')
+  })
+})
+
+describe('formatDurationWords', () => {
+  it('dit les minutes rondes en minutes, le reste en secondes', () => {
+    expect(formatDurationWords(120_000)).toBe('2 minutes')
+    expect(formatDurationWords(60_000)).toBe('1 minute')
+    expect(formatDurationWords(30_000)).toBe('30 secondes')
+    expect(formatDurationWords(90_000)).toBe('90 secondes')
+  })
+})
+
+describe('précision imposée', () => {
+  it('écrit les dixièmes au-delà de la minute, ou les secondes entières en deçà', () => {
+    expect(formatClock(65_400, 'floor', 'tenths')).toBe('1:05,4')
+    expect(formatClock(45_300, 'floor', 'seconds')).toBe('45 s')
+    expect(formatClock(45_300, 'floor', 'tenths')).toBe('45,3 s')
+  })
+
+  it('chronomètre et compte à rebours de même précision totalisent la durée', () => {
+    /** « 1:05,4 », « 54,6 s », « 45 s », « 1:15 » → millisecondes. */
+    const parse = (label: string) => {
+      const [, m, s] = /^(?:(\d+):)?([\d,]+)/.exec(label.replace(' s', ''))!
+      return Math.round(((m ? Number(m) * 60 : 0) + Number(s.replace(',', '.'))) * 1000)
+    }
+    const duration = 120_000
+    for (let elapsed = 0; elapsed <= duration; elapsed += 37) {
+      const remaining = duration - elapsed
+      const resolution = clockResolutionOf(remaining, 'ceil')
+      const shown = parse(formatClock(elapsed, 'floor', resolution))
+      expect(shown + parse(formatClock(remaining, 'ceil'))).toBe(duration)
+    }
+  })
+
+  it('se lit en toutes lettres au-delà de la minute', () => {
+    expect(formatClockSpoken(119_000, 'ceil')).toBe('1 minute 59 secondes')
+    expect(formatClockSpoken(120_000, 'ceil')).toBe('2 minutes')
+    expect(formatClockSpoken(61_000, 'ceil')).toBe('1 minute 1 seconde')
+    expect(formatClockSpoken(42_300, 'ceil')).toBe('42,3 s')
+  })
+})
+
+describe('formatLife', () => {
+  it('garde le demi-point : la vie affichée est celle qui compte pour les étoiles', () => {
+    expect(formatLife(66.5)).toBe('66,5')
+    expect(formatLife(67)).toBe('67')
+    expect(formatLife(100)).toBe('100')
+    expect(formatLife(-3)).toBe('0')
   })
 })

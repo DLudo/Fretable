@@ -98,6 +98,65 @@ export const ASSIST_RULES = {
 export const NOTATION = 'solfege' as const
 
 /**
+ * Bonus de mode, première étape : à tout moment de la partie, trois notes
+ * peuvent former une triade jouable (fondamentale, tierce, quinte sur trois cordes voisines).
+ * Trouvées toutes trois, chacune en moins de `fastReactionMs`, elles ouvrent le
+ * parcours de gamme. Le combo traverse la triade sans s'éteindre, et ses notes
+ * le nourrissent comme les autres ; elles ne comptent pas pour le coup de pouce.
+ */
+export const TRIAD_RULES = {
+  /** Chance, à chaque nouvelle note où c'est possible, qu'une triade commence. */
+  chance: 0.2,
+  /** Triades au plus par partie (`Infinity` : aucune limite). */
+  maxPerGame: Number.POSITIVE_INFINITY,
+  /**
+   * Notes ordinaires à jouer entre la fin d'une triade (ou de son parcours de
+   * gamme) et le début de la suivante : elles ne s'enchaînent jamais.
+   */
+  minNotesBetween: 4,
+  /**
+   * Notes qu'il doit rester à trouver quand la triade commence : ses trois
+   * notes, plus une, pour que la partie ne s'achève pas sur la triade.
+   */
+  minNotesLeft: 4,
+  /** Temps de réaction maximal, par note, pour réussir la triade (ms). */
+  fastReactionMs: 5000,
+  /**
+   * Annonce de la triade (« Trouve Fa majeur ») : durée de la pause qui la
+   * précède (ms), temps de partie suspendu. 0 : la triade s'ouvre sans annonce.
+   */
+  introMs: 1300,
+  /** Écart maximal entre la plus basse et la plus haute case de la triade. */
+  maxFretSpan: 3,
+  /** Qualités tirées au sort (le palier 1 ajoutera les autres). */
+  qualities: ['major', 'minor'],
+} as const
+
+/**
+ * Bonus de mode, seconde étape : une triade réussie dessine sur le manche la
+ * forme de gamme qui la prolonge ; le joueur la parcourt du grave à l'aigu,
+ * jusqu'au bout. Le temps de la partie est suspendu pendant le parcours, qui ne
+ * compte pas pour la progression.
+ */
+export const SCALE_RULES = {
+  /**
+   * Gammes accessibles. Sans le palier 1 débloqué, le bonus s'en tient à la
+   * pentatonique ; une liste vide coupe le parcours (la triade reste).
+   */
+  kinds: ['pentatonic'] as readonly 'pentatonic'[],
+  /** Points par note juste du parcours. */
+  pointsPerNote: 150,
+  /**
+   * Délai de chaque note du parcours (ms), égrené par un anneau comme celui des
+   * triades : le temps de la partie est suspendu, mais pas celui des notes.
+   * Anneau vide, la note est manquée et le parcours passe à la suivante.
+   */
+  noteMs: 5000,
+  /** Supplément pour un parcours sans faute. */
+  perfectBonus: 1000,
+} as const
+
+/**
  * Notation de fin de niveau, de une à trois étoiles. Une étoile récompense le
  * niveau réussi ; les suivantes dépendent d'un indice qui mêle le score et la
  * part du temps restante :
@@ -119,13 +178,14 @@ export const RATING_RULES = {
   /**
    * Part du temps du niveau qu'il faut garder en réserve pour la note maximale
    * côté temps (0,63 = 63 %). Figée : raccourcir le compte à rebours rend donc
-   * les étoiles plus exigeantes, en même temps que le niveau. 63 % correspond,
-   * sur 30 s et 6 notes, à une allure de 1,5 s par note sans erreur.
+   * les étoiles plus exigeantes, en même temps que le niveau. 63 % correspond
+   * à une allure de 1,5 s par note sans erreur, sur 6 notes en 30 s comme sur
+   * les 24 notes en 2 minutes du niveau 1.
    */
   referenceTimeShare: 0.63,
   /**
    * Allure étalon (ms par note, sans erreur) : le score qu'elle rapporte, combo
-   * compris, vaut la note maximale côté score (3 600 points au niveau 1).
+   * compris, vaut la note maximale côté score (18 000 points au niveau 1).
    */
   referencePaceMs: 1500,
   /** Étoiles au plus quand le coup de pouce a servi (3 : aucun plafond). */
@@ -133,3 +193,85 @@ export const RATING_RULES = {
 }
 
 export type RatingRules = typeof RATING_RULES
+
+/**
+ * Boss final, façon StepMania (prototype) : les notes, tirées au hasard, partent
+ * du bas de l'écran à intervalle régulier (`intervalMs`) et montent lentement
+ * jusqu'à leur cible (`travelMs`) : plusieurs sont en vol à la fois, la suivante
+ * déjà en route avant que la précédente n'arrive. On les joue une à une, dans
+ * l'ordre d'arrivée, quand chaque fantôme touche sa cible. Sans musique pour
+ * l'instant : le moteur de synchronisation viendra plus tard. Tout se règle ici
+ * pendant les tests.
+ */
+export const BOSS_RULES = {
+  /**
+   * Vie du boss : réussites qu'il encaisse avant de tomber. Seules les
+   * réussites le blessent ; une erreur ou un raté ne l'entame pas, et les notes
+   * continuent d'arriver tant qu'il tient debout (voir `bossChartLength`).
+   */
+  bossLife: 30,
+  /** Trajet d'un fantôme, du bas de l'écran à sa cible (ms). */
+  travelMs: 6000,
+  /** Écart entre deux notes (ms) : `travelMs / intervalMs` notes en vol à la fois. */
+  intervalMs: 2000,
+  /** Départ de la première note après le lancement du combat (ms). */
+  startDelayMs: 600,
+  /** Fenêtres de jugement (ms) : frapper plus tôt que `earlyMs` ne fait rien. */
+  windows: { earlyMs: 180, lateMs: 220, perfectMs: 50, greatMs: 110 },
+  /** Barre de vie : pleine au départ ; un raté coûte, une erreur coûte plus, une réussite recharge. */
+  life: { start: 100, max: 100, miss: 6, wrong: 9, heal: { perfect: 3, great: 2.5, good: 2 } },
+  /** Points par jugement réussi. */
+  points: { perfect: 1000, great: 600, good: 300 },
+  /**
+   * Combo : après `triggerCount` réussites d'affilée, les notes suivantes valent
+   * double, comme le combo classique (même multiplicateur, même bleu) ; après
+   * `fireCount`, le combo s'enflamme et elles valent `fireMultiplier`. Pas de
+   * jauge ici : seule une erreur ou un raté l'éteint.
+   */
+  combo: { triggerCount: 5, multiplier: COMBO_RULES.multiplier, fireCount: 10, fireMultiplier: 3 },
+  /**
+   * Notes bonus : à mi-chemin entre deux notes du boss, une note jaune plus
+   * rapide peut s'intercaler (`chance` par intervalle). Frappée, elle rapporte
+   * ses points multipliés par `multiplier` ; manquée ou fausse, elle ne coûte
+   * rien. Elle ne blesse pas le boss, ne rend pas de vie et laisse le combo
+   * tel quel. Son trajet (`travelMs`) est plus court que celui des autres.
+   * Elle tombe sur une case qu'aucune autre note à l'écran n'occupe, pour que
+   * son couloir n'appartienne qu'à elle (`createBossChart`) ; faute de place,
+   * elle saute son tour.
+   * Plus rapide, elle se juge plus large (`earlyMs`, `lateMs`) : elle arrive
+   * une seconde à peine après la note précédente, et l'on doit encore lire sa
+   * position. Une première mauvaise touche ne la consomme pas : on peut
+   * retenter une fois tant que sa fenêtre est ouverte ; la deuxième la juge
+   * fausse, sans rien coûter, si bien que balayer le clavier ne garantit plus le
+   * triple : seules les deux premières touches comptent.
+   */
+  bonus: { chance: 0.3, travelMs: 2500, multiplier: 3, earlyMs: 350, lateMs: 600 },
+  /**
+   * Étoiles d'une victoire, selon la vie restante quand le boss tombe, en
+   * `parts` de la vie maximale : plus de `threeStarsAbove` parts (2/3), trois
+   * étoiles ; au moins `twoStarsFrom` (1/3), deux ; en deçà, une. Une défaite
+   * n'en vaut aucune. Des parts entières gardent les seuils exacts.
+   */
+  rating: { parts: 3, threeStarsAbove: 2, twoStarsFrom: 1 },
+  /** Fondu d'un fantôme manqué, une fois la cible dépassée (ms). */
+  fadeMs: 400,
+  /**
+   * Élan rendu à la reprise d'un combat suspendu (ms) : la note à jouer
+   * n'atteint pas sa cible moins de ce délai après « Reprendre », le temps de
+   * revenir au piano ; la partition recule d'autant si besoin.
+   */
+  resumeLeadMs: 1500,
+} as const
+
+/**
+ * Pièces : la monnaie du jeu, gagnée à la fin de chaque partie, victoire ou
+ * non. Le score s'y convertit (1 000 points = 100 pièces) ; une victoire, en
+ * mode classique comme contre le boss, rapporte en plus une prime selon les
+ * étoiles obtenues.
+ */
+export const COIN_RULES = {
+  /** Points pour une pièce : 1 000 points = 100 pièces (arrondi à la pièce inférieure). */
+  pointsPerCoin: 10,
+  /** Prime de victoire selon les étoiles : rang 0 (aucune étoile) à 3. */
+  starBonus: [0, 100, 300, 700],
+} as const

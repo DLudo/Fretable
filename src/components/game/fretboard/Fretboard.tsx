@@ -2,17 +2,12 @@ import { AnimatePresence, useReducedMotion } from 'motion/react'
 import { useId, useMemo, type ReactNode } from 'react'
 
 import { inlaysUnder, type NeckLayout } from '@/game/fretboard/geometry'
-import {
-  createProjection,
-  ORIENTATION_TRANSFORM,
-  orientViewBox,
-  type BoardOrientation,
-  type BoardProjection,
-} from '@/game/fretboard/projection'
+import { createProjection, type BoardProjection } from '@/game/fretboard/projection'
 import { stringNumber } from '@/game/music/tuning'
 import { useElementSize } from '@/hooks/useElementSize'
 import { cn } from '@/lib/utils'
 import { FretNumbers } from './FretNumbers'
+import { GhostDot, type GhostTone } from './GhostDot'
 import { CoveredInlaysContext } from './inlay-context'
 import { MarkerDot } from './MarkerDot'
 import { NeckBoard } from './NeckBoard'
@@ -25,20 +20,40 @@ export interface FretboardMarker {
   stringIndex: number
   /** Case (1 à 12). */
   fret: number
-  /** `assist` : note du coup de pouce, cerclée d'ambre. */
-  variant?: 'default' | 'assist'
+  /** `assist` : note du coup de pouce, cerclée d'ambre ; `triad` : note d'une triade, en vert acide. */
+  variant?: 'default' | 'assist' | 'triad'
+  /** Temps imparti pour répondre (ms) : un anneau se vide autour du point. */
+  countdownMs?: number
+  /** Échéance de ce délai, sur l'horloge `performance.now()` (défaut : au montage + `countdownMs`). */
+  countdownEndsAt?: number
+  /** Délai écoulé : l'anneau, vide, passe au gris. */
+  countdownSpent?: boolean
 }
+
+/** Note à venir, montrée en filigrane (gris) : suite d'une triade, forme de gamme. */
+export interface FretboardGhost {
+  /** Clé stable (la position, en général) : une note qui reste ne réapparaît pas. */
+  key: string
+  stringIndex: number
+  fret: number
+  /** Aspect (voir `GhostTone`) : à venir, de la triade, jouée juste ou manquée. */
+  tone?: GhostTone
+  /** Délai d'apparition (s), pour égrener les notes. */
+  delay?: number
+}
+
+const NO_GHOSTS: readonly FretboardGhost[] = []
 
 export interface FretboardProps {
   layout: NeckLayout
   /** Note à deviner ; `null` = pas de point (une révélation se joue à cet endroit). */
   marker: FretboardMarker | null
+  /** Notes à venir, en filigrane, sous la note à deviner. */
+  ghosts?: readonly FretboardGhost[]
   /** Calque HTML posé au-dessus du manche, en px ; reçoit la projection mm → px. */
   overlay?: (projection: BoardProjection) => ReactNode
   /** Numéros de cases le long du manche (défaut : `true`). */
   showFretNumbers?: boolean
-  /** Orientation d'affichage (défaut : `horizontal`). */
-  orientation?: BoardOrientation
   className?: string
 }
 
@@ -53,24 +68,22 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 
 /**
  * Manche de guitare réaliste (cases 1 à 12), dessiné en millimètres et mis à
- * l'échelle par le navigateur. À la verticale, le dessin pivote d'un quart de
- * tour (sillet en haut) et les numéros de cases restent droits. Le calque
- * `overlay` reçoit la projection mm → px, orientation comprise, pour y placer
- * des éléments HTML exactement sur le manche.
+ * l'échelle par le navigateur, à l'horizontale, numéros de cases dessous. Le
+ * calque `overlay` reçoit la projection mm → px pour y placer des éléments
+ * HTML exactement sur le manche.
  */
 export function Fretboard({
   layout,
   marker,
+  ghosts = NO_GHOSTS,
   overlay,
   showFretNumbers = true,
-  orientation = 'horizontal',
   className,
 }: FretboardProps) {
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '')
   const reduceMotion = useReducedMotion() ?? false
   const [svgRef, size] = useElementSize<SVGSVGElement>()
   const vb = layout.viewBox
-  const box = orientViewBox(vb, orientation)
 
   const projection = useMemo(
     () =>
@@ -78,9 +91,8 @@ export function Fretboard({
         { x: vb.x, y: vb.y, width: vb.width, height: vb.height },
         size.width,
         size.height,
-        orientation,
       ),
-    [vb.x, vb.y, vb.width, vb.height, size.width, size.height, orientation],
+    [vb.x, vb.y, vb.width, vb.height, size.width, size.height],
   )
 
   // Arrondi au quart de mm : les numéros ne se redessinent qu'à des paliers de taille.
@@ -93,38 +105,36 @@ export function Fretboard({
 
   const position = marker ? layout.position(marker.stringIndex, marker.fret) : null
   const haloId = `${uid}-marker-halo`
+  const triadGlowId = `${uid}-triad-glow`
 
-  // Repères recouverts par le point : estompés, puis rétablis quand le point repart.
-  const stringIndex = marker?.stringIndex
-  const fret = marker?.fret
+  // Repère recouvert par le point à deviner : estompé, puis rétabli quand il
+  // repart. Les notes en filigrane, petits cercles évidés posés sur les cordes,
+  // l'effleurent tout au plus sans le masquer. La clé ne change qu'avec la position.
+  const spot = marker ? `${marker.stringIndex}:${marker.fret}` : null
   const covered = useMemo(() => {
-    if (stringIndex === undefined || fret === undefined) return NO_INLAY
-    const point = layout.position(stringIndex, fret)
-    const ids = inlaysUnder(layout.inlays, point, layout.markerRadius).map((inlay) => inlay.id)
+    if (!spot) return NO_INLAY
+    const [s, f] = spot.split(':').map(Number)
+    const ids = inlaysUnder(layout.inlays, layout.position(s, f), layout.markerRadius).map(
+      (inlay) => inlay.id,
+    )
     return ids.length > 0 ? ids : NO_INLAY
-  }, [layout, stringIndex, fret])
+  }, [layout, spot])
 
   return (
-    <div
-      data-slot="fretboard"
-      data-orientation={orientation}
-      className={cn('relative w-full', className)}
-    >
+    <div data-slot="fretboard" className={cn('relative w-full', className)}>
       <svg
         ref={svgRef}
         data-slot="fretboard-svg"
         role="img"
         aria-label="Manche de guitare, cases 1 à 12"
-        viewBox={`${box.x} ${box.y} ${box.width} ${box.height}`}
+        viewBox={`${vb.x} ${vb.y} ${vb.width} ${vb.height}`}
         preserveAspectRatio="xMidYMid meet"
-        className="block h-auto w-full"
-        style={{ aspectRatio: box.width / box.height }}
+        // Les halos des notes du bord (Mi aigu, Mi grave) débordent du manche sans être rognés.
+        className="block h-auto w-full overflow-visible"
+        style={{ aspectRatio: vb.width / vb.height }}
       >
-        {/* Hors du groupe orienté : les chiffres restent droits dans les deux sens. */}
-        {showFretNumbers && (
-          <FretNumbers layout={layout} fontSize={fretNumberSize} orientation={orientation} />
-        )}
-        <g transform={ORIENTATION_TRANSFORM[orientation]}>
+        {showFretNumbers && <FretNumbers layout={layout} fontSize={fretNumberSize} />}
+        <g>
           <CoveredInlaysContext value={covered}>
             <NeckBoard layout={layout} uid={uid} />
           </CoveredInlaysContext>
@@ -133,7 +143,30 @@ export function Fretboard({
               <stop offset={0.45} style={{ stopColor: 'var(--marker-halo)', stopOpacity: 1 }} />
               <stop offset={1} style={{ stopColor: 'var(--marker-halo)', stopOpacity: 0 }} />
             </radialGradient>
+            <radialGradient id={triadGlowId}>
+              <stop offset={0.25} style={{ stopColor: 'var(--triad-glow)', stopOpacity: 1 }} />
+              <stop offset={1} style={{ stopColor: 'var(--triad-glow)', stopOpacity: 0 }} />
+            </radialGradient>
           </defs>
+          <g data-slot="fretboard-ghosts">
+            <AnimatePresence>
+              {ghosts.map((ghost) => {
+                const at = layout.position(ghost.stringIndex, ghost.fret)
+                return (
+                  <GhostDot
+                    key={ghost.key}
+                    cx={at.x}
+                    cy={at.y}
+                    r={layout.markerRadius}
+                    tone={ghost.tone}
+                    triadGlowId={triadGlowId}
+                    delay={ghost.delay}
+                    reduceMotion={reduceMotion}
+                  />
+                )
+              })}
+            </AnimatePresence>
+          </g>
           <AnimatePresence>
             {marker && position && (
               <MarkerDot
@@ -142,7 +175,11 @@ export function Fretboard({
                 cy={position.y}
                 r={layout.markerRadius}
                 haloId={haloId}
+                triadGlowId={triadGlowId}
                 variant={marker.variant}
+                countdownMs={marker.countdownMs}
+                countdownEndsAt={marker.countdownEndsAt}
+                countdownSpent={marker.countdownSpent}
                 reduceMotion={reduceMotion}
               />
             )}
@@ -161,7 +198,9 @@ export function Fretboard({
 
       <p className="sr-only" aria-live="polite">
         {marker
-          ? `Note à trouver : corde ${stringNumber(layout.tuning, marker.stringIndex)}, case ${marker.fret}`
+          ? `Note à trouver : corde ${stringNumber(layout.tuning, marker.stringIndex)}, case ${marker.fret}` +
+            // Note à délai (triade, parcours de gamme) : l'anneau ne se voit pas, il se dit.
+            (marker.countdownMs ? `, en ${Math.round(marker.countdownMs / 1000)} secondes` : '')
           : ''}
       </p>
     </div>
