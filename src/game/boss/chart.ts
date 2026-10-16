@@ -40,7 +40,7 @@ export function bossChartLength(rules: Pick<ChartRules, 'bossLife' | 'life'> = B
  * toutes les `intervalMs`, chacune `travelMs` avant d'atteindre sa cible. Entre
  * deux d'entre elles, une note bonus peut s'intercaler (`bonus.chance`) : elle
  * atteint sa cible à mi-chemin, après un trajet plus court (`bonus.travelMs`),
- * sur une case libre (voir `bonusPosition`). Les notes sont rangées dans leur
+ * sur une case et une corde libres (voir `bonusPosition`). Les notes sont rangées dans leur
  * ordre d'arrivée. Le calendrier ne bouge plus ensuite, quels que soient les
  * jugements ; le combat s'arrête dès que le boss ou le joueur tombe, notes
  * encore en vol comprises.
@@ -87,12 +87,15 @@ function onScreen(note: Timing, rules: ChartRules): { from: number; until: numbe
 }
 
 /**
- * Position d'une note bonus : sur une case qu'aucune autre note n'occupe tant
- * qu'elle est à l'écran, sur quelque corde que ce soit. Couloirs et fantômes
- * montant à la verticale de leur case, le sien n'appartient qu'à elle : jamais
- * de file de notes sur une même case, dont l'ordre serait difficile à lire. Sa
+ * Position d'une note bonus : sur une case et une corde qu'aucune autre note
+ * n'occupe tant qu'elle est à l'écran. Couloirs et fantômes montent à la
+ * verticale de leur cible : une colonne est une case quand le manche est à
+ * l'horizontale, une corde quand il pivote en portrait (en plein combat, au
+ * besoin). Case et corde libres, son couloir n'appartient qu'à elle : jamais de
+ * file de notes dans sa colonne, dont l'ordre serait difficile à lire. Sa
  * touche diffère aussi de celles de ses deux voisines (`neighbours`). `null` si
- * aucune position ne convient : le bonus saute son tour.
+ * aucune position ne convient : le bonus saute son tour (moins d'une fois sur
+ * vingt avec le niveau actuel).
  */
 function bonusPosition(
   timing: Timing,
@@ -104,19 +107,18 @@ function bonusPosition(
   rules: ChartRules,
 ): Pick<BossNote, 'stringIndex' | 'fret' | 'pc'> | null {
   const span = onScreen(timing, rules)
-  const taken = new Set(
-    notes
-      .filter((note) => {
-        const other = onScreen(note, rules)
-        return other.from < span.until && span.from < other.until
-      })
-      .map((note) => note.fret),
-  )
+  const alongside = notes.filter((note) => {
+    const other = onScreen(note, rules)
+    return other.from < span.until && span.from < other.until
+  })
+  const frets = new Set(alongside.map((note) => note.fret))
+  const strings = new Set(alongside.map((note) => note.stringIndex))
   const candidates: Pick<BossNote, 'stringIndex' | 'fret' | 'pc'>[] = []
   for (const stringIndex of level.strings) {
     for (let fret = level.frets.min; fret <= level.frets.max; fret++) {
       const pc = pitchClassAt(tuning, stringIndex, fret)
-      if (taken.has(fret) || neighbours.some((note) => note.pc === pc)) continue
+      if (frets.has(fret) || strings.has(stringIndex)) continue
+      if (neighbours.some((note) => note.pc === pc)) continue
       candidates.push({ stringIndex, fret, pc })
     }
   }

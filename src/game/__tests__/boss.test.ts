@@ -97,11 +97,13 @@ describe('partition du boss', () => {
     return all.filter((n) => n !== bonus && n.launchAt < until(bonus) && bonus.launchAt < until(n))
   }
 
-  it('pose chaque note bonus sur une case libre : aucune autre note n’y est à l’écran', () => {
+  it('pose chaque note bonus sur une case et une corde libres : son couloir est à elle', () => {
     for (const all of [notes, chart(1), chart(1, { min: 1, max: 6 })]) {
       for (const bonus of all.filter((n) => n.bonus)) {
         const others = alongside(all, bonus)
+        // Colonne d'un manche horizontal (la case) comme d'un manche vertical (la corde).
         expect(others.filter((n) => n.fret === bonus.fret)).toEqual([])
+        expect(others.filter((n) => n.stringIndex === bonus.stringIndex)).toEqual([])
         // Et la règle écarte du monde : la note d'avant, celle d'après, les suivantes déjà parties.
         if (bonus.hitAt > all[2].hitAt && bonus.hitAt < all.at(-4)!.hitAt) {
           expect(others.length).toBeGreaterThanOrEqual(5)
@@ -115,10 +117,13 @@ describe('partition du boss', () => {
     expect(chart(1, { min: 1, max: 1 }).some((n) => n.bonus)).toBe(false)
   })
 
-  it('n’intercale rien sans chance de bonus, et partout avec une chance pleine', () => {
+  it('n’intercale rien sans chance de bonus, et presque partout avec une chance pleine', () => {
     expect(chart(0).some((n) => n.bonus)).toBe(false)
     const full = chart(1)
-    expect(full.filter((n) => n.bonus)).toHaveLength(bossChartLength() - 1)
+    // Une au plus par intervalle (voir plus haut), sauf faute de position libre.
+    const placed = full.filter((n) => n.bonus).length
+    expect(placed).toBeLessThanOrEqual(bossChartLength() - 1)
+    expect(placed).toBeGreaterThan((bossChartLength() - 1) * 0.8)
     // Un bonus entre chaque paire : les notes du boss restent distinctes de la précédente.
     const regular = full.filter((n) => !n.bonus)
     regular.slice(1).forEach((note, i) => expect(note.pc).not.toBe(regular[i].pc))
