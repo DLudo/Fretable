@@ -28,6 +28,8 @@ export interface BossOverlayProps {
   visible: boolean
   /** Pièces créditées pour le combat fini (conversion du score, prime d'étoiles sur une victoire). */
   coins?: CoinReceipt | null
+  /** Appareil tactile : le combat se joue au piano, et les règles le disent. */
+  touch?: boolean
   onStart: () => void
   className?: string
 }
@@ -40,6 +42,7 @@ export function BossOverlay({
   state,
   visible,
   coins = null,
+  touch = false,
   onStart,
   className,
 }: BossOverlayProps): ReactNode {
@@ -68,7 +71,7 @@ export function BossOverlay({
             animate={{ opacity: 1, scale: 1, y: 0, transition: ENTER }}
           >
             {phase === 'ready' ? (
-              <ReadyPanel onStart={onStart} />
+              <ReadyPanel touch={touch} onStart={onStart} />
             ) : (
               <EndPanel state={state} coins={coins} onStart={onStart} />
             )}
@@ -79,7 +82,7 @@ export function BossOverlay({
   )
 }
 
-function ReadyPanel({ onStart }: { onStart: () => void }) {
+function ReadyPanel({ touch, onStart }: { touch: boolean; onStart: () => void }) {
   return (
     <Panel
       title={
@@ -111,11 +114,14 @@ function ReadyPanel({ onStart }: { onStart: () => void }) {
           triple de points, sans blesser le boss ni rendre de vie ; une fausse touche s'y rattrape
           une fois, et manquées ou fausses, elles ne coûtent rien.
         </p>
-        <p className="pointer-coarse:hidden short:hidden">Pas de piano ici : joue au clavier.</p>
-        <p className="hidden pointer-coarse:block">
-          Touche le piano quand chaque fantôme atteint sa cible.
-        </p>
-        <KeyboardMap />
+        {touch ? (
+          <p>Touche le piano quand chaque fantôme atteint sa cible.</p>
+        ) : (
+          <>
+            <p className="short:hidden">Pas de piano ici : joue au clavier.</p>
+            <KeyboardMap onTouch />
+          </>
+        )}
         <CoinBalance className="mt-1" />
       </div>
     </Panel>

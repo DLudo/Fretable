@@ -1,5 +1,4 @@
-/** Écran tactile : téléphone ou tablette, là où le jeu passe en plein écran. */
-export const COARSE_POINTER_QUERY = '(pointer: coarse)'
+import { isTouchDevice } from './touch'
 
 /**
  * Sur écran tactile, passe en plein écran et y verrouille le paysage, au mieux :
@@ -10,7 +9,7 @@ export const COARSE_POINTER_QUERY = '(pointer: coarse)'
  * seul à pouvoir ouvrir le plein écran.
  */
 export async function requestLandscape(): Promise<void> {
-  if (typeof window === 'undefined' || !window.matchMedia?.(COARSE_POINTER_QUERY).matches) return
+  if (!isTouchDevice()) return
   try {
     const root = document.documentElement
     if (!document.fullscreenElement && root.requestFullscreen) {

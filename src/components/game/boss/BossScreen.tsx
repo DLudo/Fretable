@@ -25,8 +25,8 @@ import { createNeckLayout } from '@/game/fretboard/geometry'
 import type { BoardProjection } from '@/game/fretboard/projection'
 import { useKeyboardControls } from '@/game/input/useKeyboardControls'
 import { stringNumber } from '@/game/music/tuning'
-import { useMediaQuery } from '@/hooks/useMediaQuery'
-import { COARSE_POINTER_QUERY, requestLandscape } from '@/lib/landscape'
+import { requestLandscape } from '@/lib/landscape'
+import { useTouchDevice } from '@/lib/touch'
 import { cn } from '@/lib/utils'
 import { BossHud } from './BossHud'
 import { BossLayer } from './BossLayer'
@@ -114,7 +114,7 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
   const playing = state.phase === 'playing'
   const layout = useMemo(() => createNeckLayout({ tuning: boss.tuning }), [boss.tuning])
   // Sur écran tactile, sans clavier, on joue au piano.
-  const touch = useMediaQuery(COARSE_POINTER_QUERY)
+  const touch = useTouchDevice()
   // Au piano, un cinquième de la scène reste à la piste des fantômes.
   const { mainRef, pianoRef, maxWidth } = useBoardFit(
     layout.viewBox.width / layout.viewBox.height,
@@ -353,7 +353,13 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
         <p className="sr-only" aria-live="polite">
           {comboAnnouncement}
         </p>
-        <BossOverlay state={state} visible={overlayVisible} coins={coins} onStart={startFight} />
+        <BossOverlay
+          state={state}
+          visible={overlayVisible}
+          coins={coins}
+          touch={touch}
+          onStart={startFight}
+        />
         <PauseOverlay open={suspended} onResume={resumeFight} />
       </main>
     </div>

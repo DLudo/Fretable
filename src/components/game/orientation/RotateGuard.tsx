@@ -2,8 +2,7 @@ import { useId, type ReactNode } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import { MoveHorizontal, Smartphone } from 'lucide-react'
 
-import { useMediaQuery } from '@/hooks/useMediaQuery'
-import { COARSE_POINTER_QUERY } from '@/lib/landscape'
+import { useTouchDevice } from '@/lib/touch'
 import { usePortraitBlocked } from './useAutoSuspend'
 
 /** Un tour de l'icône : le téléphone se couche, marque un temps, se relève. */
@@ -30,7 +29,7 @@ export function RotateGuard({ children }: { children: ReactNode }): ReactNode {
 
 function RotatePrompt() {
   const id = useId()
-  const touch = useMediaQuery(COARSE_POINTER_QUERY)
+  const touch = useTouchDevice()
   const reduceMotion = useReducedMotion()
   return (
     <div
