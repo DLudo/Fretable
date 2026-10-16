@@ -1,8 +1,8 @@
 /**
  * Réglages de l'aura de combo : halo bleu et particules autour du manche.
  *
- * L'aura est procédurale (canvas) : elle suit le contour réel du manche, à
- * l'horizontale comme à la verticale, et ne pèse rien à télécharger. Tout son
+ * L'aura est procédurale (canvas) : elle suit le contour réel du manche, et ne
+ * pèse rien à télécharger. Tout son
  * rendu se règle ici. Pour une texture faite dans After Effects, exportez une
  * image (PNG ou WebP, fond transparent) dans `public/fx/combo/` et indiquez son
  * chemin dans `particles.sprite`.

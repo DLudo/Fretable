@@ -47,8 +47,7 @@ export interface RevealEffectProps {
   /**
    * Distances signées (px), le long de la corde, du repère à chaque fil de
    * frette : l'index `n` est la frette `n`, l'index 0 le sillet. Négatives côté
-   * sillet, positives côté chevalet, dans le repère tourné de `stringAngle`
-   * (quelle que soit l'orientation du manche).
+   * sillet, positives côté chevalet, dans le repère tourné de `stringAngle`.
    */
   fretOffsets: readonly number[]
   /** Taille du calque d'effets (px), pour garder un effet dans le manche. */

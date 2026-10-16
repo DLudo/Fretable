@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useEffectEvent, useMemo, useState, type ReactNode } from 'react'
 
 import { Fretboard } from '@/components/game/fretboard'
-import { PORTRAIT_QUERY, useBoardFit } from '@/components/game/useBoardFit'
+import { useBoardFit } from '@/components/game/useBoardFit'
 import { useBoardImpact } from '@/components/game/useBoardImpact'
 import { RevealLayer } from '@/effects'
 import { COMBO_AURA, COMBO_FIRE_AURA, ComboAura } from '@/effects/ambient'
@@ -19,14 +19,9 @@ import {
 } from '@/game/boss'
 import type { GuessResult } from '@/game/engine/types'
 import { createNeckLayout } from '@/game/fretboard/geometry'
-import {
-  orientViewBox,
-  type BoardOrientation,
-  type BoardProjection,
-} from '@/game/fretboard/projection'
+import type { BoardProjection } from '@/game/fretboard/projection'
 import { useKeyboardControls } from '@/game/input/useKeyboardControls'
 import { stringNumber } from '@/game/music/tuning'
-import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { cn } from '@/lib/utils'
 import { BossHud } from './BossHud'
 import { BossLayer } from './BossLayer'
@@ -111,9 +106,7 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
   const { state, start, press } = boss
   const playing = state.phase === 'playing'
   const layout = useMemo(() => createNeckLayout({ tuning: boss.tuning }), [boss.tuning])
-  const orientation: BoardOrientation = useMediaQuery(PORTRAIT_QUERY) ? 'vertical' : 'horizontal'
-  const box = orientViewBox(layout.viewBox, orientation)
-  const { mainRef, maxWidth } = useBoardFit(box.width / box.height)
+  const { mainRef, maxWidth } = useBoardFit(layout.viewBox.width / layout.viewBox.height)
 
   const [overlayFor, setOverlayFor] = useState<number | null>(null)
   useEffect(() => {
@@ -257,7 +250,6 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
       <main
         ref={mainRef}
         data-slot="game-stage"
-        data-orientation={orientation}
         className="relative flex min-h-0 flex-1 flex-col items-center justify-center px-4 pt-2 pb-[clamp(0.75rem,3vh,1.5rem)]"
       >
         <div
@@ -267,7 +259,7 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
           className="relative w-full"
           style={{ maxWidth }}
         >
-          <Fretboard layout={layout} marker={null} overlay={overlay} orientation={orientation} />
+          <Fretboard layout={layout} marker={null} overlay={overlay} />
         </div>
         <p className="sr-only" aria-live="polite">
           {announced

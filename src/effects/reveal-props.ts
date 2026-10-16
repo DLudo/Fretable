@@ -93,10 +93,7 @@ export type RevealGeometry = Pick<
   'x' | 'y' | 'markerSize' | 'pxPerMm' | 'stringAngle' | 'fretOffsets' | 'layer'
 >
 
-/**
- * Géométrie d'une note à l'écran, calculée à travers la projection : valable à
- * l'horizontale comme à la verticale.
- */
+/** Géométrie d'une note à l'écran, calculée à travers la projection. */
 export function revealGeometry(
   layout: NeckLayout,
   projection: BoardProjection,

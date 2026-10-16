@@ -9,14 +9,9 @@ import { endScreenAt } from '@/game/engine/selectors'
 import { useGame } from '@/game/engine/useGame'
 import { useTriadRing } from '@/game/engine/useTriadRing'
 import { createNeckLayout } from '@/game/fretboard/geometry'
-import {
-  orientViewBox,
-  type BoardOrientation,
-  type BoardProjection,
-} from '@/game/fretboard/projection'
+import type { BoardProjection } from '@/game/fretboard/projection'
 import { useKeyboardControls } from '@/game/input/useKeyboardControls'
 import type { PitchClass } from '@/game/music/notes'
-import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { cn } from '@/lib/utils'
 import { AssistBanner } from './AssistBanner'
 import { Fretboard, type FretboardGhost } from './fretboard'
@@ -27,7 +22,7 @@ import { StartCountdown } from './StartCountdown'
 import { ScaleBanner } from './ScaleBanner'
 import { TriadBanner } from './TriadBanner'
 import { TriadIntro } from './TriadIntro'
-import { PORTRAIT_QUERY, useBoardFit } from './useBoardFit'
+import { useBoardFit } from './useBoardFit'
 import { useBoardImpact } from './useBoardImpact'
 
 const NO_GHOSTS: readonly FretboardGhost[] = []
@@ -47,7 +42,6 @@ export function GameScreen({ modeSwitch, className }: GameScreenProps) {
   const { state } = game
   const layout = useMemo(() => createNeckLayout({ tuning: game.tuning }), [game.tuning])
   const playing = state.phase === 'playing'
-  const orientation: BoardOrientation = useMediaQuery(PORTRAIT_QUERY) ? 'vertical' : 'horizontal'
 
   // L'écran de fin attend que la dernière révélation ait pu être lue.
   const overlayAt = endScreenAt(state)
@@ -174,8 +168,11 @@ export function GameScreen({ modeSwitch, className }: GameScreenProps) {
     () => game.events.on('guess', (result) => impact(result.correct)),
     [game.events, impact],
   )
-  const box = orientViewBox(layout.viewBox, orientation)
-  const { mainRef, pianoRef, maxWidth: boardMaxWidth } = useBoardFit(box.width / box.height)
+  const {
+    mainRef,
+    pianoRef,
+    maxWidth: boardMaxWidth,
+  } = useBoardFit(layout.viewBox.width / layout.viewBox.height)
 
   // L'aura du combo passe sous les révélations.
   const comboActive = playing && state.combo !== null
@@ -195,7 +192,6 @@ export function GameScreen({ modeSwitch, className }: GameScreenProps) {
       <main
         ref={mainRef}
         data-slot="game-stage"
-        data-orientation={orientation}
         className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-[clamp(1rem,6vh,4.5rem)] px-4 pt-2 pb-[clamp(0.75rem,3vh,1.5rem)]"
       >
         <div
@@ -205,13 +201,7 @@ export function GameScreen({ modeSwitch, className }: GameScreenProps) {
           className="relative w-full"
           style={{ maxWidth: boardMaxWidth }}
         >
-          <Fretboard
-            layout={layout}
-            marker={marker}
-            ghosts={ghosts}
-            overlay={overlay}
-            orientation={orientation}
-          />
+          <Fretboard layout={layout} marker={marker} ghosts={ghosts} overlay={overlay} />
           <StartCountdown state={state} />
         </div>
         {/* Hors partie, le piano sort du parcours clavier et de l'arbre d'accessibilité. */}

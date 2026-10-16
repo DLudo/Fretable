@@ -17,12 +17,7 @@ import {
 import type { RevealEffect, RevealOutcome } from '@/effects/types'
 import { COMBO_RULES, GAME_FEEL } from '@/game/config'
 import { createNeckLayout, type NeckLayout, type Point } from '@/game/fretboard/geometry'
-import {
-  ORIENTATION_TRANSFORM,
-  orientPoint,
-  type BoardOrientation,
-  type BoardProjection,
-} from '@/game/fretboard/projection'
+import type { BoardProjection } from '@/game/fretboard/projection'
 import { NOTES, toPitchClass, type PitchClass } from '@/game/music/notes'
 import { useElementSize } from '@/hooks/useElementSize'
 
@@ -31,21 +26,19 @@ import { useElementSize } from '@/hooks/useElementSize'
  * à l'échelle exacte du jeu (mêmes props, même graine, même géométrie).
  * Accès : `/?lab`. Paramètres facultatifs pour l'automatisation :
  *   `effect=<id>` `outcome=correct|wrong` `streak=<n>` `label=<texte>` `autoplay=1` `delay=<ms>`
- *   `marker=desktop|paysage|portrait` `string=<1-6>` `fret=<1-12>` `reduced=1` `timeout=1`
+ *   `marker=desktop|paysage` `string=<1-6>` `fret=<1-12>` `reduced=1` `timeout=1`
  */
 
 interface MarkerPreset {
   name: string
   /** Échelle du manche relevée en jeu pour ce format d'écran. */
   pxPerMm: number
-  orientation: BoardOrientation
 }
 
-/** Formats d'écran types : le repère y mesure ≈ 21, 14 et 10 px. */
+/** Formats d'écran types : le repère y mesure ≈ 21 et 14 px. */
 const MARKER_PRESETS = {
-  desktop: { name: 'Bureau', pxPerMm: 3.38, orientation: 'horizontal' },
-  paysage: { name: 'Paysage', pxPerMm: 2.25, orientation: 'horizontal' },
-  portrait: { name: 'Portrait', pxPerMm: 1.6, orientation: 'vertical' },
+  desktop: { name: 'Bureau', pxPerMm: 3.38 },
+  paysage: { name: 'Paysage', pxPerMm: 2.25 },
 } as const satisfies Record<string, MarkerPreset>
 
 type MarkerId = keyof typeof MARKER_PRESETS
@@ -80,19 +73,14 @@ function stageProjection(
   preset: MarkerPreset,
   anchor: Point,
 ): BoardProjection {
-  const center = orientPoint(anchor, preset.orientation)
   return {
     pxPerMm: preset.pxPerMm,
     width: size.width,
     height: size.height,
-    orientation: preset.orientation,
-    toPx: (point) => {
-      const p = orientPoint(point, preset.orientation)
-      return {
-        x: size.width / 2 + (p.x - center.x) * preset.pxPerMm,
-        y: size.height / 2 + (p.y - center.y) * preset.pxPerMm,
-      }
-    },
+    toPx: (point) => ({
+      x: size.width / 2 + (point.x - anchor.x) * preset.pxPerMm,
+      y: size.height / 2 + (point.y - anchor.y) * preset.pxPerMm,
+    }),
   }
 }
 
@@ -293,7 +281,6 @@ export default function EffectsLab() {
 
       <div
         data-slot="lab-stage"
-        data-orientation={preset.orientation}
         className="relative h-64 overflow-visible rounded-xl border bg-card"
       >
         <div ref={stageRef} className="absolute inset-0 overflow-hidden rounded-[inherit]">
@@ -396,7 +383,6 @@ function StageNeck({
   const transform = [
     `translate(${size.width / 2} ${size.height / 2})`,
     `scale(${preset.pxPerMm})`,
-    ORIENTATION_TRANSFORM[preset.orientation] ?? '',
     `translate(${-anchor.x} ${-anchor.y})`,
   ].join(' ')
   const { outline, nut, frets, inlays, strings, spec } = layout

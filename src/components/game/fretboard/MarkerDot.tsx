@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { motion, type Transition } from 'motion/react'
 
-import type { BoardOrientation } from '@/game/fretboard/projection'
 import { cn } from '@/lib/utils'
 import { duration, ease, spring } from '@/theme/motion'
 
@@ -46,11 +45,6 @@ interface MarkerDotProps {
   countdownEndsAt?: number
   /** Délai écoulé : l'anneau, vide, passe au gris (le « ×2 » est perdu). */
   countdownSpent?: boolean
-  /**
-   * Sens du manche : le dessin est tourné d'un quart de tour en vertical ;
-   * l'anneau en tient compte pour partir de midi à l'écran.
-   */
-  orientation?: BoardOrientation
   reduceMotion: boolean
 }
 
@@ -92,11 +86,8 @@ export function MarkerDot({
   countdownMs,
   countdownEndsAt,
   countdownSpent = false,
-  orientation = 'horizontal',
   reduceMotion,
 }: MarkerDotProps) {
-  // Midi à l'écran : en haut du point, ou à sa gauche sur le manche tourné
-  // (`rotate(90)` envoie la gauche en haut).
   // Part du délai qui reste au montage, figée : l'anneau s'en vide jusqu'à l'échéance.
   const [remaining] = useState(() =>
     countdownMs && countdownEndsAt !== undefined
@@ -104,9 +95,9 @@ export function MarkerDot({
       : 1,
   )
   const ring = r * 1.5
-  const vertical = orientation === 'vertical'
-  const top = vertical ? { x: cx - ring, y: cy } : { x: cx, y: cy - ring }
-  const bottom = vertical ? { x: cx + ring, y: cy } : { x: cx, y: cy + ring }
+  // L'anneau part de midi, en haut du point.
+  const top = { x: cx, y: cy - ring }
+  const bottom = { x: cx, y: cy + ring }
   return (
     <motion.g
       data-slot="fretboard-marker"

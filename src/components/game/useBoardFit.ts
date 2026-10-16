@@ -5,14 +5,16 @@ import { useElementSize } from '@/hooks/useElementSize'
 /** Largeur maximale du manche sur grand écran. */
 export const BOARD_MAX_WIDTH = '72rem'
 
-/** Téléphone tenu en portrait : le manche passe à la verticale (sillet en haut). */
+/**
+ * Écran trop étroit pour le manche : un téléphone tenu en portrait (ou une
+ * fenêtre plus haute que large et étroite). Le jeu ne s'y joue pas : il invite
+ * à tourner l'appareil (voir `RotateGuard`).
+ */
 export const PORTRAIT_QUERY = '(orientation: portrait) and (max-width: 639px)'
 
 /**
  * Le manche est dimensionné par la largeur, mais jamais plus haut que l'espace
- * laissé par le HUD et le piano (proportions conservées). `aspectRatio` est
- * celui du manche orienté : à la verticale, c'est donc la hauteur disponible
- * qui fixe sa taille.
+ * laissé par le HUD et le piano (proportions conservées).
  */
 export function useBoardFit(aspectRatio: number) {
   const [mainRef, main] = useElementSize<HTMLElement>()

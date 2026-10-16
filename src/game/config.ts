@@ -235,9 +235,9 @@ export const BOSS_RULES = {
    * ses points multipliés par `multiplier` ; manquée ou fausse, elle ne coûte
    * rien. Elle ne blesse pas le boss, ne rend pas de vie et laisse le combo
    * tel quel. Son trajet (`travelMs`) est plus court que celui des autres.
-   * Elle tombe sur une case et une corde qu'aucune autre note à l'écran
-   * n'occupe, pour que son couloir n'appartienne qu'à elle, manche horizontal
-   * ou vertical (`createBossChart`) ; faute de place, elle saute son tour.
+   * Elle tombe sur une case qu'aucune autre note à l'écran n'occupe, pour que
+   * son couloir n'appartienne qu'à elle (`createBossChart`) ; faute de place,
+   * elle saute son tour.
    * Plus rapide, elle se juge plus large (`earlyMs`, `lateMs`) : elle arrive
    * une seconde à peine après la note précédente, et l'on doit encore lire sa
    * position. Une première mauvaise touche ne la consomme pas : on peut

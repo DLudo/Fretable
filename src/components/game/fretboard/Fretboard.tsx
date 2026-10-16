@@ -2,13 +2,7 @@ import { AnimatePresence, useReducedMotion } from 'motion/react'
 import { useId, useMemo, type ReactNode } from 'react'
 
 import { inlaysUnder, type NeckLayout } from '@/game/fretboard/geometry'
-import {
-  createProjection,
-  ORIENTATION_TRANSFORM,
-  orientViewBox,
-  type BoardOrientation,
-  type BoardProjection,
-} from '@/game/fretboard/projection'
+import { createProjection, type BoardProjection } from '@/game/fretboard/projection'
 import { stringNumber } from '@/game/music/tuning'
 import { useElementSize } from '@/hooks/useElementSize'
 import { cn } from '@/lib/utils'
@@ -60,8 +54,6 @@ export interface FretboardProps {
   overlay?: (projection: BoardProjection) => ReactNode
   /** Numéros de cases le long du manche (défaut : `true`). */
   showFretNumbers?: boolean
-  /** Orientation d'affichage (défaut : `horizontal`). */
-  orientation?: BoardOrientation
   className?: string
 }
 
@@ -76,10 +68,9 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 
 /**
  * Manche de guitare réaliste (cases 1 à 12), dessiné en millimètres et mis à
- * l'échelle par le navigateur. À la verticale, le dessin pivote d'un quart de
- * tour (sillet en haut) et les numéros de cases restent droits. Le calque
- * `overlay` reçoit la projection mm → px, orientation comprise, pour y placer
- * des éléments HTML exactement sur le manche.
+ * l'échelle par le navigateur, à l'horizontale, numéros de cases dessous. Le
+ * calque `overlay` reçoit la projection mm → px pour y placer des éléments
+ * HTML exactement sur le manche.
  */
 export function Fretboard({
   layout,
@@ -87,14 +78,12 @@ export function Fretboard({
   ghosts = NO_GHOSTS,
   overlay,
   showFretNumbers = true,
-  orientation = 'horizontal',
   className,
 }: FretboardProps) {
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '')
   const reduceMotion = useReducedMotion() ?? false
   const [svgRef, size] = useElementSize<SVGSVGElement>()
   const vb = layout.viewBox
-  const box = orientViewBox(vb, orientation)
 
   const projection = useMemo(
     () =>
@@ -102,9 +91,8 @@ export function Fretboard({
         { x: vb.x, y: vb.y, width: vb.width, height: vb.height },
         size.width,
         size.height,
-        orientation,
       ),
-    [vb.x, vb.y, vb.width, vb.height, size.width, size.height, orientation],
+    [vb.x, vb.y, vb.width, vb.height, size.width, size.height],
   )
 
   // Arrondi au quart de mm : les numéros ne se redessinent qu'à des paliers de taille.
@@ -133,27 +121,20 @@ export function Fretboard({
   }, [layout, spot])
 
   return (
-    <div
-      data-slot="fretboard"
-      data-orientation={orientation}
-      className={cn('relative w-full', className)}
-    >
+    <div data-slot="fretboard" className={cn('relative w-full', className)}>
       <svg
         ref={svgRef}
         data-slot="fretboard-svg"
         role="img"
         aria-label="Manche de guitare, cases 1 à 12"
-        viewBox={`${box.x} ${box.y} ${box.width} ${box.height}`}
+        viewBox={`${vb.x} ${vb.y} ${vb.width} ${vb.height}`}
         preserveAspectRatio="xMidYMid meet"
         // Les halos des notes du bord (Mi aigu, Mi grave) débordent du manche sans être rognés.
         className="block h-auto w-full overflow-visible"
-        style={{ aspectRatio: box.width / box.height }}
+        style={{ aspectRatio: vb.width / vb.height }}
       >
-        {/* Hors du groupe orienté : les chiffres restent droits dans les deux sens. */}
-        {showFretNumbers && (
-          <FretNumbers layout={layout} fontSize={fretNumberSize} orientation={orientation} />
-        )}
-        <g transform={ORIENTATION_TRANSFORM[orientation]}>
+        {showFretNumbers && <FretNumbers layout={layout} fontSize={fretNumberSize} />}
+        <g>
           <CoveredInlaysContext value={covered}>
             <NeckBoard layout={layout} uid={uid} />
           </CoveredInlaysContext>
@@ -199,7 +180,6 @@ export function Fretboard({
                 countdownMs={marker.countdownMs}
                 countdownEndsAt={marker.countdownEndsAt}
                 countdownSpent={marker.countdownSpent}
-                orientation={orientation}
                 reduceMotion={reduceMotion}
               />
             )}
