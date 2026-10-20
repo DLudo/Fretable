@@ -11,8 +11,11 @@ export {
   readWallet,
   receiptFor,
   resetWallet,
+  updateWallet,
   useWallet,
+  EMPTY_INVENTORY,
   type CoinReceipt,
+  type Inventory,
   type Wallet,
 } from './wallet'
 export { useCoinReward } from './useCoinReward'

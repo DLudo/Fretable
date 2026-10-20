@@ -15,6 +15,8 @@ const BANNER_MS = 2400
 export interface ScaleBannerProps {
   /** Issue du dernier parcours de gamme : l'annonce s'affiche quand elle change. */
   outcome: ScaleRunOutcome | null
+  /** Lampes en surchauffe : les points affichés sont multipliés (1 : aucun effet). */
+  scoreBoost?: number
   className?: string
 }
 
@@ -22,7 +24,7 @@ export interface ScaleBannerProps {
  * Fin du parcours de gamme : la gamme jouée, les notes justes et les points
  * gagnés ; un parcours sans faute est célébré. Ne capte pas les clics.
  */
-export function ScaleBanner({ outcome, className }: ScaleBannerProps): ReactNode {
+export function ScaleBanner({ outcome, scoreBoost = 1, className }: ScaleBannerProps): ReactNode {
   const reduceMotion = useReducedMotion()
   const [shown, setShown] = useState<ScaleRunOutcome | null>(null)
   const [tracked, setTracked] = useState<ScaleRunOutcome | null>(outcome)
@@ -63,7 +65,9 @@ export function ScaleBanner({ outcome, className }: ScaleBannerProps): ReactNode
           <span className="max-sm:hidden">
             {scaleName(shown.root, shown.quality, shown.kind, NOTATION)}
           </span>
-          <span className="font-semibold tabular-nums">+{formatScore(shown.points)}</span>
+          <span className="font-semibold tabular-nums">
+            +{formatScore(shown.points * scoreBoost)}
+          </span>
         </motion.div>
       )}
     </AnimatePresence>

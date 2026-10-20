@@ -264,6 +264,26 @@ export const BOSS_RULES = {
 } as const
 
 /**
+ * Objets de l'inventaire, payés en pièces. Ils n'agissent, pour l'heure, qu'en
+ * partie classique : le boss a ses propres règles de combo et de score.
+ */
+export const ITEM_RULES = {
+  /**
+   * Lampes en surchauffe, à usage unique : le score de la partie est doublé,
+   * et les pièces qu'il rapporte avec lui ; les étoiles, elles, se jugent sur
+   * le score de base. Leur prix reste au-dessus du gain maximal possible d'une
+   * partie (voir `maxClassicScore`) : elles ne rapportent jamais plus de pièces
+   * qu'elles n'en coûtent, ce qu'un test vérifie à chaque changement de réglage.
+   */
+  lamps: { price: 10_000, scoreMultiplier: 2 },
+  /**
+   * Tête d'ampli 50 watts, permanente : la jauge du combo gagne 2 s, à son
+   * déclenchement comme en capacité (voir `COMBO_RULES`).
+   */
+  amp50: { price: 60_000, comboBonusMs: 2000 },
+} as const
+
+/**
  * Pièces : la monnaie du jeu, gagnée à la fin de chaque partie, victoire ou
  * non. Le score s'y convertit (1 000 points = 100 pièces) ; une victoire, en
  * mode classique comme contre le boss, rapporte en plus une prime selon les

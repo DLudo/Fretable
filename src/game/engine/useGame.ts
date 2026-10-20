@@ -22,7 +22,14 @@ import {
   scaleChallenge,
   triadChallenge,
 } from './triad'
-import type { AssistState, Challenge, GameState, TriadPlan } from './types'
+import {
+  NO_PERKS,
+  type AssistState,
+  type Challenge,
+  type GameState,
+  type Perks,
+  type TriadPlan,
+} from './types'
 
 export interface UseGameOptions {
   tuning?: Tuning
@@ -40,8 +47,11 @@ export interface GameController {
    * Une partie s'ouvre sur `phase: starting` (décompte 3, 2, 1), puis `phase: playing` et la première note.
    */
   events: GameEventBus
-  /** Démarre (ou redémarre) le niveau courant, après le décompte 3, 2, 1. */
-  start(): void
+  /**
+   * Démarre (ou redémarre) le niveau courant, après le décompte 3, 2, 1, avec
+   * les bonus du joueur (`perks`, aucun par défaut).
+   */
+  start(perks?: Perks): void
   /** Propose une réponse ; ignorée hors partie ou pendant une révélation. */
   guess(pc: PitchClass): void
   /** Passe au niveau suivant s'il existe. */
@@ -79,10 +89,13 @@ export function useGame(options: UseGameOptions = {}): GameController {
     [state.level, tuning, random],
   )
 
-  const start = useCallback(() => {
-    if (startCountdownMs() > 0) dispatch({ type: 'prepare', now: now() })
-    else dispatch({ type: 'start', now: now(), challenge: makeChallenge(null) })
-  }, [makeChallenge])
+  const start = useCallback(
+    (perks: Perks = NO_PERKS) => {
+      if (startCountdownMs() > 0) dispatch({ type: 'prepare', now: now(), perks })
+      else dispatch({ type: 'start', now: now(), challenge: makeChallenge(null), perks })
+    },
+    [makeChallenge],
+  )
 
   const guess = useCallback(
     (pc: PitchClass) => dispatch({ type: 'guess', pc, now: now(), roll: random() }),

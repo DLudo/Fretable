@@ -9,6 +9,7 @@ import { ComboMeter } from './ComboMeter'
 import { LevelProgress } from './LevelProgress'
 import { LevelTimer } from './LevelTimer'
 import { ScaleChip } from './ScaleChip'
+import { ScoreBoostChip } from './ScoreBoostChip'
 import { ScoreCounter } from './ScoreCounter'
 
 export interface LevelHudProps {
@@ -18,6 +19,11 @@ export interface LevelHudProps {
    * pendant un combo, qui la garde bleue (les deux ×2 ne s'additionnent pas).
    */
   triadBoost?: boolean
+  /**
+   * Lampes en surchauffe : le score affiché est multiplié pour toute la partie
+   * (1 : aucun effet), et une pastille orangée le rappelle.
+   */
+  scoreBoost?: number
   /** Élément posé en tête de la ligne, à gauche du titre (interrupteur de mode). */
   leading?: ReactNode
   className?: string
@@ -47,6 +53,7 @@ function useRisePulse(value: number): number {
 export function LevelHud({
   state,
   triadBoost = false,
+  scoreBoost = 1,
   leading,
   className,
 }: LevelHudProps): ReactNode {
@@ -75,11 +82,12 @@ export function LevelHud({
 
           {/* Le parcours de gamme ne multiplie rien : la pastille du combo s'y retire. */}
           <ScoreCounter
-            score={score}
+            score={score * scoreBoost}
             comboActive={combo !== null && scaleRun === null}
             triadBoost={triadBoost}
             className="short:shrink-0"
           />
+          <ScoreBoostChip multiplier={scoreBoost} className="short:shrink-0" />
           <AssistChip assist={assist} className="short:shrink-0" />
           <ScaleChip run={scaleRun} className="short:shrink-0" />
 
@@ -125,7 +133,11 @@ export function LevelHud({
             pulseId={pulseId}
             pending={assist && { done: assist.total - assist.remaining, total: assist.total }}
           />
-          <ComboMeter combo={combo} pausedAt={state.pausedAt ?? state.suspendedAt} />
+          <ComboMeter
+            combo={combo}
+            pausedAt={state.pausedAt ?? state.suspendedAt}
+            bonusMs={state.perks.comboBonusMs}
+          />
         </div>
       </div>
     </div>

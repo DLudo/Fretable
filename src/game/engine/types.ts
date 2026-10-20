@@ -166,6 +166,17 @@ export interface ComboState {
   endsAt: number
 }
 
+/**
+ * Bonus que le joueur apporte à la partie, tirés de ses améliorations
+ * permanentes (voir `@/game/items`), figés à son lancement.
+ */
+export interface Perks {
+  /** Durée et capacité supplémentaires de la jauge du combo (ms). */
+  comboBonusMs: number
+}
+
+export const NO_PERKS: Perks = { comboBonusMs: 0 }
+
 export interface GameState {
   levelIndex: number
   level: LevelConfig
@@ -214,6 +225,8 @@ export interface GameState {
   pausedAt: number | null
   /** Temps de pause cumulé depuis le lancement (ms), hors pause en cours. */
   pausedMs: number
+  /** Bonus du joueur pour cette partie (améliorations permanentes). */
+  perks: Perks
   /**
    * Partie suspendue depuis cet instant (`performance.now()`), ou `null` : le
    * joueur n'est plus là (téléphone tourné en portrait, page masquée). Rien ne
@@ -233,9 +246,10 @@ export interface GameState {
 
 export type GameAction =
   | { type: 'load'; levelIndex: number }
-  /** Lance le décompte 3, 2, 1 ; `start` suivra à son terme. */
-  | { type: 'prepare'; now: number }
-  | { type: 'start'; now: number; challenge: Challenge }
+  /** Lance le décompte 3, 2, 1 ; `start` suivra à son terme. `perks` : bonus du joueur. */
+  | { type: 'prepare'; now: number; perks?: Perks }
+  /** Première note ; sans `perks`, ceux du décompte qui s'achève. */
+  | { type: 'start'; now: number; challenge: Challenge; perks?: Perks }
   /**
    * `roll` : tirage dans [0, 1) pour le coup de pouce (injecté pour garder le
    * réducteur pur) ; absent, aucun coup de pouce n'est offert.

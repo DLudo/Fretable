@@ -41,14 +41,23 @@ export interface ComboStep {
 }
 
 /**
+ * Capacité de la jauge du combo (ms) : `COMBO_RULES.maxMs`, plus le bonus des
+ * amplis (`Perks.comboBonusMs`), qui allonge d'autant sa durée de départ.
+ */
+export function comboCapacityMs(bonusMs = 0): number {
+  return COMBO_RULES.maxMs + bonusMs
+}
+
+/**
  * Fait avancer le combo d'une réponse.
  *
  * - Hors combo : les bonnes réponses rapides s'enchaînent ; toute erreur ou
  *   réponse lente remet le compte à zéro. À la troisième, le combo démarre
- *   pour `durationMs` ; cette réponse-là n'est pas encore multipliée.
+ *   pour `durationMs`, plus `bonusMs` (amplis) ; cette réponse-là n'est pas
+ *   encore multipliée.
  * - Pendant le combo : chaque réponse est multipliée, qu'elle soit juste ou
  *   non (seules les justes rapportent). Une bonne réponse rapide recharge la
- *   jauge de `rechargeMs`, sans dépasser `maxMs` d'avance. Une erreur ne
+ *   jauge de `rechargeMs`, sans dépasser sa capacité (`comboCapacityMs`) d'avance. Une erreur ne
  *   l'interrompt pas : seul le temps l'épuise.
  * - Combo épuisé : il faut à nouveau trois bonnes réponses rapides.
  */
@@ -56,13 +65,14 @@ export function stepCombo(
   combo: ComboState | null,
   fastStreak: number,
   answer: { now: number; correct: boolean; reactionMs: number },
+  bonusMs = 0,
 ): ComboStep {
   const { now, correct, reactionMs } = answer
   const fast = correct && isFastReaction(reactionMs)
 
   if (isComboLive(combo, now)) {
     const endsAt = fast
-      ? Math.min(now + COMBO_RULES.maxMs, combo.endsAt + COMBO_RULES.rechargeMs)
+      ? Math.min(now + comboCapacityMs(bonusMs), combo.endsAt + COMBO_RULES.rechargeMs)
       : combo.endsAt
     return {
       combo: endsAt === combo.endsAt ? combo : { ...combo, endsAt },
@@ -76,7 +86,7 @@ export function stepCombo(
   const streak = fast ? (combo ? 0 : fastStreak) + 1 : 0
   if (streak >= COMBO_RULES.triggerCount) {
     return {
-      combo: { startedAt: now, endsAt: now + COMBO_RULES.durationMs },
+      combo: { startedAt: now, endsAt: now + COMBO_RULES.durationMs + bonusMs },
       fastStreak: 0,
       multiplier: 1,
       triggered: true,

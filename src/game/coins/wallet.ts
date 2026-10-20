@@ -1,5 +1,11 @@
 import { useSyncExternalStore } from 'react'
 
+import {
+  isConsumableId,
+  isUpgradeId,
+  type ConsumableId,
+  type UpgradeId,
+} from '@/game/items/catalog'
 import type { CoinReward } from './reward'
 
 /** Crédit d'une partie : de quoi rejouer sa conversion sans recréditer. */
@@ -12,16 +18,49 @@ export interface CoinReceipt {
   after: number
 }
 
+/** Objets du joueur, achetés avec ses pièces (voir `@/game/items`). */
+export interface Inventory {
+  /** Consommables en réserve, par objet. */
+  consumables: Readonly<Partial<Record<ConsumableId, number>>>
+  /** Améliorations permanentes acquises. */
+  upgrades: readonly UpgradeId[]
+  /** Consommables activés : la prochaine partie en consommera un de chaque. */
+  armed: readonly ConsumableId[]
+}
+
 export interface Wallet {
   balance: number
   /** Derniers crédits, du plus ancien au plus récent (`RECEIPTS_KEPT` au plus). */
   receipts: readonly CoinReceipt[]
+  /** Objets achetés : ils vivent avec les pièces, qu'un achat débite d'un même geste. */
+  inventory: Inventory
 }
 
 const STORAGE_KEY = 'fretable.coins.v1'
 /** Crédits retenus : une partie déjà créditée ne l'est jamais deux fois. */
 const RECEIPTS_KEPT = 20
-const EMPTY: Wallet = { balance: 0, receipts: [] }
+export const EMPTY_INVENTORY: Inventory = { consumables: {}, upgrades: [], armed: [] }
+const EMPTY: Wallet = { balance: 0, receipts: [], inventory: EMPTY_INVENTORY }
+
+/** Inventaire relu du stockage : objets inconnus et quantités invalides écartés. */
+function parseInventory(data: unknown): Inventory {
+  if (typeof data !== 'object' || data === null) return EMPTY_INVENTORY
+  const raw = data as Partial<Record<keyof Inventory, unknown>>
+  const consumables: Partial<Record<ConsumableId, number>> = {}
+  if (typeof raw.consumables === 'object' && raw.consumables !== null) {
+    for (const [id, count] of Object.entries(raw.consumables)) {
+      if (isConsumableId(id) && typeof count === 'number' && Number.isFinite(count) && count > 0) {
+        consumables[id] = Math.floor(count)
+      }
+    }
+  }
+  const upgrades = Array.isArray(raw.upgrades) ? [...new Set(raw.upgrades.filter(isUpgradeId))] : []
+  // Un consommable activé n'est gardé que s'il en reste.
+  const armed = Array.isArray(raw.armed)
+    ? [...new Set(raw.armed.filter(isConsumableId))].filter((id) => (consumables[id] ?? 0) > 0)
+    : []
+  return { consumables, upgrades, armed }
+}
 
 function parse(raw: string | null): Wallet {
   if (!raw) return EMPTY
@@ -33,7 +72,7 @@ function parse(raw: string | null): Wallet {
         : 0
     // Premier format : seul le dernier crédit était gardé.
     const receipts = Array.isArray(data.receipts) ? data.receipts : data.last ? [data.last] : []
-    return { balance, receipts }
+    return { balance, receipts, inventory: parseInventory(data.inventory) }
   } catch {
     return EMPTY
   }
@@ -105,10 +144,24 @@ export function creditWallet(key: string, reward: CoinReward): CoinReceipt {
   const before = state.balance
   const receipt: CoinReceipt = { key, reward, before, after: before + reward.total }
   commit({
+    ...state,
     balance: receipt.after,
     receipts: [...state.receipts, receipt].slice(-RECEIPTS_KEPT),
   })
   return receipt
+}
+
+/**
+ * Change le portefeuille d'un geste (achat, activation d'un objet), sur l'état
+ * relu du stockage : rien de ce qu'un autre onglet a écrit n'est écrasé.
+ * `update` rend le nouvel état, ou `null` pour ne rien changer.
+ */
+export function updateWallet(update: (state: Wallet) => Wallet | null): Wallet {
+  const state = storable && typeof window !== 'undefined' ? load() : current()
+  wallet = state
+  const next = update(state)
+  if (next) commit(next)
+  return next ?? state
 }
 
 /** Reçu du crédit d'une partie, s'il compte parmi les derniers. */

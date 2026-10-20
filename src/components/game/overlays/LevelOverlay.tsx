@@ -4,6 +4,7 @@ import { ArrowRight, Play, RotateCcw } from 'lucide-react'
 
 import { clockResolutionOf, formatClock, formatDurationWords } from '@/components/game/hud'
 import { CoinBalance, CoinConversion } from '@/components/game/coins'
+import { ActiveItems } from '@/components/inventory/ActiveItems'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
 import type { CoinReceipt } from '@/game/coins'
@@ -24,6 +25,8 @@ export interface LevelOverlayProps {
   visible: boolean
   /** Pièces créditées pour la partie finie (conversion du score, prime d'étoiles). */
   coins?: CoinReceipt | null
+  /** Lampes en surchauffe : le score affiché de la partie est multiplié (1 : aucun effet). */
+  scoreBoost?: number
   /** Affiche « Niveau suivant » sur l'écran de victoire. */
   hasNextLevel: boolean
   /** Lance ou relance le niveau courant. */
@@ -41,6 +44,7 @@ export function LevelOverlay({
   state,
   visible,
   coins = null,
+  scoreBoost = 1,
   hasNextLevel,
   onStart,
   onNextLevel,
@@ -84,12 +88,13 @@ export function LevelOverlay({
                 <WonPanel
                   state={state}
                   coins={coins}
+                  scoreBoost={scoreBoost}
                   hasNextLevel={hasNextLevel}
                   onStart={onStart}
                   onNextLevel={onNextLevel}
                 />
               ) : phase === 'lost' ? (
-                <LostPanel state={state} coins={coins} onStart={onStart} />
+                <LostPanel state={state} coins={coins} scoreBoost={scoreBoost} onStart={onStart} />
               ) : (
                 <ReadyPanel state={state} onStart={onStart} />
               )}
@@ -108,6 +113,7 @@ interface PanelProps {
 
 interface EndPanelProps extends PanelProps {
   coins: CoinReceipt | null
+  scoreBoost: number
 }
 
 /** Conversion en pièces : après les étoiles sur une victoire, d'emblée sinon (s). */
@@ -141,6 +147,7 @@ function ReadyPanel({ state, onStart }: PanelProps) {
         </p>
         <p className="hidden pointer-coarse:block">Touche le piano pour répondre.</p>
         <KeyboardMap />
+        <ActiveItems className="mt-1" />
         <CoinBalance className="mt-1" />
       </div>
     </Panel>
@@ -150,6 +157,7 @@ function ReadyPanel({ state, onStart }: PanelProps) {
 function WonPanel({
   state,
   coins,
+  scoreBoost,
   hasNextLevel,
   onStart,
   onNextLevel,
@@ -195,7 +203,7 @@ function WonPanel({
         )}
       >
         <RatingStars rating={rateGame(state)} />
-        <ScoreLine score={state.score} />
+        <ScoreLine score={state.score * scoreBoost} />
       </div>
       {coins && (
         <CoinConversion
@@ -214,7 +222,7 @@ function WonPanel({
   )
 }
 
-function LostPanel({ state, coins, onStart }: EndPanelProps) {
+function LostPanel({ state, coins, scoreBoost, onStart }: EndPanelProps) {
   const { level, correctCount, lastResult } = state
   // Note restée sans réponse à la fin du temps : on la nomme, pour que l'essai serve.
   // Une note du parcours de gamme manquée par son anneau n'est pas celle du temps écoulé.
@@ -232,7 +240,10 @@ function LostPanel({ state, coins, onStart }: EndPanelProps) {
         </Button>
       }
     >
-      <ScoreLine score={state.score} className={missed && !coins ? 'mb-2' : undefined} />
+      <ScoreLine
+        score={state.score * scoreBoost}
+        className={missed && !coins ? 'mb-2' : undefined}
+      />
       {coins && (
         <CoinConversion
           receipt={coins}

@@ -4,13 +4,14 @@ import { shouldOfferAssist } from './assist'
 import { basePoints, isComboLive, resumeCombo, stepCombo, type ComboStep } from './scoring'
 import { deadlineAt, scaleNoteDeadlineAt } from './selectors'
 import { canStartTriad, triadMultiplier } from './triad'
-import type {
-  GameAction,
-  GameState,
-  GuessResult,
-  ScaleRunState,
-  TriadOutcome,
-  TriadState,
+import {
+  NO_PERKS,
+  type GameAction,
+  type GameState,
+  type GuessResult,
+  type ScaleRunState,
+  type TriadOutcome,
+  type TriadState,
 } from './types'
 
 export function createInitialState(levelIndex = 0): GameState {
@@ -41,6 +42,7 @@ export function createInitialState(levelIndex = 0): GameState {
     lastScaleRun: null,
     pausedAt: null,
     pausedMs: 0,
+    perks: NO_PERKS,
     suspendedAt: null,
     startingAt: null,
     startedAt: null,
@@ -109,6 +111,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         level: state.level,
         phase: 'starting',
         startingAt: action.now,
+        perks: action.perks ?? NO_PERKS,
       }
 
     case 'start':
@@ -120,6 +123,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         challenge: action.challenge,
         challengeShownAt: action.now,
         startedAt: action.now,
+        perks: action.perks ?? (state.phase === 'starting' ? state.perks : NO_PERKS),
       }
 
     case 'guess': {
@@ -149,7 +153,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const correctCount = state.correctCount + (correct && (!assisted || completesAssist) ? 1 : 0)
       const step: ComboStep = assisted
         ? { combo: null, fastStreak: 0, multiplier: 1, triggered: false }
-        : stepCombo(state.combo, state.fastStreak, { now: action.now, correct, reactionMs })
+        : stepCombo(
+            state.combo,
+            state.fastStreak,
+            { now: action.now, correct, reactionMs },
+            state.perks.comboBonusMs,
+          )
       const multiplier =
         triadNote && correct
           ? Math.max(step.multiplier, triadMultiplier(reactionMs))

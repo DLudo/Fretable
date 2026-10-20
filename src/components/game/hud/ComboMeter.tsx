@@ -1,7 +1,7 @@
 import { useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion, useAnimationFrame, useReducedMotion } from 'motion/react'
 
-import { COMBO_RULES } from '@/game/config'
+import { comboCapacityMs } from '@/game/engine/scoring'
 import type { ComboState } from '@/game/engine/types'
 import { cn } from '@/lib/utils'
 import { duration, ease } from '@/theme/motion'
@@ -11,6 +11,8 @@ export interface ComboMeterProps {
   combo: ComboState | null
   /** Début de la pause en cours (annonce de triade, parcours de gamme) : la jauge s'y fige. */
   pausedAt?: number | null
+  /** Bonus des amplis (`Perks.comboBonusMs`) : la jauge contient d'autant plus. */
+  bonusMs?: number
   className?: string
 }
 
@@ -36,14 +38,19 @@ function useRecharge(combo: ComboState | null, paused: boolean): number {
 
 /**
  * Jauge de combo, façon barre de mana : bleue, sous la barre de progression.
- * Elle se vide en temps réel sur `COMBO_RULES.maxMs` et regagne du terrain à
+ * Elle se vide en temps réel sur sa capacité (`comboCapacityMs`) et regagne du terrain à
  * chaque réponse rapide ; elle se fige pendant les pauses (annonce de triade,
  * parcours de gamme). Positionnée en absolu sous son parent (qui doit être
  * `relative`) : son apparition ne décale pas la mise en page.
  *
  * Le remplissage est écrit dans le DOM à chaque frame, sans rendu React.
  */
-export function ComboMeter({ combo, pausedAt = null, className }: ComboMeterProps): ReactNode {
+export function ComboMeter({
+  combo,
+  pausedAt = null,
+  bonusMs = 0,
+  className,
+}: ComboMeterProps): ReactNode {
   const reduceMotion = useReducedMotion()
   const fill = useRef<HTMLSpanElement>(null)
   const endsAt = combo?.endsAt ?? null
@@ -53,7 +60,7 @@ export function ComboMeter({ combo, pausedAt = null, className }: ComboMeterProp
     const el = fill.current
     if (!el || endsAt === null) return
     const at = pausedAt ?? performance.now()
-    const ratio = Math.min(1, Math.max(0, (endsAt - at) / COMBO_RULES.maxMs))
+    const ratio = Math.min(1, Math.max(0, (endsAt - at) / comboCapacityMs(bonusMs)))
     el.style.transform = `scaleX(${ratio})`
   })
 

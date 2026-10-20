@@ -2,12 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 
 import { RevealLayer } from '@/effects'
 import { ComboAura } from '@/effects/ambient'
-import { gameCoinKey, useCoinReward } from '@/game/coins'
-import { SCALE_RULES, TRIAD_RULES } from '@/game/config'
+import { gameCoinKey, useCoinReward, useWallet } from '@/game/coins'
+import { ITEM_RULES, SCALE_RULES, TRIAD_RULES } from '@/game/config'
 import { rateGame } from '@/game/engine/rating'
 import { endScreenAt } from '@/game/engine/selectors'
 import { useGame } from '@/game/engine/useGame'
 import { useTriadRing } from '@/game/engine/useTriadRing'
+import { consumeArmed, perksFor } from '@/game/items'
 import { createNeckLayout } from '@/game/fretboard/geometry'
 import type { BoardProjection } from '@/game/fretboard/projection'
 import { useKeyboardControls } from '@/game/input/useKeyboardControls'
@@ -60,6 +61,13 @@ export function GameScreen({ modeSwitch, className }: GameScreenProps) {
   const overlayVisible =
     overlayAt === null || overlayAt === state.endedAt || overlayShownFor === state.endedAt
 
+  // Objets du joueur : ses améliorations agissent sur chaque partie ; les
+  // consommables activés, sur la prochaine seulement (voir `startGame`). Les
+  // lampes en surchauffe multiplient le score affiché et ses pièces ; les
+  // étoiles, elles, se jugent sur le score de base.
+  const { inventory } = useWallet()
+  const [scoreBoost, setScoreBoost] = useState(1)
+
   // Pièces : la partie finie, son score converti et la prime de ses étoiles
   // créditent le portefeuille, une seule fois par partie.
   const ended = state.phase === 'won' || state.phase === 'lost'
@@ -67,7 +75,10 @@ export function GameScreen({ modeSwitch, className }: GameScreenProps) {
     ended && state.startedAt !== null
       ? gameCoinKey(`classic:${state.levelIndex}`, state.startedAt)
       : null,
-    { score: state.score, stars: state.phase === 'won' ? rateGame(state).stars : 0 },
+    {
+      score: state.score * scoreBoost,
+      stars: state.phase === 'won' ? rateGame(state).stars : 0,
+    },
   )
 
   // Partie suspendue (écran en portrait, page quittée) : tout attend la reprise.
@@ -80,7 +91,9 @@ export function GameScreen({ modeSwitch, className }: GameScreenProps) {
   // en plein écran, verrouillé en paysage quand l'appareil le permet.
   const startGame = () => {
     void requestLandscape()
-    game.start()
+    const used = consumeArmed(['lamps'])
+    setScoreBoost(used.includes('lamps') ? ITEM_RULES.lamps.scoreMultiplier : 1)
+    game.start(perksFor(inventory))
   }
   const resumeGame = () => {
     void requestLandscape()
@@ -210,7 +223,13 @@ export function GameScreen({ modeSwitch, className }: GameScreenProps) {
 
   return (
     <div data-slot="game-screen" className={cn('flex h-dvh flex-col overflow-hidden', className)}>
-      <LevelHud state={state} triadBoost={ringRunning} leading={modeSwitch} className="shrink-0" />
+      <LevelHud
+        state={state}
+        triadBoost={ringRunning}
+        scoreBoost={scoreBoost}
+        leading={modeSwitch}
+        className="shrink-0"
+      />
       <main
         ref={mainRef}
         data-slot="game-stage"
@@ -244,7 +263,7 @@ export function GameScreen({ modeSwitch, className }: GameScreenProps) {
         >
           <AssistBanner assist={playing ? state.assist : null} />
           <TriadBanner outcome={playing ? state.lastTriad : null} />
-          <ScaleBanner outcome={playing ? state.lastScaleRun : null} />
+          <ScaleBanner outcome={playing ? state.lastScaleRun : null} scoreBoost={scoreBoost} />
         </div>
         {/* Annonce d'une triade : la partie est en pause le temps qu'elle passe. */}
         <TriadIntro intro={playing ? state.triadIntro : null} suspended={suspended} />
@@ -252,6 +271,7 @@ export function GameScreen({ modeSwitch, className }: GameScreenProps) {
           state={state}
           visible={overlayVisible}
           coins={coins}
+          scoreBoost={scoreBoost}
           hasNextLevel={game.hasNextLevel}
           onStart={startGame}
           onNextLevel={game.nextLevel}
