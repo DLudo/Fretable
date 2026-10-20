@@ -23,6 +23,7 @@ import { LevelOverlay, PauseOverlay } from './overlays'
 import { Piano, type PianoFeedback } from './piano'
 import { StartCountdown } from './StartCountdown'
 import { ScaleBanner } from './ScaleBanner'
+import { ScorePopLayer } from './score-pops'
 import { TriadBanner } from './TriadBanner'
 import { TriadIntro } from './TriadIntro'
 import { useBoardFit } from './useBoardFit'
@@ -209,16 +210,22 @@ export function GameScreen({ modeSwitch, className }: GameScreenProps) {
     maxWidth: boardMaxWidth,
   } = useBoardFit(layout.viewBox.width / layout.viewBox.height)
 
-  // L'aura du combo passe sous les révélations.
+  // L'aura du combo passe sous les révélations, et les points jaillissent par-dessus.
   const comboActive = playing && state.combo !== null
   const overlay = useCallback(
     (projection: BoardProjection) => (
       <>
         <ComboAura active={comboActive} layout={layout} projection={projection} />
         <RevealLayer result={state.lastResult} layout={layout} projection={projection} />
+        <ScorePopLayer
+          result={state.lastResult}
+          layout={layout}
+          projection={projection}
+          boost={scoreBoost}
+        />
       </>
     ),
-    [comboActive, state.lastResult, layout],
+    [comboActive, state.lastResult, layout, scoreBoost],
   )
 
   return (

@@ -6,6 +6,7 @@ import { PauseOverlay } from '@/components/game/overlays'
 import { Piano, type PianoFeedback } from '@/components/game/piano'
 import { useBoardFit } from '@/components/game/useBoardFit'
 import { useBoardImpact } from '@/components/game/useBoardImpact'
+import { ScorePopLayer, scorePopTone, type ScorePopTone } from '@/components/game/score-pops'
 import { RevealLayer } from '@/effects'
 import { COMBO_AURA, COMBO_FIRE_AURA, ComboAura } from '@/effects/ambient'
 import { gameCoinKey, useCoinReward } from '@/game/coins'
@@ -195,6 +196,15 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
     })
   }
   const reveal = revealed.result
+  // Points jaillis d'une note bonus : ambrés, comme elle a volé (sauf coup critique).
+  const popToneOf = useCallback(
+    (result: GuessResult): ScorePopTone => {
+      const tone = scorePopTone(result)
+      const bonus = notes.some((note) => note.id === result.challenge.id && note.bonus)
+      return bonus && tone !== 'crit' ? 'assist' : tone
+    },
+    [notes],
+  )
   // Le piano s'allume comme en partie classique : touche jouée, juste ou fausse,
   // et la bonne note sur une erreur ou un raté.
   const pianoFeedback = useMemo<PianoFeedback | null>(
@@ -242,9 +252,10 @@ export function BossScreen({ modeSwitch, className }: BossScreenProps) {
           floorRef={touch ? pianoRef : undefined}
         />
         <RevealLayer result={reveal} layout={layout} projection={projection} />
+        <ScorePopLayer result={reveal} layout={layout} projection={projection} toneOf={popToneOf} />
       </>
     ),
-    [tier, auraConfig, state, reveal, layout, touch, pianoRef],
+    [tier, auraConfig, state, reveal, layout, touch, pianoRef, popToneOf],
   )
 
   // Annonce de chaque note à son départ, au moment où elle paraît à l'écran (soit
