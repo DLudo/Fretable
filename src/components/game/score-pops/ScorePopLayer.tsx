@@ -21,7 +21,10 @@ export interface ScorePopLayerProps {
   result: GuessResult | null
   layout: NeckLayout
   projection: BoardProjection
-  /** Multiplicateur d'affichage (lampes en surchauffe), comme le score du HUD. */
+  /**
+   * Multiplicateur d'affichage (lampes en surchauffe), comme le score du HUD :
+   * au-delà de 1, chaque nombre s'entoure d'un halo orangé.
+   */
   boost?: number
   /** Teinte d'une réponse (par défaut `scorePopTone`) : le boss y ajoute ses notes bonus. */
   toneOf?: (result: GuessResult) => ScorePopTone
@@ -34,6 +37,8 @@ interface Pop {
   y: number
   value: number
   tone: ScorePopTone
+  /** Lampes en surchauffe : halo orangé. */
+  heated: boolean
   motion: ScorePopMotion
 }
 
@@ -58,6 +63,14 @@ const TONE_STYLE: Record<ScorePopTone, CSSProperties> = {
 const OUTLINE =
   'drop-shadow(0 2px 0 rgb(0 0 0 / 0.85)) drop-shadow(0 0 1px rgb(0 0 0)) drop-shadow(0 0 1px rgb(0 0 0))'
 const CRIT_FILTER = `${OUTLINE} drop-shadow(0 0 12px var(--combo-fire-glow))`
+/** Lampes en surchauffe : halo orangé autour de chaque nombre, plus ardent au critique. */
+const HEAT_FILTER = `${OUTLINE} drop-shadow(0 0 4px var(--combo-fire)) drop-shadow(0 0 12px var(--combo-fire-glow))`
+const HEATED_CRIT_FILTER = `${OUTLINE} drop-shadow(0 0 6px var(--combo-fire)) drop-shadow(0 0 22px var(--combo-fire-glow))`
+
+function popFilter(crit: boolean, heated: boolean): string {
+  if (heated) return crit ? HEATED_CRIT_FILTER : HEAT_FILTER
+  return crit ? CRIT_FILTER : OUTLINE
+}
 
 /**
  * Place (px) entre le haut du calque et celui de la scène (le `main` de l'écran,
@@ -120,6 +133,7 @@ export function ScorePopLayer({
         y,
         value: result.points * boost,
         tone,
+        heated: boost > 1,
         motion: scorePopMotion(result.id, markerSize, tone, headroom + y),
       }
       setPops((list) => [...list, pop])
@@ -153,7 +167,7 @@ function ScorePop({
   reducedMotion: boolean
   onDone: (id: number) => void
 }) {
-  const { x, y, value, tone, motion: path } = pop
+  const { x, y, value, tone, heated, motion: path } = pop
   const crit = tone === 'crit'
   const done = () => onDone(pop.id)
   const { durationS } = path
@@ -183,6 +197,7 @@ function ScorePop({
     <motion.div
       data-slot="score-pop"
       data-tone={tone}
+      data-heated={heated || undefined}
       className="absolute size-0 overflow-visible"
       style={{ left: x, top: y }}
       {...flight}
@@ -196,7 +211,7 @@ function ScorePop({
       <motion.span
         data-slot="score-pop-value"
         className="absolute bottom-0 left-0 flex -translate-x-1/2 flex-col items-center leading-none font-black tracking-tight whitespace-nowrap tabular-nums"
-        style={{ fontSize: path.fontSize, filter: crit ? CRIT_FILTER : OUTLINE }}
+        style={{ fontSize: path.fontSize, filter: popFilter(crit, heated) }}
         {...burst}
         transition={{
           duration: durationS,
