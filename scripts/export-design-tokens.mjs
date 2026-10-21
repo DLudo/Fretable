@@ -251,6 +251,14 @@ const tokens = {
     caption: text('sans', 'xs', 'normal'),
     kbd: text('mono', 'xs', 'medium'),
     'score-pop': text('sans', '2xl', 'black', { lineHeight: '24px', letterSpacing: '-0.6px' }),
+    // Hors échelle : tailles propres au piano et aux pastilles du bandeau.
+    'key-name': text('sans', 'base', 'semibold', { lineHeight: '16px', letterSpacing: '-0.4px' }),
+    'key-name-sharp': text('sans', 'sm', 'semibold', {
+      fontSize: '12.5px',
+      lineHeight: '12.5px',
+      letterSpacing: '-0.3px',
+    }),
+    chip: text('sans', 'xs', 'bold', { fontSize: '11.2px', lineHeight: '11.2px' }),
   },
   radius: {
     sm: px(radius - 4),
@@ -260,8 +268,12 @@ const tokens = {
     '2xl': px(16),
     full: px(9999),
   },
+  // Nommés en pixels : le point est interdit dans un nom de jeton (DTCG) comme de variable Figma.
   spacing: Object.fromEntries(
-    [0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 12, 16].map((step) => [String(step), px(step * 4)]),
+    [0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 12, 16].map((step) => [
+      String(step * 4),
+      px(step * 4),
+    ]),
   ),
   shadow: {
     'combo-glow': glow(12, '{color.combo.combo-glow}'),
@@ -277,3 +289,15 @@ mkdirSync(resolve(root, dirname(OUT)), { recursive: true })
 writeFileSync(resolve(root, OUT), `${JSON.stringify(tokens, null, 2)}\n`)
 const count = Object.values(color).reduce((n, group) => n + Object.keys(group).length, 0)
 console.log(`${OUT} : ${count} couleurs, ${Object.keys(tokens.typography).length} styles de texte.`)
+
+/* — Plugin Figma : les jetons et la géométrie du manche, injectés devant son code — */
+
+const PLUGIN = 'design/figma-plugin/code.js'
+const plugin = readFileSync(resolve(root, 'design/figma-plugin/plugin.js'), 'utf8')
+const neck = readFileSync(resolve(root, 'design/figma-plugin/neck.json'), 'utf8').trim()
+writeFileSync(
+  resolve(root, PLUGIN),
+  `// Généré par scripts/export-design-tokens.mjs depuis plugin.js : ne pas éditer à la main.\n` +
+    `const TOKENS = ${JSON.stringify(tokens)}\nconst NECK = ${neck}\n\n${plugin}`,
+)
+console.log(`${PLUGIN} : plugin Figma prêt à importer (manifest.json).`)

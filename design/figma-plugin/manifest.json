@@ -1,0 +1,9 @@
+{
+  "name": "Fretable — design system",
+  "id": "fretable-design-system",
+  "api": "1.0.0",
+  "main": "code.js",
+  "editorType": ["figma"],
+  "documentAccess": "dynamic-page",
+  "networkAccess": { "allowedDomains": ["none"] }
+}
