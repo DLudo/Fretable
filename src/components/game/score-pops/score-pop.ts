@@ -13,17 +13,9 @@ import { range, seededRandom } from '@/lib/random'
  */
 export type ScorePopTone = 'crit' | 'fire' | 'combo' | 'triad' | 'scale' | 'assist' | 'normal'
 
-/**
- * Coup critique : réponse juste en 0,5 s ou moins (le palier des 1 000 points).
- * Les notes du parcours de gamme, payées au forfait, n'en sont jamais.
- */
+/** Coup critique : réponse juste en 0,5 s ou moins (le palier des 1 000 points). */
 export function isCriticalHit(result: GuessResult): boolean {
-  return (
-    result.correct &&
-    result.bonus !== 'scale' &&
-    result.reactionMs !== null &&
-    result.reactionMs <= SCORING.criticalMs
-  )
+  return result.correct && result.reactionMs !== null && result.reactionMs <= SCORING.criticalMs
 }
 
 /** Teinte d'une bonne réponse : le coup critique l'emporte sur tout le reste. */

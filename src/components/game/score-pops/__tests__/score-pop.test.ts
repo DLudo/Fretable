@@ -27,8 +27,8 @@ describe('nombres flottants', () => {
     expect(isCriticalHit(answer({ reactionMs: SCORING.criticalMs }))).toBe(true)
     expect(isCriticalHit(answer({ reactionMs: SCORING.criticalMs + 1 }))).toBe(false)
     expect(isCriticalHit(answer({ reactionMs: 200, correct: false }))).toBe(false)
-    // Les notes du parcours de gamme sont payées au forfait.
-    expect(isCriticalHit(answer({ reactionMs: 200, bonus: 'scale' }))).toBe(false)
+    // Les notes du parcours de gamme se paient au même barème.
+    expect(isCriticalHit(answer({ reactionMs: 200, bonus: 'scale' }))).toBe(true)
   })
 
   it('prennent la teinte de ce qui a multiplié les points', () => {

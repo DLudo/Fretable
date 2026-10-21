@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { SCALE_RULES, TRIAD_RULES } from '@/game/config'
+import { SCALE_RULES, SCORING, TRIAD_RULES } from '@/game/config'
 import { rateGame, retainedScore } from '@/game/engine/rating'
 import { gameReducer } from '@/game/engine/reducer'
+import { basePoints } from '@/game/engine/scoring'
 import { deadlineAt, scaleNoteDeadlineAt } from '@/game/engine/selectors'
 import { planTriad, scaleChallenge, triadChallenge } from '@/game/engine/triad'
 import type { GameState, TriadPlan } from '@/game/engine/types'
@@ -143,7 +144,7 @@ describe('parcours de gamme en partie', () => {
       hits: shape.notes.length - 1,
       total: shape.notes.length,
       perfect: false,
-      points: (shape.notes.length - 1) * SCALE_RULES.pointsPerNote,
+      points: (shape.notes.length - 1) * basePoints(300),
     })
     // Le temps reprend, repoussé de la durée de la pause.
     expect(s.pausedAt).toBeNull()
@@ -212,9 +213,24 @@ describe('parcours de gamme en partie', () => {
     let s = running
     const scoreBefore = s.score
     for (let i = 0; i < shape.notes.length; i++) s = play(s, 300)
-    const expected = shape.notes.length * SCALE_RULES.pointsPerNote + SCALE_RULES.perfectBonus
+    const expected = shape.notes.length * basePoints(300) + SCALE_RULES.perfectBonus
     expect(s.lastScaleRun).toMatchObject({ perfect: true, points: expected })
     expect(s.score - scoreBefore).toBe(expected)
+  })
+
+  it('paie chaque note au barème de son temps de réaction, sans multiplicateur', () => {
+    const shownAt = running.challengeShownAt!
+    const pc = running.challenge!.pc
+    const answerIn = (ms: number) =>
+      gameReducer(running, { type: 'guess', pc, now: shownAt + ms }).lastResult
+    expect(answerIn(SCORING.criticalMs)).toMatchObject({
+      points: SCORING.criticalPoints,
+      multiplier: 1,
+    })
+    expect(answerIn(1500)).toMatchObject({ points: basePoints(1500), multiplier: 1 })
+    expect(basePoints(1500)).toBeLessThan(SCORING.criticalPoints)
+    // Le combo, allumé pendant la triade, ne double pas le parcours.
+    expect(running.combo).not.toBeNull()
   })
 
   it('reste hors de la notation : ni ses points, ni sa pause', () => {

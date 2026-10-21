@@ -144,8 +144,8 @@ export const SCALE_RULES = {
    * pentatonique ; une liste vide coupe le parcours (la triade reste).
    */
   kinds: ['pentatonic'] as readonly 'pentatonic'[],
-  /** Points par note juste du parcours. */
-  pointsPerNote: 150,
+  // Chaque note juste se paie au barème des réponses (`SCORING`), selon son
+  // temps de réaction, sans multiplicateur : le combo traverse le parcours, figé.
   /**
    * Délai de chaque note du parcours (ms), égrené par un anneau comme celui des
    * triades : le temps de la partie est suspendu, mais pas celui des notes.
@@ -275,7 +275,7 @@ export const ITEM_RULES = {
    * partie (voir `maxClassicScore`) : elles ne rapportent jamais plus de pièces
    * qu'elles n'en coûtent, ce qu'un test vérifie à chaque changement de réglage.
    */
-  lamps: { price: 10_000, scoreMultiplier: 2 },
+  lamps: { price: 15_000, scoreMultiplier: 2 },
   /**
    * Tête d'ampli 50 watts, permanente : la jauge du combo gagne 2 s, à son
    * déclenchement comme en capacité (voir `COMBO_RULES`).

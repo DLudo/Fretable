@@ -427,8 +427,9 @@ function advanceTriad(
 }
 
 /**
- * Réponse à une note du parcours de gamme : des points si elle est juste, rien
- * sinon (ni sur une fausse note, ni quand son anneau se vide, `pc` nul), et le
+ * Réponse à une note du parcours de gamme : juste, elle se paie au barème de son
+ * temps de réaction, comme toute réponse, mais sans multiplicateur ; rien sinon
+ * (ni sur une fausse note, ni quand son anneau se vide, `pc` nul), et le
  * parcours continue jusqu'au bout. Ni progression, ni série, ni
  * erreur comptée pour la partie, ni combo : sa jauge reste figée. À la dernière note, le supplément d'un
  * parcours sans faute s'ajoute et le temps reprend.
@@ -441,7 +442,9 @@ function guessScaleNote(
 ): GameState {
   const challenge = state.challenge!
   const correct = pc !== null && pc === challenge.pc
-  const points = correct ? SCALE_RULES.pointsPerNote : 0
+  // Anneau vide : pas de réponse, comme un temps écoulé (la bonne note est révélée).
+  const reactionMs = pc === null ? null : Math.max(0, now - (state.challengeShownAt ?? now))
+  const points = correct && reactionMs !== null ? basePoints(reactionMs) : 0
   const result: GuessResult = {
     id: challenge.id,
     challenge,
@@ -449,8 +452,7 @@ function guessScaleNote(
     correct,
     streak: state.streak,
     at: now,
-    // Anneau vide : pas de réponse, comme un temps écoulé (la bonne note est révélée).
-    reactionMs: pc === null ? null : Math.max(0, now - (state.challengeShownAt ?? now)),
+    reactionMs,
     basePoints: points,
     multiplier: 1,
     points,

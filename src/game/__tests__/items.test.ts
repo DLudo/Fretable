@@ -62,12 +62,13 @@ describe('inventaire', () => {
 
   it('achète un consommable : le prix est débité et la réserve grossit', () => {
     expect(buyItem('lamps')).toBe('insufficient')
-    fund(25_000)
+    const funds = 2.5 * ITEM_RULES.lamps.price
+    fund(funds)
     expect(buyItem('lamps')).toBe('bought')
     expect(buyItem('lamps')).toBe('bought')
     expect(buyItem('lamps')).toBe('insufficient')
     const wallet = readWallet()
-    expect(wallet.balance).toBe(25_000 - 2 * ITEM_RULES.lamps.price)
+    expect(wallet.balance).toBe(funds - 2 * ITEM_RULES.lamps.price)
     expect(ownedCount(wallet.inventory, 'lamps')).toBe(2)
   })
 
@@ -83,7 +84,7 @@ describe('inventaire', () => {
   it('active un consommable pour la prochaine partie, qui en consomme un', () => {
     setArmed('lamps', true)
     expect(isArmed(readWallet().inventory, 'lamps')).toBe(false) // aucune en réserve
-    fund(20_000)
+    fund(2 * ITEM_RULES.lamps.price)
     buyItem('lamps')
     buyItem('lamps')
     setArmed('lamps', true)
