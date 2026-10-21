@@ -289,15 +289,3 @@ mkdirSync(resolve(root, dirname(OUT)), { recursive: true })
 writeFileSync(resolve(root, OUT), `${JSON.stringify(tokens, null, 2)}\n`)
 const count = Object.values(color).reduce((n, group) => n + Object.keys(group).length, 0)
 console.log(`${OUT} : ${count} couleurs, ${Object.keys(tokens.typography).length} styles de texte.`)
-
-/* — Plugin Figma : les jetons et la géométrie du manche, injectés devant son code — */
-
-const PLUGIN = 'design/figma-plugin/code.js'
-const plugin = readFileSync(resolve(root, 'design/figma-plugin/plugin.js'), 'utf8')
-const neck = readFileSync(resolve(root, 'design/figma-plugin/neck.json'), 'utf8').trim()
-writeFileSync(
-  resolve(root, PLUGIN),
-  `// Généré par scripts/export-design-tokens.mjs depuis plugin.js : ne pas éditer à la main.\n` +
-    `const TOKENS = ${JSON.stringify(tokens)}\nconst NECK = ${neck}\n\n${plugin}`,
-)
-console.log(`${PLUGIN} : plugin Figma prêt à importer (manifest.json).`)

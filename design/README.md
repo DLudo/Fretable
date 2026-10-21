@@ -18,25 +18,21 @@
 
 Les couleurs OKLCH et les mélanges `color-mix()` du code sont convertis en hexadécimal sRGB, alpha compris (`#fafafa1a`). Un jeton qui renvoie simplement à un autre reste un alias (`{color.ui.foreground}`) : dans Figma, les variables se référencent comme dans le CSS. Quelques teintes très saturées (orangé du combo enflammé) débordent légèrement du sRGB : Figma les affiche telles qu'un écran sRGB les rend, un peu moins vives que sur un écran P3.
 
-## Le plugin Fretable (recommandé)
+## Le fichier Figma « Neckslayer »
 
-`figma-plugin/` contient un plugin Figma qui construit tout le design system dans le fichier ouvert, sans autre outil :
+Le design system est déployé dans le fichier Figma [Neckslayer](https://www.figma.com/design/OgkVTaLhTcqGSCWfj60nHP), construit à partir de ces jetons :
 
-- **Variables** : la collection « Fretable · Couleurs », avec un mode **Sombre** et un mode **Érable** (la touche claire), alias compris, et la collection « Fretable · Dimensions » (rayons, espacements) ;
-- **Styles** : quatorze styles de texte et quatre halos « Fretable/… », couleurs liées aux variables ;
+- **Variables** : « Fretable · Couleurs » (alias compris, portées et syntaxe CSS `var(--…)` renseignées) et « Fretable · Dimensions » (rayons, espacements) ;
+- **Styles** : quatorze styles de texte en Geist et Geist Mono, et quatre halos « Fretable/… », couleurs liées aux variables ;
 - **Fondations** : nuancier, typographie, rayons et halos ;
 - **Composants** : bouton (primaire, contour, fantôme), pastille (combo, combo enflammé, triade, coup de pouce), panneau, solde de pièces, bandeau (ordinateur et téléphone), manche, repère et piano (ordinateur et téléphone) ;
-- **Trame** : accueil et partie sur ordinateur (1280 × 800) et téléphone en paysage (844 × 390), plus l'avant-partie et son panneau « Commencer ». Bandeau, manche et piano y sont posés aux positions mesurées sur le prototype ; le manche reprend sa géométrie exacte (`neck.json`).
+- **Trame** : accueil et partie sur ordinateur (1280 × 800) et téléphone en paysage (844 × 390), plus l'avant-partie et son panneau « Commencer ». Bandeau, manche et piano y sont posés aux positions mesurées sur le prototype, et le manche reprend sa géométrie exacte.
 
-Pour l'installer, dans l'**application de bureau** Figma (les plugins en développement n'y tournent que là) : menu **Plugins → Development → Import plugin from manifest…** (libellés de l'interface anglaise), puis choisir `design/figma-plugin/manifest.json`. On le lance ensuite depuis **Plugins → Development → Fretable — design system**.
-
-Chaque exécution met à jour les variables et les styles : relancez-le après `npm run tokens` pour que Figma suive le code. Les trois pages ne sont créées que si aucune n'existe encore ; supprimez-les pour les régénérer, vos autres pages ne sont jamais touchées. Sur le forfait gratuit de Figma, une collection n'a qu'un mode : le mode Érable n'est alors pas créé. Si Geist ou Geist Mono manquent (elles sont normalement disponibles dans Figma), Inter les remplace, et le message de fin le signale.
-
-`code.js` est généré par `npm run tokens` à partir de `plugin.js`, des jetons et de `neck.json` : modifiez `plugin.js`, jamais `code.js`.
+Le fichier appartient à une équipe au forfait gratuit, où une collection n'a qu'un mode : la touche en érable (`preset.maple`) n'y est pas une variante des couleurs. Quand les jetons changent, la collection se met à jour à partir de `fretable.tokens.json`, via le connecteur Figma de Claude ou Tokens Studio.
 
 ## Import avec Tokens Studio
 
-Pour n'importer que les jetons, avec le plugin **Tokens Studio for Figma** :
+Pour importer les jetons dans un autre fichier, avec le plugin **Tokens Studio for Figma** :
 
 1. Dans les réglages du plugin, choisir le format de jetons **W3C DTCG**.
 2. Charger `fretable.tokens.json` : depuis un fichier, ou mieux, en synchronisant le plugin avec ce dépôt GitHub (chemin `design/fretable.tokens.json`), pour que Figma suive le code.
