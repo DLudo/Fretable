@@ -259,6 +259,10 @@ const tokens = {
       letterSpacing: '-0.3px',
     }),
     chip: text('sans', 'xs', 'bold', { fontSize: '11.2px', lineHeight: '11.2px' }),
+    // Inventaire : nom d'objet, montants et réserve, badge « Installée ».
+    'item-name': text('sans', 'base', 'semibold', { lineHeight: '20px' }),
+    strong: text('sans', 'sm', 'semibold'),
+    badge: text('sans', 'xs', 'medium'),
   },
   radius: {
     sm: px(radius - 4),

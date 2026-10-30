@@ -616,6 +616,36 @@
         "lineHeight": "11.2px",
         "letterSpacing": "0px"
       }
+    },
+    "item-name": {
+      "$type": "typography",
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": "{font.size.base}",
+        "fontWeight": "{font.weight.semibold}",
+        "lineHeight": "20px",
+        "letterSpacing": "0px"
+      }
+    },
+    "strong": {
+      "$type": "typography",
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": "{font.size.sm}",
+        "fontWeight": "{font.weight.semibold}",
+        "lineHeight": "20px",
+        "letterSpacing": "0px"
+      }
+    },
+    "badge": {
+      "$type": "typography",
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": "{font.size.xs}",
+        "fontWeight": "{font.weight.medium}",
+        "lineHeight": "16px",
+        "letterSpacing": "0px"
+      }
     }
   },
   "radius": {
